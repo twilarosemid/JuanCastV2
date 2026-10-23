@@ -1,0 +1,17 @@
+/* banners stack and crossfade ("mix") */
+.backdrop { position: fixed; inset: 0; height: 100vh; z-index: 0; overflow: hidden; }
+.slide {
+  position: absolute; inset: 0; opacity: 0;
+  background-size: cover; background-position: center;
+  transition: opacity 1.4s ease;
+}
+.slide.active { opacity: 1; }
+
+.hero { position: relative; z-index: 2; height: 100vh; }
+.dots { position: absolute; right: 5vw; bottom: 14vh; display: flex; gap: 10px; z-index: 3; }
+.dots button {
+  width: 10px; height: 10px; border-radius: 99px; border: 0; padding: 0;
+  background: rgba(255,255,255,.4); cursor: pointer;
+  transition: width .4s, background .4s;
+}
+.dots button.on { width: 38px; background: #fff; }
