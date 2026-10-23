@@ -1,0 +1,4 @@
+/* opacity only: a transform here would break the fixed hero background */
+.page { animation: pageIn .35s ease both; }
+@keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page { animation: none; } }

@@ -1,0 +1,70 @@
+/* ================= market page (same shell as the Community page) ================= */
+.market-page {
+  display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px;
+  max-width: none; margin: 0; padding: 120px 0 80px 5vw; min-height: 100vh;
+}
+.mk-sidebar { position: sticky; top: 110px; align-self: start; }
+.mk-main { min-width: 0; padding-right: 5vw; }
+
+/* section switcher: sliding white bubble, same as the navbar */
+.mk-nav { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.mk-tab {
+  position: relative; z-index: 1; display: flex; align-items: center; min-height: 46px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .12); background: rgba(20, 24, 30, .3); color: var(--text);
+  font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
+  transition: color .3s ease, background .3s ease, border-color .3s ease, transform .2s;
+}
+.mk-tab:hover:not(.active) { background: rgba(255, 255, 255, .12); transform: translateX(4px); }
+.mk-tab:active { transform: scale(.97); }
+.mk-tab.active { background: transparent; color: #0b1220; border-color: transparent; }
+.mk-bubble {
+  position: absolute; top: 0; left: 0; z-index: 0; border-radius: 999px; background: #fff; pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+  transition: transform .4s cubic-bezier(.4, 0, .2, 1), width .4s cubic-bezier(.4, 0, .2, 1), height .4s cubic-bezier(.4, 0, .2, 1);
+}
+
+.mk-head { margin-bottom: 24px; animation: mkRise .5s cubic-bezier(.2, .7, .2, 1) backwards; }
+.mk-title { margin: 0 0 6px; font-size: clamp(24px, 3vw, 32px); font-weight: 800; }
+.mk-blurb { margin: 0; color: var(--muted); font-size: 15px; }
+.mk-section { animation: mkRise .55s cubic-bezier(.2, .7, .2, 1) backwards; }
+@keyframes mkRise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes mkCardIn { from { opacity: 0; transform: translateY(34px) scale(.96); } to { opacity: 1; transform: none; } }
+
+/* ---------- shared pieces used by every market section ---------- */
+.mk-card {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  padding: 24px 16px; border-radius: 18px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .09);
+  transition: transform .4s cubic-bezier(.2, .7, .2, 1), border-color .3s, box-shadow .4s;
+  animation: mkCardIn .65s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 70ms);
+}
+.mk-card:hover { transform: translateY(-8px); border-color: rgba(255, 255, 255, .22); box-shadow: 0 22px 44px rgba(0, 0, 0, .38); }
+.mk-price { margin-top: auto; padding-top: 18px; color: #7fb0ff; font-size: 19px; font-weight: 800; }
+
+.mk-panel {
+  padding: 22px 24px 24px; border-radius: 18px; background: rgba(20, 24, 30, .4);
+  border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px);
+}
+
+.mk-btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 26px; border: 0; border-radius: 999px;
+  background: #fff; color: #0b1220; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+  transition: transform .2s, box-shadow .3s, opacity .2s;
+}
+.mk-btn:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
+.mk-btn:active:not(:disabled) { transform: scale(.97); }
+.mk-btn:disabled { cursor: not-allowed; opacity: .6; }
+.mk-btn:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+
+.mk-note { margin: 18px 0 0; color: var(--muted); font-size: 13px; }
+.mk-status { margin: 0; color: var(--text); font-size: 14px; font-weight: 700; }
+
+@media (max-width: 860px) {
+  .market-page { grid-template-columns: 1fr; gap: 20px; padding: 150px 5vw 80px; }
+  .mk-main { padding-right: 0; }
+  .mk-sidebar { position: static; }
+  /* the four sections become one row of pills */
+  .mk-nav { flex-direction: row; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(20, 24, 30, .45); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .12); }
+  .mk-tab { flex: 1; justify-content: center; text-align: center; border-color: transparent; background: transparent; padding: 0 4px; font-size: 13px; }
+  .mk-tab:hover:not(.active) { transform: none; background: transparent; }
+  .mk-panel { padding: 18px 14px 20px; }
+}

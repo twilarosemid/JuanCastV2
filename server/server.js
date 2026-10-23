@@ -358,10 +358,103 @@ app.put('/api/users/follow', async (req, res) => {
   }
 });
 
+// Fields the client may keep in localStorage (no transactions, no internal counters)
+const publicUser = (profile) => ({
+  email: profile.email,
+  username: profile.username,
+  fullName: profile.fullName,
+  avatar: profile.avatar || '',
+  coverPhoto: profile.coverPhoto || '',
+  coverPosition: profile.coverPosition || { x: 50, y: 50 },
+  followers: profile.followers || [],
+  following: profile.following || [],
+  stars: profile.stars,
+  suns: profile.suns,
+  dailyStreak: profile.dailyStreak || 0,
+  lastClaimDate: profile.lastClaimDate || null,
+  createdAt: profile.createdAt || profile._id.getTimestamp()
+});
+
+// Edit profile: name (7-day cooldown), @username (30-day cooldown), avatar, cover photo
+app.put('/api/users/update-profile', async (req, res) => {
+  try {
+    const { email, fullName, username, avatar, coverPhoto, coverPosition } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required.' });
+
+    const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
+    if (!profile) return res.status(404).json({ message: 'Profile not found.' });
+
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const daysLeft = (last, days) => Math.ceil((days * DAY - (now - last)) / DAY);
+
+    const nextName = typeof fullName === 'string' ? fullName.trim() : profile.fullName;
+    if (!nextName) return res.status(400).json({ message: 'Full name is required.' });
+    if (nextName.length > 80) return res.status(400).json({ message: 'Full name is too long.' });
+    if (nextName !== profile.fullName) {
+      if (profile.lastNameChange && now - profile.lastNameChange < 7 * DAY) {
+        return res.status(429).json({ message: `You can change your name again in ${daysLeft(profile.lastNameChange, 7)} day(s).` });
+      }
+      profile.fullName = nextName;
+      profile.lastNameChange = now;
+    }
+
+    const nextUsername = typeof username === 'string' ? username.replace(/^@/, '').trim() : profile.username;
+    if (!/^[a-zA-Z0-9._]{3,30}$/.test(nextUsername)) {
+      return res.status(400).json({ message: 'Username must be 3-30 characters: letters, numbers, dots or underscores.' });
+    }
+    let oldUsername = null;
+    if (nextUsername !== profile.username) {
+      if (profile.lastUsernameChange && now - profile.lastUsernameChange < 30 * DAY) {
+        return res.status(429).json({ message: `You can change your @username again in ${daysLeft(profile.lastUsernameChange, 30)} day(s).` });
+      }
+      const taken = await Profile.findOne({
+        username: { $regex: `^${escapeRegex(nextUsername)}$`, $options: 'i' },
+        _id: { $ne: profile._id }
+      });
+      if (taken) return res.status(400).json({ message: 'Username is already taken.' });
+      oldUsername = profile.username;
+      profile.username = nextUsername;
+      profile.lastUsernameChange = now;
+    }
+
+    if (typeof avatar === 'string') profile.avatar = avatar;
+    if (typeof coverPhoto === 'string') profile.coverPhoto = coverPhoto;
+    if (coverPosition && Number.isFinite(coverPosition.x) && Number.isFinite(coverPosition.y)) {
+      const clamp = (n) => Math.max(0, Math.min(100, n));
+      profile.coverPosition = { x: clamp(coverPosition.x), y: clamp(coverPosition.y) };
+    }
+
+    await profile.save();
+
+    // keep old posts, replies, likes, follows and notifications attached to the renamed account
+    if (oldUsername) {
+      const oldHandle = `@${oldUsername}`;
+      const newHandle = `@${profile.username}`;
+      try {
+        await Post.updateMany({ user: oldHandle }, { $set: { user: newHandle } });
+        await Post.updateMany({ 'replies.user': oldHandle }, { $set: { 'replies.$[r].user': newHandle } }, { arrayFilters: [{ 'r.user': oldHandle }] });
+        await Post.updateMany({ likes: oldHandle }, { $set: { 'likes.$[l]': newHandle } }, { arrayFilters: [{ l: oldHandle }] });
+        await Profile.updateMany({ followers: oldHandle }, { $set: { 'followers.$[f]': newHandle } }, { arrayFilters: [{ f: oldHandle }] });
+        await Profile.updateMany({ following: oldHandle }, { $set: { 'following.$[f]': newHandle } }, { arrayFilters: [{ f: oldHandle }] });
+        await Notification.updateMany({ recipient: normalizeHandle(oldUsername) }, { $set: { recipient: normalizeHandle(profile.username) } });
+        await Notification.updateMany({ actor: oldHandle }, { $set: { actor: newHandle } });
+      } catch (cascadeError) {
+        console.error('Username changed, but updating old posts failed:', cascadeError);
+      }
+    }
+
+    res.status(200).json(publicUser(profile));
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Failed to update profile.' });
+  }
+});
+
 // Process Daily Claim
 app.post('/api/users/daily-claim', async (req, res) => {
   try {
-    const { email, dayClaimed, rewardValue, currency } = req.body;
+    const { email } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required." });
 
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
@@ -396,15 +489,9 @@ app.post('/api/users/daily-claim', async (req, res) => {
     const previousStars = profile.stars;
     const previousSuns = profile.suns;
 
-    // Allocate rewards
-    if (currency === 'STARS') {
-        profile.stars += rewardValue;
-    } else if (currency === 'SUNS') {
-        profile.suns += rewardValue;
-    } else if (currency === 'BOTH') {
-        profile.stars += rewardValue.stars || 0;
-        profile.suns += rewardValue.suns || 0;
-    }
+    // Allocate rewards: the amount comes from the streak day, never from the request
+    const DAILY_REWARDS = [50, 100, 250, 400, 650, 800, 1000];
+    profile.stars += DAILY_REWARDS[profile.dailyStreak - 1] || 0;
 
     profile.lastClaimDate = now;
     const rewardChanges = [];
@@ -420,7 +507,7 @@ app.post('/api/users/daily-claim', async (req, res) => {
     if (profile.transactions.length > 200) profile.transactions.splice(0, profile.transactions.length - 200);
     await profile.save();
 
-    res.status(200).json(profile);
+    res.status(200).json(publicUser(profile));
   } catch (error) {
     console.error("Daily claim error:", error);
     res.status(500).json({ error: "Internal server error while claiming reward." });

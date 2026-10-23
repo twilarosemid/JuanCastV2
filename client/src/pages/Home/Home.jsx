@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { getJSON } from '../../api';
-import Navbar from '../../components/Navbar/Navbar';
 import HeroCarousel from '../../components/HeroCarousel/HeroCarousel';
 import ScrollWash from '../../components/ScrollWash/ScrollWash';
 import RankingRow from '../../components/RankingRow/RankingRow';
 import PollsCarousel from '../../components/PollsCarousel/PollsCarousel';
-import ChikaGrid from '../../components/ChikaGrid/ChikaGrid';
+import Reveal from '../../components/Reveal/Reveal';
+import HomeFeed from '../../components/HomeFeed/HomeFeed';
 import './Home.css';
 
 export default function Home() {
@@ -23,12 +23,11 @@ export default function Home() {
       <HeroCarousel banners={banners} />
       <ScrollWash />
       <div className="vignette" />
-      <Navbar />
       <main>
         <div className="sheet">
-          <RankingRow />
-          <PollsCarousel />
-          <ChikaGrid />
+          <Reveal><RankingRow /></Reveal>
+          <Reveal delay={80}><PollsCarousel /></Reveal>
+          <HomeFeed />
           <div id="market" className="spacer" />
         </div>
       </main>

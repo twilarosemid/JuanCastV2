@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { img } from '../../api';
 import useDominantColor from '../../hooks/useDominantColor';
+import useScrollFade from '../../hooks/useScrollFade';
 import './HeroCarousel.css';
 
 export default function HeroCarousel({ banners }) {
   const [index, setIndex] = useState(0);
   const active = banners[index];
   const tint = useDominantColor(active ? img(active.imageUrl) : '');
+  const scrolled = useScrollFade();
 
   // page gradient follows the current banner
   useEffect(() => {
@@ -37,6 +39,7 @@ export default function HeroCarousel({ banners }) {
         ))}
       </div>
       <section className="hero" id="top">
+        <div className="scroll-cue" style={{ opacity: 1 - scrolled * 2 }} aria-hidden="true"><span /></div>
         <div className="dots">
           {banners.map((banner, n) => (
             <button

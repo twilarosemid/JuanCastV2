@@ -1,0 +1,64 @@
+.spin-panel { width: min(100%, 820px); }
+
+.spin-toolbar { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; }
+.spin-toolbar p { margin: 0; font-size: 17px; font-weight: 600; }
+.spin-more {
+  min-height: 32px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
+  background: rgba(47, 123, 255, .2); color: #9cc2ff; border: 1px solid rgba(47, 123, 255, .4);
+  transition: background .2s, transform .15s;
+}
+.spin-more:hover { background: rgba(47, 123, 255, .32); }
+.spin-more:active { transform: scale(.95); }
+
+.spin-machine { display: grid; width: min(100%, 750px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0 auto 22px; }
+.spin-slot {
+  display: grid; aspect-ratio: 1 / .95; min-width: 0; place-items: center; overflow: hidden;
+  border: 4px solid #0b1220; border-radius: 16px;
+  background: linear-gradient(180deg, #252b70 0%, #515eaa 34%, #8ae8f0 50%, #5a72bc 64%, #17234f 100%);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .4), inset 0 0 10px rgba(0, 0, 0, .3);
+  color: #fff; font-size: clamp(44px, 8vw, 74px); font-weight: 800; text-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+}
+.spin-slot.is-spinning .spin-roll { animation: spinRoll 160ms linear infinite; }
+@keyframes spinRoll {
+  from { transform: translateY(-55%); filter: blur(2px); }
+  to { transform: translateY(55%); filter: blur(2px); }
+}
+
+.spin-go { display: flex; width: min(100%, 190px); margin: 0 auto; }
+.spin-message { margin: 12px 0 0; font-size: 14px; font-weight: 700; text-align: center; }
+
+.spin-details { margin-top: 18px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.spin-details summary { width: fit-content; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 800; }
+.spin-details ul { margin: 6px 0 0; padding-left: 20px; line-height: 1.55; }
+
+/* buy-more-spins dialog (uses the shared animated Modal) */
+.modal.spin-modal { width: min(500px, 100%); }
+.spin-note {
+  margin: 8px 0 20px !important; padding: 10px 12px; border-left: 3px solid #ff3158; border-radius: 6px;
+  background: rgba(255, 255, 255, .06); font-size: 13px; line-height: 1.4;
+}
+.spin-note strong { color: #ff6b85; }
+.spin-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.spin-pack {
+  display: flex; min-width: 0; min-height: 128px; flex-direction: column; align-items: center; justify-content: center;
+  padding: 12px 6px; border-radius: 16px; font: inherit; color: var(--text); cursor: pointer;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12);
+  transition: transform .25s cubic-bezier(.2, .7, .2, 1), border-color .25s, box-shadow .3s;
+}
+.spin-pack:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, .3); box-shadow: 0 14px 28px rgba(0, 0, 0, .35); }
+.spin-pack:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+.spin-pack-amount { color: #7fb0ff; font-size: 27px; font-weight: 900; line-height: 1.05; }
+.spin-pack-label { margin-top: 3px; color: var(--muted); font-size: 13px; }
+.spin-pack-price { margin-top: 13px; font-size: 17px; font-weight: 800; }
+.modal .spin-purchase { margin: 16px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--text); }
+
+@media (max-width: 700px) {
+  .spin-machine { gap: 8px; }
+  .spin-slot { border-width: 3px; border-radius: 12px; font-size: clamp(38px, 12vw, 64px); }
+  .spin-details { font-size: 12px; }
+  .spin-toolbar { flex-wrap: wrap; }
+  .spin-packs { gap: 8px; }
+  .spin-pack { min-height: 112px; }
+  .spin-pack-amount { font-size: 22px; }
+  .spin-pack-price { font-size: 14px; }
+}

@@ -1,0 +1,23 @@
+.sc-balances { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.sc-balances span {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); font-size: 14px; font-weight: 700;
+}
+.sc-balances img { width: 20px; height: 20px; object-fit: contain; }
+
+.sc-form { display: flex; width: min(100%, 520px); flex-direction: column; gap: 12px; }
+.sc-rate { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px; font-size: 17px; }
+.sc-rate img { width: 24px; height: 24px; object-fit: contain; }
+.sc-form label { color: var(--muted); font-size: 13px; font-weight: 700; }
+.sc-form input {
+  width: 100%; min-height: 46px; padding: 0 16px; border-radius: 14px; font: inherit;
+  background: rgba(255, 255, 255, .08); color: var(--text); border: 1px solid rgba(255, 255, 255, .14);
+  transition: border-color .25s, box-shadow .25s;
+}
+.sc-form input::placeholder { color: rgba(169, 182, 211, .6); }
+.sc-form input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.sc-result { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(255, 255, 255, .1); color: var(--muted); font-size: 14px; }
+.sc-result strong { color: var(--text); font-size: 16px; }
+.sc-form .mk-status { text-align: center; }
+
+.sc-rules { width: min(100%, 520px); margin: 18px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.8; }

@@ -1,0 +1,53 @@
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px;
+  background: rgba(2, 6, 16, 0); backdrop-filter: blur(0);
+  transition: background .3s ease, backdrop-filter .3s ease;
+}
+.modal-overlay.show { background: rgba(2, 6, 16, .7); backdrop-filter: blur(6px); }
+.modal {
+  width: min(420px, 100%); padding: 26px; border-radius: 22px; color: var(--text);
+  background: rgba(14, 23, 48, .92); border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+  opacity: 0; transform: translateY(24px) scale(.94);
+  transition: opacity .25s ease, transform .4s cubic-bezier(.34, 1.4, .5, 1);
+}
+.modal-overlay.show .modal { opacity: 1; transform: none; }
+.modal h3 { margin: 0 0 8px; font-size: 22px; }
+.modal h3.success { color: #5fd38d; }
+.modal h3.error { color: #ff8a96; }
+.modal p { margin: 0 0 16px; color: var(--muted); }
+.modal label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; }
+.modal input {
+  width: 100%; min-height: 44px; padding: 0 14px; border-radius: 12px; font: inherit;
+  background: rgba(255, 255, 255, .08); color: var(--text); border: 1px solid rgba(255, 255, 255, .14);
+  transition: border-color .25s, box-shadow .25s;
+}
+.modal input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* +/- stepper */
+.stepper { display: flex; gap: 8px; }
+.stepper input { text-align: center; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper button {
+  flex: 0 0 44px; height: 44px; border-radius: 12px; font-size: 20px; font-weight: 700; cursor: pointer;
+  background: rgba(255, 255, 255, .08); color: var(--text); border: 1px solid rgba(255, 255, 255, .14);
+  transition: background .2s, transform .15s;
+}
+.stepper button:hover { background: rgba(255, 255, 255, .18); }
+.stepper button:active { transform: scale(.9); }
+
+/* animated result icon */
+.fb-icon { width: 64px; height: 64px; margin: 0 auto 14px; }
+.fb-icon svg { width: 100%; height: 100%; overflow: visible; }
+.fb-icon .ring { fill: none; stroke-width: 3; stroke-dasharray: 176; stroke-dashoffset: 176; animation: draw .6s ease forwards; }
+.fb-icon .mark { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw .4s ease .45s forwards; }
+.fb-icon.success { color: #5fd38d; animation: popIn .5s cubic-bezier(.34, 1.56, .64, 1) both; }
+.fb-icon.error { color: #ff8a96; animation: shake .55s ease .3s both; }
+.fb-icon .ring, .fb-icon .mark { stroke: currentColor; }
+.modal .center { text-align: center; }
+.modal .center .btn-solid { margin-top: 6px; }
+.feedback-message { white-space: pre-line; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes popIn { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(5px); } }

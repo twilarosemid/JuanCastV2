@@ -6,9 +6,14 @@
   position: relative; aspect-ratio: 2 / 3; border-radius: 14px; overflow: hidden;
   background-size: cover; background-position: center top;
   background-color: rgba(255,255,255,.08);
-  transition: transform .3s;
+  transition: transform .45s cubic-bezier(.2, .7, .2, 1), box-shadow .45s;
 }
-.poster:hover { transform: scale(1.02); }
+.poster:hover { transform: translateY(-8px) scale(1.03); box-shadow: 0 26px 50px rgba(0, 0, 0, .45); }
+/* the #1 poster breathes with a soft blue glow */
+.slot.r1 .poster { animation: glow 3.6s ease-in-out infinite; }
+.slot.flash .poster { animation: ringPulse 1.4s ease-out; }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,.25), 0 18px 50px rgba(47,123,255,.25); } 50% { box-shadow: 0 0 0 1px rgba(255,255,255,.5), 0 22px 70px rgba(47,123,255,.55); } }
+@keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(47,123,255,.9); } 100% { box-shadow: 0 0 0 28px rgba(47,123,255,0); } }
 .rank {
   position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 99px;
   font-size: 13px; font-weight: 700; background: rgba(0,0,0,.45); backdrop-filter: blur(8px);
@@ -21,15 +26,15 @@
 .vote {
   border: 0; border-radius: 999px; padding: 9px 20px; cursor: pointer;
   background: #fff; color: #0b1220; font-weight: 700; font-size: 14px;
-  transition: transform .2s;
 }
-.vote:hover { transform: scale(1.05); }
 
 .others { list-style: none; margin: 32px 0 0; padding: 0; }
 .others li {
   display: grid; grid-template-columns: 28px 40px 1fr auto auto; align-items: center; gap: 14px;
   padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.1);
 }
+.others .av { transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.others li:hover .av { transform: scale(1.12); }
 .others .n { color: var(--muted); font-weight: 700; }
 .others .av { width: 40px; height: 40px; border-radius: 50%; background-size: cover; background-position: center top; background-color: rgba(255,255,255,.1); }
 .others .nm { font-weight: 600; }

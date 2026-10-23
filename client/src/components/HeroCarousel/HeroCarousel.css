@@ -3,9 +3,10 @@
 .slide {
   position: absolute; inset: 0; opacity: 0;
   background-size: cover; background-position: center;
-  transition: opacity 1.4s ease;
+  transform: scale(1); transition: opacity 1.4s ease, transform 10s linear;
 }
-.slide.active { opacity: 1; }
+/* slow zoom while a banner is showing */
+.slide.active { opacity: 1; transform: scale(1.08); }
 
 .hero { position: relative; z-index: 2; height: 100vh; }
 .dots { position: absolute; right: 5vw; bottom: 14vh; display: flex; gap: 10px; z-index: 3; }
@@ -15,3 +16,10 @@
   transition: width .4s, background .4s;
 }
 .dots button.on { width: 38px; background: #fff; }
+
+.scroll-cue {
+  position: absolute; left: 50%; bottom: 7vh; width: 26px; height: 42px; margin-left: -13px;
+  border: 2px solid rgba(255,255,255,.6); border-radius: 99px; transition: opacity .2s;
+}
+.scroll-cue span { position: absolute; top: 8px; left: 50%; width: 4px; height: 8px; margin-left: -2px; border-radius: 4px; background: #fff; animation: wheel 1.8s ease-in-out infinite; }
+@keyframes wheel { 0% { opacity: 0; transform: translateY(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(14px); } }

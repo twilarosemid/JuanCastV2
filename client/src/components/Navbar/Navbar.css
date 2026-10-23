@@ -2,15 +2,92 @@ nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 10;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 5vw;
+  animation: navIn .7s cubic-bezier(.2, .7, .2, 1) backwards;
 }
-.logo { font-weight: 800; font-size: 22px; }
+@keyframes navIn { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+.logo { font-weight: 800; font-size: 22px; color: var(--text); text-decoration: none; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), letter-spacing .3s; }
+.logo:hover { transform: scale(1.06); letter-spacing: .02em; }
+
+/* one pill on the right: links | bell | account button (opens the menu) */
 .pill {
-  display: flex; gap: 4px; padding: 6px; border-radius: 999px;
-  background: rgba(255,255,255,.08); backdrop-filter: blur(14px);
-  border: 1px solid rgba(255,255,255,.1);
+  position: relative; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 999px;
+  background: rgba(20,24,30,.45); backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,.12);
 }
-.pill a {
-  padding: 9px 18px; border-radius: 999px; color: var(--text);
-  text-decoration: none; font-size: 14px; font-weight: 600;
+.links { position: relative; display: flex; align-items: center; gap: 4px; }
+.links a {
+  position: relative; z-index: 1; padding: 11px 20px; border-radius: 999px; color: var(--text);
+  text-decoration: none; font-size: 14px; font-weight: 600; transition: color .3s ease, background .3s ease;
 }
-.pill a.on { background: #fff; color: #0b1220; }
+.links a:not(.on):hover { background: rgba(255,255,255,.12); }
+.links a.on { color: #0b1220; }
+/* the white bubble that slides to the clicked link */
+.bubble {
+  position: absolute; top: 0; bottom: 0; left: 0; z-index: 0; border-radius: 999px; background: #fff;
+  transition: transform .4s cubic-bezier(.4, 0, .2, 1), width .4s cubic-bezier(.4, 0, .2, 1);
+}
+.divider { width: 1px; height: 24px; margin: 0 8px; background: rgba(255,255,255,.2); }
+
+.icon-btn, .avatar {
+  position: relative; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 50%; padding: 0;
+  color: var(--text); text-decoration: none; font: inherit; font-weight: 700;
+  background: transparent; border: 0; cursor: pointer;
+}
+.avatar { overflow: hidden; background: rgba(255,255,255,.12); }
+.avatar.open { background: #fff; color: #0b1220; }
+.icon-btn, .avatar { transition: background .25s, color .25s, transform .2s; }
+.icon-btn:hover, .avatar:hover { background: rgba(255,255,255,.2); }
+.icon-btn:active, .avatar:active { transform: scale(.9); }
+.bell { display: grid; transform-origin: 50% 0; }
+.icon-btn:hover .bell { animation: ring .7s ease; }
+@keyframes ring { 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 75% { transform: rotate(3deg); } }
+.avatar.open:hover { background: #fff; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.badge {
+  position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 99px; background: #e0334a; color: #fff; font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+  animation: badgePop .5s cubic-bezier(.34, 1.56, .64, 1) .6s backwards;
+}
+.badge::after { content: ''; position: absolute; inset: 0; border-radius: inherit; border: 2px solid #e0334a; animation: badgePing 2s ease-out infinite; }
+@keyframes badgePop { from { transform: scale(0); } }
+@keyframes badgePing { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.9); opacity: 0; } }
+
+/* dropdown under the pill */
+.menu {
+  position: absolute; top: calc(100% + 8px); right: 0; width: 280px; padding: 8px;
+  border-radius: 18px; background: rgba(10,16,30,.94); backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,.12); box-shadow: 0 18px 40px rgba(0,0,0,.4);
+  transform-origin: top right; opacity: 0; transform: translateY(-10px) scale(.95);
+  transition: opacity .2s ease, transform .3s cubic-bezier(.34, 1.4, .5, 1);
+}
+.menu.show { opacity: 1; transform: none; }
+/* items cascade in */
+.menu.show > * { animation: menuItem .35s cubic-bezier(.2, .7, .2, 1) backwards; }
+.menu.show > :nth-child(2) { animation-delay: .04s; }
+.menu.show > :nth-child(3) { animation-delay: .08s; }
+.menu.show > :nth-child(4) { animation-delay: .12s; }
+.menu.show > :nth-child(5) { animation-delay: .16s; }
+.menu.show > :nth-child(6) { animation-delay: .2s; }
+.menu.show > :nth-child(7) { animation-delay: .24s; }
+@keyframes menuItem { from { opacity: 0; transform: translateX(10px); } }
+.menu a, .menu button {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--text);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer;
+}
+.menu a, .menu button { transition: background .2s, transform .2s; }
+.menu a:hover, .menu button:hover { background: rgba(255,255,255,.1); transform: translateX(3px); }
+.menu-head { padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
+.sep { height: 1px; margin: 6px 8px; background: rgba(255,255,255,.12); }
+.count {
+  margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 99px;
+  background: #e0334a; color: #fff; font-size: 12px; font-weight: 700; text-align: center;
+}
+
+@media (max-width: 760px) {
+  nav { flex-wrap: wrap; row-gap: 12px; }
+  .pill { flex-wrap: wrap; justify-content: center; }
+  .menu { width: min(280px, 90vw); }
+}

@@ -1,0 +1,9 @@
+.atmos {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--tint) 40%, var(--bg)) 0%, var(--bg) 75%);
+}
+.orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .35; will-change: transform; }
+.o1 { width: 46vw; height: 46vw; top: -14vw; left: -8vw; background: var(--tint); animation: drift1 22s ease-in-out infinite alternate; }
+.o2 { width: 38vw; height: 38vw; bottom: -12vw; right: -8vw; background: var(--accent); opacity: .2; animation: drift2 26s ease-in-out infinite alternate; }
+@keyframes drift1 { to { transform: translate(14vw, 10vh) scale(1.15); } }
+@keyframes drift2 { to { transform: translate(-12vw, -12vh) scale(1.2); } }
