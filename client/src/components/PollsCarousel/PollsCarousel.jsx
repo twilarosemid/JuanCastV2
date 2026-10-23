@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { getJSON, img } from '../../api';
 import './PollsCarousel.css';
 
-// per distance from the center card: how far it sits, how big, how visible
+// per distance from the center card: how far it sits, how big, how faded
 const POS = [0, 92, 158];
 const SCALE = [1, 0.74, 0.54];
-const FADE = [1, 0.75, 0.4];
-const BLUR = [0, 1.5, 3];
+const FADE = [1, 0.5, 0.25];
 
 const fmt = (d) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -55,7 +54,6 @@ export default function PollsCarousel() {
                     ? 'translateX(-50%) scale(.4)'
                     : `translateX(calc(-50% + ${Math.sign(off) * POS[dist]}%)) scale(${SCALE[dist]})`,
                   opacity: far ? 0 : FADE[dist],
-                  filter: far ? 'none' : `blur(${BLUR[dist]}px)`,
                   zIndex: 10 - dist,
                   pointerEvents: far ? 'none' : 'auto'
                 }}
@@ -70,7 +68,7 @@ export default function PollsCarousel() {
                       {group?.imageUrl && <img src={img(group.imageUrl)} alt="" />}
                       {poll.group}
                     </span>
-                    <span className="type">★ {poll.type}</span>
+                    <span>{poll.type}</span>
                   </div>
                 </div>
               </article>

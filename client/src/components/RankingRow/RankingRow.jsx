@@ -2,20 +2,12 @@ import { useEffect, useState } from 'react';
 import { getJSON, img, getUser, castVote } from '../../api';
 import './RankingRow.css';
 
-// index = rank (0 = 1st place)
-const TIERS = [
-  { cls: 'gold', medal: '🥇' },
-  { cls: 'silver', medal: '🥈' },
-  { cls: 'bronze', medal: '🥉' }
-];
-
 const bg = (url) => (url ? { backgroundImage: `url("${img(url)}")` } : {});
 const fmt = (n) => Number(n || 0).toLocaleString();
 
 export default function RankingRow() {
   const [list, setList] = useState([]);
   const [title, setTitle] = useState('Top Rankings');
-  const [group, setGroup] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -32,7 +24,6 @@ export default function RankingRow() {
             (!settings.featuredGroup || r.group === settings.featuredGroup)
         );
       }
-      setGroup(settings.featuredGroup || '');
       setList([...items].sort((a, b) => a.position - b.position).slice(0, 10));
     })().catch(console.error);
   }, []);
@@ -50,41 +41,32 @@ export default function RankingRow() {
     }
   };
 
-  const leader = Math.max(1, list[0]?.voteCount || 1);
   const entries = list.slice(0, 3).map((item, rank) => ({ item, rank }));
   const ordered = [1, 0, 2].map((i) => entries[i]).filter(Boolean); // 2nd, 1st, 3rd
   const rest = list.slice(3);
 
   return (
-    <section className="ranking">
+    <section>
       <div className="section-head">
-        <div>
-          <span className="eyebrow">{group ? `${group} · ` : ''}Live ranking</span>
-          <h2 className="section-title" id="vote">{title}</h2>
-        </div>
+        <h2 className="section-title" id="vote">{title}</h2>
         <a href="#vote">View All</a>
       </div>
 
-      <div className="spot" />
       <div className="podium">
-        {ordered.map(({ item, rank }) => {
-          const tier = TIERS[rank];
-          return (
-            <div key={item._id} className={`slot ${tier.cls} r${rank + 1}`}>
-              <article className="poster" style={bg(item.imageUrl)}>
-                <span className="medal">{tier.medal}</span>
-                <div className="cap">
-                  <h3>{item.name}</h3>
-                  <small>{fmt(item.voteCount)} votes</small>
-                </div>
-              </article>
-              <div className="step">
-                <b>{rank + 1}</b>
-                <button onClick={() => vote(item)}>CAST VOTE</button>
-              </div>
+        {ordered.map(({ item, rank }) => (
+          <div key={item._id} className={`slot r${rank + 1}`}>
+            <div className="poster" style={bg(item.imageUrl)}>
+              <span className="rank">#{rank + 1}</span>
             </div>
-          );
-        })}
+            <div className="info">
+              <div>
+                <h3>{item.name}</h3>
+                <small>{fmt(item.voteCount)} votes</small>
+              </div>
+              <button className="vote" onClick={() => vote(item)}>Vote</button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {rest.length > 0 && (
@@ -94,11 +76,8 @@ export default function RankingRow() {
               <span className="n">{i + 4}</span>
               <span className="av" style={bg(item.imageUrl)} />
               <span className="nm">{item.name}</span>
-              <span className="bar">
-                <i style={{ width: `${Math.round(((item.voteCount || 0) / leader) * 100)}%` }} />
-              </span>
               <span className="vt">{fmt(item.voteCount)}</span>
-              <button onClick={() => vote(item)}>Vote</button>
+              <button className="vote" onClick={() => vote(item)}>Vote</button>
             </li>
           ))}
         </ol>
