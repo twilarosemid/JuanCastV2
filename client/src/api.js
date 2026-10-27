@@ -56,3 +56,24 @@ export const castVote = async (rankingId, user, cost = VOTE_COST) => {
   if (!res.ok) throw new Error(data.message || 'Vote failed');
   return data;
 };
+
+// ---------- admin ----------
+export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'admin');
+
+// Calls an admin-only endpoint. Sends the admin token that the server hands out at login.
+// Pass a FormData body for uploads (the browser sets its own Content-Type).
+export const adminFetch = async (path, options = {}) => {
+  const token = getUser()?.token;
+  const headers = { ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API}${path}`, { ...options, headers });
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  if (!res.ok) {
+    const err = new Error(data?.message || data?.error || `Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+};

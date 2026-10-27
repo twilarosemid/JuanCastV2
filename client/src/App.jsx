@@ -14,6 +14,7 @@ import Settings from './pages/Settings/Settings.jsx';
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword.jsx';
 import SignUp from './pages/SignUp/SignUp.jsx';
 import Placeholder from './pages/Placeholder/Placeholder.jsx';
+import Admin from './pages/Admin/Admin.jsx';
 import Atmosphere from './components/Atmosphere/Atmosphere';
 import ScrollProgress from './components/ScrollProgress/ScrollProgress';
 import './App.css';
@@ -49,6 +50,7 @@ function Shell() {
           <Route path="/profile/:username" element={<Profile />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/settings/*" element={<Settings />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<Placeholder title="Page not found" />} />
         </Routes>
       </div>

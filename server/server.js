@@ -120,6 +120,51 @@ const resolveAdminStatus = (user = {}) => {
   return Boolean(user.isAdmin) || role === 'admin' || getAdminEmails().includes(normalizedEmail);
 };
 
+// ---- ADMIN SESSION TOKENS ----
+// Signed with HMAC (built-in crypto, no extra package). Only admins receive one at login.
+// Set ADMIN_TOKEN_SECRET in .env / Render to use your own secret; otherwise one is derived from MONGO_URI.
+const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET
+  || crypto.createHash('sha256').update(`juancast-admin:${process.env.MONGO_URI || 'dev'}`).digest('hex');
+const ADMIN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const signToken = (body) => crypto.createHmac('sha256', ADMIN_TOKEN_SECRET).update(body).digest('base64url');
+
+const createAdminToken = (user) => {
+  const body = Buffer.from(JSON.stringify({ id: String(user._id), exp: Date.now() + ADMIN_TOKEN_TTL_MS })).toString('base64url');
+  return `${body}.${signToken(body)}`;
+};
+
+// Put in front of any route that only admins may use
+const requireAdmin = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const [body, sig] = token.split('.');
+    if (!body || !sig) return res.status(401).json({ message: 'Admin login required. Please log in again.' });
+
+    const expected = Buffer.from(signToken(body));
+    const given = Buffer.from(sig);
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      return res.status(401).json({ message: 'Invalid admin session. Please log in again.' });
+    }
+
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload.exp || payload.exp < Date.now()) {
+      return res.status(401).json({ message: 'Admin session expired. Please log in again.' });
+    }
+
+    const user = await User.findById(payload.id);
+    if (!user || !resolveAdminStatus(user)) {
+      return res.status(403).json({ message: 'This account is not an admin.' });
+    }
+
+    req.adminUser = user;
+    next();
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    res.status(401).json({ message: 'Admin login required. Please log in again.' });
+  }
+};
+
 // 2b. Define the Profile Schema (Public Info & Currency)
 const transactionChangeSchema = new mongoose.Schema({
   currency: { type: String, required: true },
@@ -993,7 +1038,7 @@ app.get('/api/chika', async (req, res) => {
   }
 });
 
-app.post('/api/chika', upload.single('image'), async (req, res) => {
+app.post('/api/chika', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, description, url } = req.body;
     if (!title || !description) {
@@ -1012,7 +1057,7 @@ app.post('/api/chika', upload.single('image'), async (req, res) => {
   }
 });
 
-app.put('/api/chika/:id', upload.single('image'), async (req, res) => {
+app.put('/api/chika/:id', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const article = await Chika.findById(req.params.id);
     if (!article) {
@@ -1032,7 +1077,7 @@ app.put('/api/chika/:id', upload.single('image'), async (req, res) => {
   }
 });
 
-app.delete('/api/chika/:id', async (req, res) => {
+app.delete('/api/chika/:id', requireAdmin, async (req, res) => {
   try {
     const removed = await Chika.findByIdAndDelete(req.params.id);
     if (!removed) {
@@ -1061,7 +1106,7 @@ app.get('/api/poll-groups', async (req, res) => {
   }
 });
 
-app.post('/api/poll-groups', upload.single('image'), async (req, res) => {
+app.post('/api/poll-groups', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: 'Group name is required.' });
@@ -1077,7 +1122,7 @@ app.post('/api/poll-groups', upload.single('image'), async (req, res) => {
   }
 });
 
-app.delete('/api/poll-groups/:id', async (req, res) => {
+app.delete('/api/poll-groups/:id', requireAdmin, async (req, res) => {
   try {
     await PollGroup.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: 'Group deleted.' });
@@ -1103,7 +1148,7 @@ app.get('/api/polls', async (req, res) => {
   }
 });
 
-app.post('/api/polls', upload.single('image'), async (req, res) => {
+app.post('/api/polls', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     // 1. Extract the new fields from req.body
     const { title, fromDate, toDate, group, type, description } = req.body;
@@ -1134,7 +1179,7 @@ app.post('/api/polls', upload.single('image'), async (req, res) => {
   }
 });
 
-app.put('/api/polls/:id', upload.single('image'), async (req, res) => {
+app.put('/api/polls/:id', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const poll = await Poll.findById(req.params.id);
     if (!poll) {
@@ -1171,7 +1216,7 @@ app.put('/api/polls/:id', upload.single('image'), async (req, res) => {
   }
 });
 
-app.delete('/api/polls/:id', async (req, res) => {
+app.delete('/api/polls/:id', requireAdmin, async (req, res) => {
   try {
     const removed = await Poll.findByIdAndDelete(req.params.id);
     if (!removed) {
@@ -1198,7 +1243,7 @@ app.get('/api/rankings', async (req, res) => {
   }
 });
 
-app.post('/api/rankings', upload.single('image'), async (req, res) => {
+app.post('/api/rankings', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, position, youtubeUrl, youtubeStartTime, group, category } = req.body; 
     
@@ -1282,7 +1327,7 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
   }
 });
 
-app.put('/api/rankings/:id', upload.single('image'), async (req, res) => {
+app.put('/api/rankings/:id', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const ranking = await Ranking.findById(req.params.id);
     if (!ranking) {
@@ -1310,7 +1355,7 @@ app.put('/api/rankings/:id', upload.single('image'), async (req, res) => {
   }
 });
 
-app.delete('/api/rankings/:id', async (req, res) => {
+app.delete('/api/rankings/:id', requireAdmin, async (req, res) => {
   try {
     await Ranking.findByIdAndDelete(req.params.id);
     await updateRankingPositions();
@@ -1524,7 +1569,8 @@ res.status(200).json({
           dailyStreak: profile?.dailyStreak ?? 0,
           lastClaimDate: profile?.lastClaimDate || null,
           isAdmin,
-          role: isAdmin ? 'admin' : (user.role || 'user')
+          role: isAdmin ? 'admin' : (user.role || 'user'),
+          ...(isAdmin ? { token: createAdminToken(user) } : {})
         }
       });
     } catch (error) {
@@ -1568,7 +1614,7 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 
-app.post('/api/videos', upload.single('image'), async (req, res) => {
+app.post('/api/videos', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, subtitle, group, platform, youtubeUrl } = req.body;
     const newVideo = await Video.create({
@@ -1586,7 +1632,7 @@ app.post('/api/videos', upload.single('image'), async (req, res) => {
   }
 });
 
-app.put('/api/videos/:id', upload.single('image'), async (req, res) => {
+app.put('/api/videos/:id', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: 'Video not found.' });
@@ -1603,6 +1649,19 @@ app.put('/api/videos/:id', upload.single('image'), async (req, res) => {
   } catch (error) {
     console.error('Error updating video:', error);
     res.status(500).json({ error: 'Failed to update video' });
+  }
+});
+
+// DELETE: remove a Content/video (admin only)
+app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid video ID.' });
+    const deleted = await Video.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Video not found.' });
+    res.status(200).json({ message: 'Video deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting video:', error);
+    res.status(500).json({ message: 'Failed to delete video.' });
   }
 });
 
@@ -1633,7 +1692,7 @@ app.get('/api/banners', async (req, res) => {
 });
 
 // POST: Upload and save a new banner
-app.post('/api/banners', (req, res) => {
+app.post('/api/banners', requireAdmin, (req, res) => {
   upload.single('image')(req, res, async (uploadError) => {
     if (uploadError) {
       console.error('Banner upload error:', uploadError);
@@ -1676,7 +1735,7 @@ app.post('/api/banners', (req, res) => {
 });
 
 // DELETE: Remove a banner from Admin Dashboard
-app.delete('/api/banners/:id', async (req, res) => {
+app.delete('/api/banners/:id', requireAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
@@ -1759,7 +1818,7 @@ app.post('/api/reports', upload.single('file'), async (req, res) => {
   }
 });
 
-app.put('/api/reports/:id/resolve', async (req, res) => {
+app.put('/api/reports/:id/resolve', requireAdmin, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ message: 'Report not found.' });
@@ -1806,7 +1865,7 @@ app.put('/api/reports/:id/resolve', async (req, res) => {
   }
 });
 
-app.post('/api/reports/:id/messages', async (req, res) => {
+app.post('/api/reports/:id/messages', requireAdmin, async (req, res) => {
   try {
     const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
     if (!message) return res.status(400).json({ message: 'A message is required.' });
@@ -1849,7 +1908,7 @@ app.post('/api/reports/:id/messages', async (req, res) => {
 });
 
 // Optional GET route if you want to view reports later in your Admin Dashboard
-app.get('/api/reports', async (req, res) => {
+app.get('/api/reports', requireAdmin, async (req, res) => {
   try {
     const reports = await Report.find({ resolved: { $ne: true } }).sort({ createdAt: -1 });
     res.status(200).json(reports.map((report) => ({
@@ -1882,7 +1941,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', requireAdmin, async (req, res) => {
   try {
     let settings = await Settings.findOne();
     if (!settings) settings = await Settings.create({});

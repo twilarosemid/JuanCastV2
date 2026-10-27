@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser } from '../../api';
+import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser, isAdminUser } from '../../api';
 import logoImg from '../../assets/juancast_logo.webp';
 import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
@@ -62,6 +62,9 @@ const LoginIcon = () => (
 );
 const CalendarIcon = () => (
   <Icon><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /><path d="m9 16 2 2 4-4" /></Icon>
+);
+const ShieldIcon = () => (
+  <Icon><path d="M12 3 4 6v6c0 4.5 3.2 8.2 8 9 4.8-.8 8-4.5 8-9V6z" /><path d="m9 12 2 2 4-4" /></Icon>
 );
 const LogoutIcon = () => (
   <Icon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></Icon>
@@ -262,6 +265,7 @@ export default function Navbar() {
                   {!daily.claimedToday && <span className="daily-dot" aria-label="Reward available" />}
                 </button>
                 <Link role="menuitem" to={LINKS.transactions}><TransactionsIcon /> Transactions</Link>
+                {isAdminUser(user) && <Link role="menuitem" to="/admin"><ShieldIcon /> Admin Dashboard</Link>}
                 <Link role="menuitem" to={LINKS.settings}><SettingsIcon /> Settings</Link>
                 <div className="sep" />
                 <button role="menuitem" type="button" onClick={logout}><LogoutIcon /> Logout</button>
