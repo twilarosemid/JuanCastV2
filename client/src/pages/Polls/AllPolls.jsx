@@ -80,6 +80,9 @@ function ScrollRow({ single, count, children }) {
     </div>
   );
 }
+// on phones the group filters are a swipeable row: bring the tapped one to the middle
+const centerChip = (e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+
 export default function AllPolls() {
   const navigate = useNavigate();
   const [polls, setPolls] = useState([]);
@@ -161,7 +164,7 @@ export default function AllPolls() {
           <button
             ref={groupBubble.setRef('All')}
             className={`group-filter ${activeGroup === 'All' ? 'active' : ''}`}
-            onClick={() => setActiveGroup('All')}
+            onClick={(e) => { setActiveGroup('All'); centerChip(e); }}
           >
             ALL
           </button>
@@ -170,7 +173,7 @@ export default function AllPolls() {
               key={group._id}
               ref={groupBubble.setRef(group.name)}
               className={`group-filter ${activeGroup === group.name ? 'active' : ''}`}
-              onClick={() => setActiveGroup(group.name)}
+              onClick={(e) => { setActiveGroup(group.name); centerChip(e); }}
             >
               {group.imageUrl && <img src={img(group.imageUrl)} alt="" />}
               {group.name}

@@ -91,3 +91,6 @@ nav.site-nav {
   .pill { flex-wrap: wrap; justify-content: center; }
   .menu { width: min(280px, 90vw); }
 }
+
+/* tab-bar icons only show on phones (see styles/mobile.css) */
+.nav-ico { display: none; }

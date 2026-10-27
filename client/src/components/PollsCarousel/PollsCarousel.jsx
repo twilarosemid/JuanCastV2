@@ -22,6 +22,7 @@ export default function PollsCarousel() {
   // where each card was after the last render, so we can spot a card that wraps around the strip
   const prevOffsets = useRef({});
   const prevIndex = useRef(0);
+  const touchStart = useRef(null);
 
   useEffect(() => {
     Promise.all([getJSON('/api/polls'), getJSON('/api/poll-groups')])
@@ -59,8 +60,19 @@ export default function PollsCarousel() {
       </div>
       <div
         className="carousel"
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
+        // mouse only: on a phone a tap fires "mouseenter" and would leave autoplay paused forever
+        onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
+        onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}
+        // swipe left / right to change poll
+        onTouchStart={(e) => { touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; setPaused(true); }}
+        onTouchEnd={(e) => {
+          const s = touchStart.current; touchStart.current = null; setPaused(false);
+          if (!s) return;
+          const dx = e.changedTouches[0].clientX - s.x;
+          const dy = e.changedTouches[0].clientY - s.y;
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) setIndex((i) => (i + (dx < 0 ? 1 : -1) + len) % len);
+        }}
+        onTouchCancel={() => { touchStart.current = null; setPaused(false); }}
       >
         <div className="stage">
           {polls.map((poll, n) => {

@@ -1,0 +1,223 @@
+/* =====================================================================
+   MOBILE VIEW  (phones <= 760px, bottom sheets <= 560px)
+   Imported LAST in main.jsx so it overrides each page's own CSS.
+   Layout: slim top bar (logo / bell / avatar) + floating bottom tab bar.
+   ===================================================================== */
+
+:root {
+  --top: calc(82px + env(safe-area-inset-top));      /* space the fixed top bar takes */
+  --dock: calc(86px + env(safe-area-inset-bottom));  /* space the bottom tab bar takes */
+}
+
+/* ---------- touch devices (any size): no "stuck" hover states after a tap ---------- */
+@media (hover: none) {
+  .poll-card:hover, .post:hover, .chika-hero:hover, .chika-row:hover, .mk-card:hover, .cm-card:hover,
+  .poster:hover, .pf-feature:hover, .spin-pack:hover, .group-filter:hover, .cm-tab:hover, .mk-tab:hover,
+  .rw-tab:hover, .vote:hover, .btn-solid:hover, .btn-ghost:hover, .logo:hover {
+    transform: none !important; box-shadow: none !important;
+  }
+  .poll-card:hover .poll-card-image, .chika-hero:hover .chika-hero-img, .cm-card:hover .cm-card-img,
+  .chika-row:hover .chika-thumb div, .stars-card:hover .stars-img, .powerup-card:hover .powerup-icon,
+  .others li:hover .av, .poll.active:hover .cover { transform: none !important; }
+  /* press feedback instead */
+  .poll-card:active, .cm-card:active, .chika-row:active, .chika-hero:active, .mk-card:active, .pf-feature:active { transform: scale(.98) !important; }
+  .vote:active, .btn-solid:active, .btn-ghost:active { transform: scale(.95) !important; }
+  .row-nav, .cm-arrow { display: none; }
+}
+
+@media (max-width: 760px) {
+  body { padding-bottom: var(--dock); }
+  /* 16px inputs stop iOS from zooming the page when a field is focused */
+  input, textarea, select { font-size: 16px !important; }
+  .section-title { margin: 30px 0 14px; }
+
+  /* ================= NAVIGATION ================= */
+  /* top bar: the nav no longer animates a transform, so the fixed tab bar inside it stays pinned to the screen */
+  nav.site-nav {
+    padding: calc(10px + env(safe-area-inset-top)) 5vw 12px; flex-wrap: nowrap; row-gap: 0; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(7, 16, 31, .78), rgba(7, 16, 31, 0));
+    animation: navFadeIn .5s ease backwards;
+  }
+  @keyframes navFadeIn { from { opacity: 0; } }
+  .logo, .pill, .links { pointer-events: auto; }
+  .logo { font-size: 21px; }
+
+  /* the pill becomes just [bell] [avatar], each its own glass button */
+  .pill { flex-wrap: nowrap; gap: 8px; padding: 0; background: none; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .divider { display: none; }
+  .icon-btn, .avatar {
+    width: 42px; height: 42px; background: rgba(20, 24, 30, .6); border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .avatar.open { background: #fff; }
+  .menu { width: min(290px, 90vw); top: calc(100% + 10px); }
+  .menu a, .menu button { min-height: 48px; }
+
+  /* the four links become a floating tab bar */
+  .links {
+    position: fixed; left: 0; right: 0; z-index: 30; width: min(440px, calc(100% - 24px)); margin: 0 auto;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: flex; justify-content: space-between; gap: 2px; padding: 6px;
+    background: rgba(12, 18, 34, .82); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, .14); border-radius: 26px; box-shadow: 0 16px 44px rgba(0, 0, 0, .55);
+    animation: dockIn .6s cubic-bezier(.2, .7, .2, 1) .15s backwards;
+  }
+  @keyframes dockIn { from { opacity: 0; transform: translateY(40px); } }
+  .links a {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0;
+    padding: 9px 4px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .01em;
+  }
+  .links a:not(.on):hover { background: transparent; }
+  .nav-ico { display: grid; }
+  .nav-ico svg { width: 22px; height: 22px; }
+  .nav-label { line-height: 1.1; white-space: nowrap; }
+  .bubble { border-radius: 20px; }
+
+  /* ================= PAGE SPACING (clear the new top bar) ================= */
+  .polls-page, .community-page, .market-page { grid-template-columns: minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .community-page, .market-page { padding: var(--top) 5vw 32px; }
+  .polls-page { padding: var(--top) 0 32px 5vw; }      /* rows bleed off the right edge, so no right padding */
+  .tx-page, .st-page, .subpage { padding: var(--top) 5vw 32px; min-height: 0; }
+  .pf-page, .ep-page { padding: var(--top) 4vw 32px; min-height: 0; }
+  .login-page { padding: var(--top) 5vw 32px; min-height: 0; }
+  .poll-detail { padding: var(--top) 5vw 32px; gap: 16px; }
+
+  /* ================= HOME ================= */
+  .backdrop { height: auto; }                                   /* inset:0 = exactly the visible screen */
+  .hero { height: 100vh; height: 100svh; min-height: 520px; touch-action: pan-y; }
+  .dots { right: auto; left: 50%; transform: translateX(-50%); bottom: calc(var(--dock) + 26px); }
+  .dots button { position: relative; }
+  .dots button::after { content: ''; position: absolute; inset: -12px -3px; }  /* bigger tap area */
+  .scroll-cue { display: none; }
+  .sheet { padding: 0 5vw 16px; margin-top: -8vh; }
+  .spacer { height: 4vh; }
+  .slide.active { transform: scale(1.04); }                      /* gentler zoom on small screens */
+
+  /* podium: #1 big on top, #2 and #3 side by side */
+  .podium { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; align-items: start; justify-content: stretch; }
+  .slot, .slot.r1 { width: auto; }
+  .slot.r1 { order: -1; grid-column: 1 / -1; width: min(300px, 82%); justify-self: center; }
+  .slot:not(.r1) .info { flex-direction: column; align-items: stretch; gap: 8px; }
+  .slot:not(.r1) .info h3 { font-size: 14px; }
+  .slot:not(.r1) .vote { width: 100%; padding: 9px 12px; }
+  .slot:not(.r1) .rank { top: 8px; left: 8px; padding: 3px 8px; font-size: 12px; }
+  .others li { grid-template-columns: 22px 38px minmax(0, 1fr) auto auto; gap: 10px; }
+  .others .vt { font-size: 13px; }
+  .others .vote { padding: 8px 16px; }
+
+  /* polls film strip */
+  .stage { height: 310px; touch-action: pan-y; }
+  .poll { width: 72%; }
+  .meta h3 { font-size: 17px; }
+  .meta p { font-size: 13px; }
+  .foot { font-size: 11px; gap: 10px; }
+
+  /* chat + chika */
+  .feed { gap: 0; }
+  .composer { flex-wrap: wrap; padding: 12px; border-radius: 20px; }
+  .composer textarea { flex: 1 1 calc(100% - 56px); min-height: 56px; }
+  .composer .btn-solid { margin-left: auto; }
+  .chat-scroll { max-height: 520px; padding-right: 0; overscroll-behavior: contain; }
+  .post { padding: 14px; gap: 10px; border-radius: 18px; }
+  .chat-av { width: 38px; height: 38px; }
+  .act { min-height: 40px; }
+  .reply-input input { min-height: 44px; }
+  .reply-input button { min-height: 44px; }
+  .chika-hero-body { padding: 16px; }
+  .chika-hero-body h3 { font-size: 20px; }
+  .chika-badge { width: 52px; top: 10px; left: 10px; }
+  .chika-rows { max-height: 420px; padding-right: 0; overscroll-behavior: contain; }
+  .chika-thumb { flex-basis: 96px; }
+
+  /* ================= VOTE (all polls + poll detail) ================= */
+  .polls-sidebar { position: static; padding-right: 5vw; gap: 12px; }
+  .polls-groups { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 8px; margin-right: -5vw; padding-right: 5vw; scrollbar-width: none; }
+  .polls-groups::-webkit-scrollbar { display: none; }
+  .group-filter { flex: none; min-height: 42px; }
+  .polls-section-head { padding-right: 5vw; }
+  .polls-section + .polls-section { margin-top: 30px; }
+  .polls-grid.collapsed { padding-right: 5vw; gap: 14px; scroll-snap-type: x mandatory; scroll-padding-left: 4px; -webkit-overflow-scrolling: touch; }
+  .polls-grid.collapsed .poll-card { flex-basis: min(78vw, 320px); }
+  .polls-grid.expanded { grid-template-columns: minmax(0, 1fr); padding-right: 5vw; }
+  .poll-card { padding: 8px 8px 14px; border-radius: 18px; }
+  .poll-card-info h3 { font-size: 16px; }
+  .row-nav { display: none; }
+
+  .poll-banner { aspect-ratio: 16 / 9; border-radius: 18px; }
+  .poll-info { padding: 18px; border-radius: 18px; }
+  .poll-info h1 { font-size: 24px; }
+  .poll-timer { font-size: 12px; flex-wrap: wrap; }
+  .poll-detail .others { margin-top: 26px; }
+  .artist-list .vote { min-height: 40px; }
+
+  /* ================= COMMUNITY / MARKET ================= */
+  .cm-card, .cm-skel { flex-basis: 78vw; }
+  .cm-title, .mk-title { font-size: 24px; }
+  .mk-head { margin-bottom: 18px; }
+  .mk-panel { padding: 16px 14px 18px; }
+  .mk-card:hover { transform: none; }
+  .sc-balances span { font-size: 13px; padding: 8px 12px; }
+  .spin-panel { width: 100%; }
+
+  /* ================= PROFILE / SETTINGS / TRANSACTIONS ================= */
+  .pf-hero { border-radius: 22px; }
+  .pf-cols { gap: 16px; margin-top: 16px; }
+  .pf-balance { flex-wrap: wrap; }
+  .pf-actions .btn-solid, .pf-actions .btn-ghost { flex: 1; }
+  .pf-composer textarea { font-size: 16px; }
+  .st-card { border-radius: 18px; }
+  .st-row { min-height: 60px; }
+  .st-actions .st-btn { flex: 1; }
+  .tx-head { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+  .tx-refresh { width: 100%; }
+  .tx-panel { border-radius: 16px; }
+
+  /* ================= LOGIN / SIGN UP ================= */
+  .login-body { padding: 24px 20px 24px; }
+  .login-btn, .su-ghost { min-height: 52px; }
+  .su-actions { flex-direction: column-reverse; }
+  .su-actions .login-btn, .su-ghost { width: 100%; }
+  .su-seg-btn { min-height: 48px; }
+
+  /* ================= background effects: lighter on phones ================= */
+  .orb { filter: blur(60px); }
+  .o1 { width: 90vw; height: 90vw; top: -30vw; left: -20vw; }
+  .o2 { width: 80vw; height: 80vw; }
+}
+
+/* ================= BOTTOM SHEETS (dialogs slide up from the bottom on phones) ================= */
+@media (max-width: 560px) {
+  .modal-overlay { place-items: end center; padding: 0; }
+  .modal {
+    width: 100%; max-width: none; max-height: 92dvh; overflow-y: auto; border-radius: 26px 26px 0 0;
+    padding-bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateY(100%);
+    transition: opacity .25s ease, transform .45s cubic-bezier(.2, .8, .2, 1);
+    overscroll-behavior: contain;
+  }
+  /* little grab handle */
+  .modal::before { content: ''; display: block; width: 40px; height: 4px; margin: -12px auto 16px; border-radius: 4px; background: rgba(255, 255, 255, .25); }
+  .modal.dr-modal::before, .modal.rw-modal::before, .modal.cm-wide::before { display: none; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions .btn-solid, .modal-actions .btn-ghost { width: 100%; }
+  .modal.dr-modal { max-height: 94dvh; border-radius: 26px 26px 0 0; }
+  .dr-banner { border-radius: 26px 26px 0 0; }
+  .dr-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .modal.rw-modal { height: 94dvh; border-radius: 26px 26px 0 0; }
+  .modal.cm-wide { padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
+  .spin-packs { gap: 8px; }
+}
+
+/* very small phones */
+@media (max-width: 360px) {
+  .links a { font-size: 10px; }
+  .nav-ico svg { width: 20px; height: 20px; }
+  .slot:not(.r1) .info h3 { font-size: 13px; }
+  .stars-grid { gap: 8px; }
+}
+
+/* landscape phones: don't let the hero swallow the whole screen */
+@media (max-width: 900px) and (max-height: 480px) and (orientation: landscape) {
+  .hero { min-height: 100vh; }
+  .links { width: min(380px, calc(100% - 24px)); }
+  .links a { flex-direction: row; justify-content: center; gap: 6px; padding: 7px 4px; }
+}

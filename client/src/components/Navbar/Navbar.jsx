@@ -18,10 +18,10 @@ const LINKS = {
 };
 
 const NAV = [
-  { key: 'home', label: 'Home', href: LINKS.home },
-  { key: 'vote', label: 'Vote', href: LINKS.vote },
-  { key: 'community', label: 'Community', href: LINKS.community },
-  { key: 'market', label: 'Market', href: LINKS.market }
+  { key: 'home', label: 'Home', href: LINKS.home, icon: 'home' },
+  { key: 'vote', label: 'Vote', href: LINKS.vote, icon: 'vote' },
+  { key: 'community', label: 'Community', href: LINKS.community, icon: 'community' },
+  { key: 'market', label: 'Market', href: LINKS.market, icon: 'market' }
 ];
 
 const Icon = ({ children }) => (
@@ -29,6 +29,15 @@ const Icon = ({ children }) => (
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {children}
   </svg>
+);
+// icons for the bottom tab bar on phones (hidden on desktop)
+const TabIcon = ({ name }) => (
+  <Icon>
+    {name === 'home' && <><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></>}
+    {name === 'vote' && <><circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></>}
+    {name === 'community' && <><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>}
+    {name === 'market' && <><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></>}
+  </Icon>
 );
 const BellIcon = () => (
   <Icon><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></Icon>
@@ -138,7 +147,8 @@ export default function Navbar() {
               aria-current={active === n.key ? 'page' : undefined}
               to={n.href}
             >
-              {n.label}
+              <span className="nav-ico"><TabIcon name={n.icon} /></span>
+              <span className="nav-label">{n.label}</span>
             </Link>
           ))}
         </div>
