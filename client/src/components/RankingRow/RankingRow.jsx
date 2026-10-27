@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { getJSON, img, getUser, castVote } from '../../api';
+import { Link, useNavigate } from 'react-router-dom';
+import { getJSON, img } from '../../api';
 import Reveal from '../Reveal/Reveal';
 import CountUp from '../CountUp/CountUp';
 import './RankingRow.css';
@@ -10,7 +10,7 @@ const bg = (url) => (url ? { backgroundImage: `url("${img(url)}")` } : {});
 export default function RankingRow() {
   const [list, setList] = useState([]);
   const [title, setTitle] = useState('Top Rankings');
-  const [flashId, setFlashId] = useState(null);
+  const navigate = useNavigate();
   const [pollId, setPollId] = useState(null);
 
   useEffect(() => {
@@ -44,20 +44,8 @@ export default function RankingRow() {
     })().catch(console.error);
   }, []);
 
-  const vote = async (item) => {
-    const user = getUser();
-    if (!user?.email) return alert('Please log in to vote.');
-    try {
-      const res = await castVote(item._id, user);
-      setList((prev) =>
-        prev.map((p) => (p._id === item._id ? { ...p, voteCount: res.ranking.voteCount } : p))
-      );
-      setFlashId(item._id);
-      setTimeout(() => setFlashId(null), 1600);
-    } catch (err) {
-      alert(err.message);
-    }
-  };
+  // Vote opens the poll these rankings belong to, where the actual voting happens
+  const openPoll = () => navigate(pollId ? `/polls/${pollId}` : '/polls');
 
   const entries = list.map((item, rank) => ({ item, rank }));
   const ordered = [1, 0, 2].map((i) => entries[i]).filter(Boolean); // 2nd, 1st, 3rd
@@ -71,7 +59,7 @@ export default function RankingRow() {
 
       <div className="podium">
         {ordered.map(({ item, rank }, n) => (
-          <Reveal key={item._id} className={`slot r${rank + 1} ${flashId === item._id ? 'flash' : ''}`} delay={n * 130}>
+          <Reveal key={item._id} className={`slot r${rank + 1}`} delay={n * 130}>
             <div className="poster" style={bg(item.imageUrl)}>
               <span className="rank">#{rank + 1}</span>
             </div>
@@ -80,7 +68,7 @@ export default function RankingRow() {
                 <h3>{item.name}</h3>
                 <small><CountUp value={item.voteCount} /> votes</small>
               </div>
-              <button className="vote" onClick={() => vote(item)}>Vote</button>
+              <button className="vote" onClick={openPoll}>Vote</button>
             </div>
           </Reveal>
         ))}
