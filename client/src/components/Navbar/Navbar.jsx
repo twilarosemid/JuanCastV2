@@ -73,6 +73,7 @@ export default function Navbar() {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [condensed, setCondensed] = useState(false);
   const menuRef = useRef(null);
   const { mounted: menuMounted, visible: menuVisible } = useMountTransition(open, 220);
 
@@ -128,6 +129,22 @@ export default function Navbar() {
     };
   }, [open]);
 
+  // web view: once the page scrolls past the banner, the bar shrinks into a compact floating pill
+  // (pages without a banner condense after a short scroll)
+  useEffect(() => {
+    const check = () => {
+      const hero = document.getElementById('top');
+      setCondensed(hero ? hero.getBoundingClientRect().bottom < 90 : window.scrollY > 120);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+    };
+  }, [pathname]);
+
   const daily = dailyState(user);
 
   // right after a login, pop the daily check-in once if today's reward is still waiting
@@ -174,7 +191,7 @@ export default function Navbar() {
 
   return (
     <>
-    <nav className="site-nav">
+    <nav className={`site-nav${condensed ? ' condensed' : ''}`}>
       <Link className="logo" to={LINKS.home}>JuanCast</Link>
 
       <div className="pill" ref={menuRef}>
