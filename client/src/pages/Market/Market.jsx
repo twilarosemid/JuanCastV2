@@ -46,11 +46,11 @@ export default function Market() {
       </aside>
 
       <main className="mk-main">
-        <header className="mk-head" key={`h-${active}`}>
+        <header className={`mk-head${active === 'suns' ? ' centered' : ''}`} key={`h-${active}`}>
           <h1 className="mk-title">{current.title}</h1>
           <p className="mk-blurb">{current.blurb}</p>
         </header>
-        <div className="mk-section" key={active}>
+        <div className={`mk-section${active === 'suns' ? ' centered' : ''}`} key={active}>
           {active === 'stars' && <StarsShop />}
           {active === 'suns' && <SunsConvert user={user} />}
           {active === 'spin' && <Spin user={user} />}

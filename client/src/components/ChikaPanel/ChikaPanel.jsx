@@ -49,8 +49,10 @@ export default function ChikaPanel() {
         onClick={() => open(headline.url)}
         onKeyDown={onKey(headline.url)}
       >
-        <div className="chika-hero-img" style={bg(headline.imageUrl)} />
-        <img className="chika-badge" src={badge} alt="Latest Chika" />
+        <div className="chika-hero-media" style={headline.imageUrl ? { '--img': `url("${img(headline.imageUrl)}")` } : undefined}>
+          {headline.imageUrl && <img className="chika-hero-img" src={img(headline.imageUrl)} alt="" />}
+          <img className="chika-badge" src={badge} alt="Latest Chika" />
+        </div>
         <div className="chika-hero-body">
           <h3>{headline.title}</h3>
           <p>{headline.description}</p>
