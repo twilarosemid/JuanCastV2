@@ -1,12 +1,25 @@
-/* full-width banner: no box, no rounded corners, height follows the artwork */
+/* full-width banner: no box, no rounded corners */
 .hero { position: relative; z-index: 2; padding: 0; }
 .hero-frame {
-  position: relative; width: 100%; max-height: 80vh; overflow: hidden;
+  position: relative; width: 100%; overflow: hidden;
+  /* mobile / small screens: height follows the artwork */
+  aspect-ratio: var(--ar, 10 / 3); max-height: 80vh;
   transition: aspect-ratio .6s ease;
-  /* melt the top and bottom edges into the page instead of ending in hard lines */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
           mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
 }
+
+/* desktop: the banner fills the whole screen (behind the navbar), melting into the page only at the bottom */
+@media (min-width: 901px) {
+  .hero-frame {
+    aspect-ratio: auto; max-height: none;
+    height: 100vh; height: 100svh; min-height: 560px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 0%, #000 82%, transparent 100%);
+  }
+  .slide { object-position: center top; }
+}
+
 /* slides stack and crossfade */
 .slide {
   position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
@@ -14,7 +27,22 @@
 }
 .slide.active { opacity: 1; }
 
-/* thin progress line, same as Polls */
-.hero-progress { width: 120px; height: 3px; margin: 10px auto 0; border-radius: 3px; background: rgba(255, 255, 255, .15); overflow: hidden; }
-.hero-progress span { display: block; height: 100%; background: #fff; transform-origin: left; animation: heroFill linear forwards; }
+/* dots: the active one expands into a line that fills left to right */
+.hero-dots {
+  position: absolute; left: 0; right: 0; bottom: clamp(18px, 4vh, 40px); z-index: 3;
+  display: flex; justify-content: center; align-items: center; gap: 4px;
+}
+.hero-dot { padding: 12px 4px; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hero-dot .bar {
+  display: block; width: 8px; height: 8px; border-radius: 999px; overflow: hidden;
+  background: rgba(255, 255, 255, .4);
+  transition: width .45s ease, background .3s ease;
+}
+.hero-dot:hover .bar { background: rgba(255, 255, 255, .7); }
+.hero-dot.active .bar { width: 44px; background: rgba(255, 255, 255, .28); }
+.hero-dot .bar i {
+  display: block; height: 100%; border-radius: inherit; transform-origin: left;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .55), #fff);
+  animation: heroFill linear forwards;
+}
 @keyframes heroFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }

@@ -3,12 +3,14 @@ import { img } from '../../api';
 import useDominantColor from '../../hooks/useDominantColor';
 import './HeroCarousel.css';
 
+const INTERVAL = 6000;
+
 export default function HeroCarousel({ banners }) {
   const [index, setIndex] = useState(0);
   const active = banners[index];
   const tint = useDominantColor(active ? img(active.imageUrl) : '');
   const touchStart = useRef(null);
-  // each banner's real width/height, so the frame always matches the artwork (no crop, no letterbox)
+  // each banner's real width/height (used on mobile, where the frame follows the artwork)
   const [ratios, setRatios] = useState({});
 
   // page gradient follows the current banner
@@ -16,12 +18,12 @@ export default function HeroCarousel({ banners }) {
     document.documentElement.style.setProperty('--tint', tint);
   }, [tint]);
 
-  // autoplay (restarts whenever the slide changes)
+  // autoplay (restarts whenever the slide changes, including when a dot is clicked)
   useEffect(() => {
     if (banners.length < 2) return;
     const timer = setInterval(
       () => setIndex((i) => (i + 1) % banners.length),
-      6000
+      INTERVAL
     );
     return () => clearInterval(timer);
   }, [banners.length, index]);
@@ -41,7 +43,7 @@ export default function HeroCarousel({ banners }) {
         }
       }}
     >
-      <div className="hero-frame" style={{ aspectRatio: ratios[active?._id] || '10 / 3' }}>
+      <div className="hero-frame" style={{ '--ar': ratios[active?._id] || '10 / 3' }}>
         {banners.map((banner, n) => (
           <img
             key={banner._id}
@@ -56,10 +58,25 @@ export default function HeroCarousel({ banners }) {
           />
         ))}
       </div>
-      {/* same thin line as the Polls carousel: fills over the autoplay interval */}
+
+      {/* clickable dots: the current one stretches into a line that fills left to right */}
       {banners.length > 1 && (
-        <div className="hero-progress" aria-hidden="true">
-          <span key={index} style={{ animationDuration: '6000ms' }} />
+        <div className="hero-dots" role="tablist" aria-label="Banners">
+          {banners.map((banner, n) => (
+            <button
+              key={banner._id}
+              type="button"
+              role="tab"
+              aria-selected={n === index}
+              aria-label={`Show banner ${n + 1}`}
+              className={`hero-dot ${n === index ? 'active' : ''}`}
+              onClick={() => setIndex(n)}
+            >
+              <span className="bar">
+                {n === index && <i key={index} style={{ animationDuration: `${INTERVAL}ms` }} />}
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </section>
