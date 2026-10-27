@@ -59,6 +59,9 @@ export default function Login() {
       if (rememberMe) localStorage.setItem(REMEMBER_KEY, email);
       else localStorage.removeItem(REMEMBER_KEY);
 
+      // ask the navbar to pop the daily check-in once (admins skip it)
+      if (!isAdmin) { try { sessionStorage.setItem('juancast_daily_prompt', '1'); } catch { /* ignore */ } }
+
       navigate(back, { replace: true });
     } catch {
       setError('Could not connect to the server.');

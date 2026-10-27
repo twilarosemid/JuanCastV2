@@ -1,10 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { getJSON, img, getUser, clearUser } from '../../api';
+import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser } from '../../api';
+import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
 import useMountTransition from '../../hooks/useMountTransition';
 import './Navbar.css';
 
 // Routes (see App.jsx). Links use react-router, so pages change without reloading.
+const DAILY_PROMPT_KEY = 'juancast_daily_prompt';
+
 const LINKS = {
   home: '/',
   vote: '/polls',
@@ -54,6 +57,9 @@ const TransactionsIcon = () => (
 const LoginIcon = () => (
   <Icon><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="m10 17 5-5-5-5" /><path d="M15 12H3" /></Icon>
 );
+const CalendarIcon = () => (
+  <Icon><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /><path d="m9 16 2 2 4-4" /></Icon>
+);
 const LogoutIcon = () => (
   <Icon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></Icon>
 );
@@ -64,6 +70,7 @@ export default function Navbar() {
   const [, refresh] = useState(0);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(false);
   const menuRef = useRef(null);
   const { mounted: menuMounted, visible: menuVisible } = useMountTransition(open, 220);
 
@@ -119,6 +126,42 @@ export default function Navbar() {
     };
   }, [open]);
 
+  const daily = dailyState(user);
+
+  // right after a login, pop the daily check-in once if today's reward is still waiting
+  useEffect(() => {
+    if (!loggedIn) return;
+    let flagged = false;
+    try { flagged = sessionStorage.getItem(DAILY_PROMPT_KEY) === '1'; sessionStorage.removeItem(DAILY_PROMPT_KEY); } catch { /* ignore */ }
+    if (flagged && !daily.claimedToday) setDailyOpen(true);
+  }, [loggedIn, pathname]);
+
+  // lets any page open the check-in: window.dispatchEvent(new Event('juancast-open-daily'))
+  useEffect(() => {
+    const show = () => setDailyOpen(true);
+    window.addEventListener('juancast-open-daily', show);
+    return () => window.removeEventListener('juancast-open-daily', show);
+  }, []);
+
+  const claimDaily = async () => {
+    const current = getUser();
+    if (!current?.email) { setDailyOpen(false); return { ok: false, message: 'Please log in first.' }; }
+    try {
+      const res = await fetch(`${API}/api/users/daily-claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: current.email })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to claim reward.');
+      const gained = Math.max(0, (data.stars || 0) - (current.stars || 0));
+      saveUser(mergeUser(current, data));
+      return { ok: true, day: data.dailyStreak, gained };
+    } catch (error) {
+      return { ok: false, message: error.message || 'Server error. Please try again later.' };
+    }
+  };
+
   const logout = () => {
     clearUser();
     setOpen(false);
@@ -128,6 +171,7 @@ export default function Navbar() {
   const initial = name.replace(/^@/, '').charAt(0).toUpperCase() || '?';
 
   return (
+    <>
     <nav className="site-nav">
       <Link className="logo" to={LINKS.home}>JuanCast</Link>
 
@@ -181,6 +225,10 @@ export default function Navbar() {
                 <div className="menu-head">{name.startsWith('@') ? name : `@${name}`}</div>
                 <div className="sep" />
                 <Link role="menuitem" to={LINKS.profile}><UserIcon /> Profile</Link>
+                <button role="menuitem" type="button" onClick={() => { setOpen(false); setDailyOpen(true); }}>
+                  <CalendarIcon /> Daily Check-In
+                  {!daily.claimedToday && <span className="daily-dot" aria-label="Reward available" />}
+                </button>
                 <Link role="menuitem" to={LINKS.transactions}><TransactionsIcon /> Transactions</Link>
                 <Link role="menuitem" to={LINKS.settings}><SettingsIcon /> Settings</Link>
                 <div className="sep" />
@@ -196,5 +244,15 @@ export default function Navbar() {
         )}
       </div>
     </nav>
+    {loggedIn && (
+      <DailyRewards
+        open={dailyOpen}
+        onClose={() => setDailyOpen(false)}
+        streak={daily.streak}
+        claimedToday={daily.claimedToday}
+        onClaim={claimDaily}
+      />
+    )}
+    </>
   );
 }
