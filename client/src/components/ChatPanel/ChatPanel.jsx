@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { API, getJSON, getUser, img } from '../../api';
 import Modal from '../Modal/Modal';
 import './ChatPanel.css';
@@ -20,6 +20,18 @@ const Avatar = ({ src, name = '', small }) => (
     <b>{name.replace(/^@/, '').charAt(0).toUpperCase() || '?'}</b>
   </span>
 );
+
+// @name / avatar -> that person's profile (their own handle opens your profile)
+const profilePath = (name = '') => {
+  const handle = String(name).replace(/^@/, '').trim();
+  return handle && handle.toLowerCase() !== 'guest' ? `/profile/${encodeURIComponent(handle)}` : null;
+};
+const WhoLink = ({ name, className = '', children, label }) => {
+  const to = profilePath(name);
+  return to
+    ? <Link to={to} className={`who ${className}`} aria-label={label || `View ${name}'s profile`}>{children}</Link>
+    : <span className={className}>{children}</span>;
+};
 
 const HeartIcon = ({ filled }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor"
@@ -169,10 +181,10 @@ export default function ChatPanel() {
           const open = !!expanded[post._id];
           return (
             <article key={post._id} className="post rise" style={{ '--d': `${Math.min(i, 8) * 60}ms` }}>
-              <Avatar src={post.avatar} name={post.user} />
+              <WhoLink name={post.user} className="who-av"><Avatar src={post.avatar} name={post.user} /></WhoLink>
               <div className="post-body">
                 <div className="post-head">
-                  <strong>{post.user}</strong>
+                  <WhoLink name={post.user}><strong>{post.user}</strong></WhoLink>
                   <time>{timeAgo(post.createdAt)}</time>
                 </div>
                 {post.text && <p className="post-text">{post.text}</p>}
@@ -193,8 +205,8 @@ export default function ChatPanel() {
                   <div className="replies-inner">
                     {replies.map((r, idx) => (
                       <div key={idx} className="reply">
-                        <Avatar src={r.avatar} name={r.user} small />
-                        <p><strong>{r.user}</strong> {r.text}</p>
+                        <WhoLink name={r.user} className="who-av" label={`View ${r.user}'s profile`}><Avatar src={r.avatar} name={r.user} small /></WhoLink>
+                        <p><WhoLink name={r.user}><strong>{r.user}</strong></WhoLink> {r.text}</p>
                       </div>
                     ))}
                     <div className="reply-input">

@@ -105,3 +105,16 @@
   .pf-actions { width: 100%; }
   .pf-card { padding: 16px; }
 }
+
+/* clickable names + followers/following */
+.pf-who { color: inherit; text-decoration: none; }
+.pf-who:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pf-stat-btn { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; font-variant-numeric: tabular-nums; cursor: pointer; }
+.pf-stat-btn span { color: var(--muted); margin-left: 2px; transition: transform .2s; display: inline-block; }
+.pf-stat-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pf-stat-btn:hover span { transform: translateX(2px); }
+.pf-people { list-style: none; margin: 0 0 16px; padding: 0; max-height: 50vh; overflow-y: auto; }
+.pf-people li a { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-radius: 12px; color: var(--text); text-decoration: none; transition: background .2s; }
+.pf-people li a:hover { background: rgba(255, 255, 255, .08); }
+.pf-people li span { display: flex; flex-direction: column; min-width: 0; }
+.pf-people li em { color: var(--muted); font-size: 13px; font-style: normal; }

@@ -78,7 +78,24 @@ export default function Profile() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rewardsOpen, setRewardsOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [peopleList, setPeopleList] = useState(null); // 'followers' | 'following' | null
+  const [people, setPeople] = useState({});            // handle -> { avatar, name } (filled in lazily)
   const [feedback, setFeedback] = useState({ open: false, type: 'error', message: '' });
+
+  // when a followers/following list opens, look up each person's avatar and name (first 40)
+  useEffect(() => {
+    if (!peopleList || !profile) return undefined;
+    const handles = (peopleList === 'followers' ? profile.followers : profile.following).slice(0, 40);
+    let cancelled = false;
+    handles.forEach((h) => {
+      const key = normalizeHandle(h);
+      if (!key || people[key]) return;
+      getJSON(`/api/users/profile/${encodeURIComponent(key)}`)
+        .then((data) => { if (!cancelled) setPeople((prev) => ({ ...prev, [key]: { avatar: data.avatar || '', name: data.fullName || '' } })); })
+        .catch(() => { if (!cancelled) setPeople((prev) => ({ ...prev, [key]: { avatar: '', name: '' } })); });
+    });
+    return () => { cancelled = true; };
+  }, [peopleList, profile?.followers, profile?.following]);
 
   const say = (type, message) => setFeedback({ open: true, type, message });
   const goLogin = () => navigate('/login', { state: { from: location.pathname } });
@@ -152,6 +169,10 @@ export default function Profile() {
       if (!res.ok) throw new Error(data.message || 'Failed to update follow status.');
       setIsFollowing(Boolean(data.isFollowing));
       setFollowersCount(Number(data.followersCount ?? followersCount));
+      setProfile((p) => {
+        const others = (p.followers || []).filter((h) => normalizeHandle(h) !== viewerHandle);
+        return { ...p, followers: data.isFollowing ? [...others, myHandle] : others };
+      });
     } catch (error) {
       say('error', error.message || 'Unable to update follow status.');
     }
@@ -259,9 +280,10 @@ export default function Profile() {
     ['Total Posts', posts.length],
     ['Comments', comments],
     ['Reactions', reactions],
-    ['Followers', followersCount],
-    ['Following', profile.following.length]
+    ['Followers', followersCount, 'followers'],
+    ['Following', profile.following.length, 'following']
   ];
+  const listHandles = peopleList === 'followers' ? profile.followers : peopleList === 'following' ? profile.following : [];
 
   return (
     <main className="pf-page">
@@ -301,8 +323,19 @@ export default function Profile() {
           <div className="pf-card rise" style={{ '--d': '80ms' }}>
             <h2>Activity Overview</h2>
             <dl className="pf-stats">
-              {stats.map(([label, value]) => (
-                <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+              {stats.map(([label, value, list]) => (
+                list ? (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>
+                      <button type="button" className="pf-stat-btn" onClick={() => setPeopleList(list)} aria-label={`View ${label.toLowerCase()}`}>
+                        {value} <span aria-hidden="true">›</span>
+                      </button>
+                    </dd>
+                  </div>
+                ) : (
+                  <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                )
               ))}
             </dl>
           </div>
@@ -368,7 +401,7 @@ export default function Profile() {
                 <header>
                   <Avatar src={avatarOf(post.user, post.avatar)} className="pf-mini" />
                   <div>
-                    <strong>{post.user}</strong>
+                    <strong><Link className="pf-who" to={`/profile/${encodeURIComponent(normalizeHandle(post.user))}`}>{post.user}</Link></strong>
                     <span>{timeAgo(post.createdAt)}</span>
                   </div>
                 </header>
@@ -387,7 +420,7 @@ export default function Profile() {
                     {replies.map((reply, n) => (
                       <div key={`${id}-${n}`} className="pf-reply">
                         <Avatar src={avatarOf(reply.user, reply.avatar)} className="pf-mini sm" />
-                        <p><strong>{reply.user}</strong> {reply.text}</p>
+                        <p><strong><Link className="pf-who" to={`/profile/${encodeURIComponent(normalizeHandle(reply.user))}`}>{reply.user}</Link></strong> {reply.text}</p>
                       </div>
                     ))}
                     <div className="pf-reply-box">
@@ -407,6 +440,31 @@ export default function Profile() {
           })}
         </section>
       </div>
+
+      <Modal open={Boolean(peopleList)} onClose={() => setPeopleList(null)} label={peopleList === 'following' ? 'Following' : 'Followers'}>
+        <h3>{peopleList === 'following' ? 'Following' : 'Followers'}</h3>
+        {listHandles.length === 0 ? (
+          <p>{peopleList === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</p>
+        ) : (
+          <ul className="pf-people">
+            {listHandles.map((h) => {
+              const key = normalizeHandle(h);
+              const info = people[key];
+              return (
+                <li key={key}>
+                  <Link to={`/profile/${encodeURIComponent(key)}`} onClick={() => setPeopleList(null)}>
+                    <Avatar src={info?.avatar} className="pf-mini" />
+                    <span><strong>@{key}</strong>{info?.name && <em>{info.name}</em>}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={() => setPeopleList(null)}>Close</button>
+        </div>
+      </Modal>
 
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} label="Post to community">
         <h3>Post to Community?</h3>
