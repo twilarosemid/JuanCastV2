@@ -1,4 +1,4 @@
-/* fallbacks for shared bits (zero specificity: any real .btn-solid / .rise in your global styles wins) */
+﻿/* fallbacks for shared bits (zero specificity: any real .btn-solid / .rise in your global styles wins) */
 :where(.btn-solid, .btn-ghost) {
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 999px;
   font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; transition: transform .2s, box-shadow .3s, opacity .2s;
@@ -44,7 +44,7 @@
 
 /* chika: headline on top, the rest as even news cards (picture on top, text underneath) */
 .community-page .chika-rows {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;
   max-height: none; overflow: visible; padding: 0; mask-image: none; -webkit-mask-image: none;
 }
 .community-page .chika-row {
