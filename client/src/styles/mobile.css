@@ -85,10 +85,7 @@
   .poll-detail { padding: var(--top) 5vw 32px; gap: 16px; }
 
   /* ================= HOME ================= */
-  .hero { padding: var(--top) 4vw 0; touch-action: pan-y; }
-  .hero-frame { aspect-ratio: 16 / 9; max-height: none; border-radius: 14px; }
-  .dots button { position: relative; }
-  .dots button::after { content: ''; position: absolute; inset: -12px -3px; }  /* bigger tap area */
+  .hero { padding-top: var(--top); touch-action: pan-y; }
   .sheet { padding: 0 5vw 16px; margin-top: 20px; }
   .spacer { height: 4vh; }
 
