@@ -83,9 +83,11 @@ nav.site-nav {
 .menu a:hover, .menu button:hover { background: rgba(255,255,255,.1); transform: translateX(3px); }
 .menu-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
 .menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-balances { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.menu-balances .bal { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,.1); font-size: 13px; font-weight: 700; }
-.menu-balances .bal img { width: 15px; height: 15px; object-fit: contain; }
+/* same look as the balance pill on the profile page (Suns / Stars) */
+.menu-balance { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 7px 13px; border-radius: 999px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .1); font-weight: 700; font-size: 14px; }
+.menu-balance span { display: inline-flex; align-items: center; gap: 6px; }
+.menu-balance img { width: 18px; height: 18px; object-fit: contain; }
+.menu-balance i { color: var(--muted); font-style: normal; }
 .sep { height: 1px; margin: 6px 8px; background: rgba(255,255,255,.12); }
 .count {
   margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 99px;

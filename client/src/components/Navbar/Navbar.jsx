@@ -248,9 +248,10 @@ export default function Navbar() {
               <>
                 <div className="menu-head">
                   <span className="menu-name">{name.startsWith('@') ? name : `@${name}`}</span>
-                  <span className="menu-balances">
-                    <span className="bal" title="Suns"><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
-                    <span className="bal" title="Stars"><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+                  <span className="menu-balance" aria-label="Your balance">
+                    <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+                    <i aria-hidden="true">/</i>
+                    <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
                   </span>
                 </div>
                 <div className="sep" />
