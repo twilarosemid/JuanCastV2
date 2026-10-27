@@ -1,16 +1,18 @@
 :root {
-  --bg: #07101f;
-  --tint: #0b4fd6;
-  --text: #f4f7ff;
-  --muted: #a9b6d3;
-  --accent: #2f7bff;
+  --bg: #062a73;          /* deep JuanCast blue */
+  --tint: #1a8cff;        /* bright brand blue (hero banner overrides this) */
+  --text: #ffffff;
+  --muted: #bcd6ff;
+  --accent: #4aa8ff;
+  --gold: #f5c542;        /* festive gold, matches the award banners */
+  --card: rgba(8, 40, 112, .55);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Montserrat', system-ui, sans-serif;
 }
 .section-title {
   font-size: clamp(26px, 3.5vw, 40px);
@@ -22,7 +24,7 @@ body {
 .section-head a:hover { color: #fff; transform: translateX(4px); }
 
 /* lets --tint animate, so the page gradient crossfades in step with the banner instead of snapping */
-@property --tint { syntax: '<color>'; inherits: true; initial-value: #0b4fd6; }
+@property --tint { syntax: '<color>'; inherits: true; initial-value: #1a8cff; }
 :root { transition: --tint 1.4s ease; }
 
 /* ---------- shared animation + button helpers (used by many pages) ---------- */
@@ -57,3 +59,10 @@ body { -webkit-tap-highlight-color: transparent; }
     transition-duration: .01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important;
   }
 }
+
+/* ---------- JuanCast brand touches ---------- */
+.section-title { position: relative; letter-spacing: -.01em; }
+.section-title::after { content: ''; display: block; width: 56px; height: 4px; margin-top: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--gold), transparent); }
+.btn-solid { background: linear-gradient(180deg, #fff, #e3f0ff); color: #06307f; }
+.btn-solid:not(:disabled):hover { box-shadow: 0 10px 24px rgba(245, 197, 66, .35); }
+::selection { background: var(--gold); color: #06307f; }

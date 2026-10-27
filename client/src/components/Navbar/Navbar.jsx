@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser } from '../../api';
+import logoImg from '../../assets/juancast_logo.webp';
 import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
 import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
@@ -197,7 +198,7 @@ export default function Navbar() {
   return (
     <>
     <nav className={`site-nav${condensed ? ' condensed' : ''}`}>
-      <Link className="logo" to={LINKS.home}>JuanCast</Link>
+      <Link className="logo" to={LINKS.home} aria-label="JuanCast home"><img src={logoImg} alt="JuanCast" /></Link>
 
       <div className="pill" ref={menuRef}>
         <div className="links">

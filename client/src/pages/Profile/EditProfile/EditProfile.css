@@ -1,13 +1,13 @@
 .ep-page { min-height: 100vh; padding: 110px 5vw 90px; max-width: 900px; margin: 0 auto; }
-.ep-card { overflow: hidden; border-radius: 26px; background: rgba(20, 24, 30, .45); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(16px); }
+.ep-card { overflow: hidden; border-radius: 26px; background: rgba(8, 40, 112, .45); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(16px); }
 
 .ep-cover { position: relative; height: clamp(150px, 24vw, 240px); background: linear-gradient(135deg, var(--tint), var(--bg)); }
 .ep-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ep-cover-btn {
   position: absolute; right: 16px; bottom: 16px; min-height: 38px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px;
-  background: rgba(7, 16, 31, .6); backdrop-filter: blur(8px); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s, transform .15s;
+  background: rgba(6, 34, 96, .6); backdrop-filter: blur(8px); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s, transform .15s;
 }
-.ep-cover-btn:hover { background: rgba(7, 16, 31, .85); }
+.ep-cover-btn:hover { background: rgba(6, 34, 96, .85); }
 .ep-cover-btn:active { transform: scale(.96); }
 
 .ep-head { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; padding: 0 28px 20px; }
@@ -18,7 +18,7 @@
 .ep-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ep-avatar svg { width: 55%; height: 55%; }
 .ep-avatar span {
-  position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7, 16, 31, .6); color: #fff; font-size: 12px; font-weight: 800;
+  position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6, 34, 96, .6); color: #fff; font-size: 12px; font-weight: 800;
   opacity: 0; transition: opacity .25s;
 }
 .ep-avatar:hover span, .ep-avatar:focus-visible span { opacity: 1; }

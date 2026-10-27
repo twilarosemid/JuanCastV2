@@ -1,7 +1,7 @@
 .login-page { min-height: 100vh; display: grid; place-items: center; padding: 120px 5vw 80px; }
 .login-card {
   display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); width: min(900px, 100%); overflow: hidden;
-  border-radius: 28px; background: rgba(20, 24, 30, .45); border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 28px; background: rgba(8, 40, 112, .45); border: 1px solid rgba(255, 255, 255, .12);
   backdrop-filter: blur(18px); box-shadow: 0 30px 70px rgba(0, 0, 0, .45);
 }
 .login-art {

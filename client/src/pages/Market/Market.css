@@ -10,7 +10,7 @@
 .mk-nav { position: relative; display: flex; flex-direction: column; gap: 8px; }
 .mk-tab {
   position: relative; z-index: 1; display: flex; align-items: center; min-height: 46px; padding: 0 16px; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, .12); background: rgba(20, 24, 30, .3); color: var(--text);
+  border: 1px solid rgba(255, 255, 255, .12); background: rgba(8, 40, 112, .3); color: var(--text);
   font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
   transition: color .3s ease, background .3s ease, border-color .3s ease, transform .2s;
 }
@@ -43,7 +43,7 @@
 .mk-price { margin-top: auto; padding-top: 18px; color: #7fb0ff; font-size: 19px; font-weight: 800; }
 
 .mk-panel {
-  padding: 22px 24px 24px; border-radius: 18px; background: rgba(20, 24, 30, .4);
+  padding: 22px 24px 24px; border-radius: 18px; background: rgba(8, 40, 112, .4);
   border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px);
 }
 
@@ -65,7 +65,7 @@
   .mk-main { padding-right: 0; }
   .mk-sidebar { position: static; }
   /* the four sections become one row of pills */
-  .mk-nav { flex-direction: row; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(20, 24, 30, .45); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .12); }
+  .mk-nav { flex-direction: row; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(8, 40, 112, .45); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .12); }
   .mk-tab { flex: 1; justify-content: center; text-align: center; border-color: transparent; background: transparent; padding: 0 4px; font-size: 13px; }
   .mk-tab:hover:not(.active) { transform: none; background: transparent; }
   .mk-panel { padding: 18px 14px 20px; }

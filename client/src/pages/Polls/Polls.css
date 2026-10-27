@@ -1,7 +1,7 @@
 /* ================= shared bits (match the navbar pill) ================= */
 .seg {
   position: relative; display: flex; padding: 4px; border-radius: 999px;
-  background: rgba(20, 24, 30, .45); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(8, 40, 112, .45); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, .12);
 }
 .seg button {
   position: relative; z-index: 1; flex: 1; min-height: 38px; padding: 0 12px; border: 0; border-radius: 999px;
@@ -28,17 +28,17 @@
 .polls-search svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; transition: color .25s; }
 .polls-search input {
   width: 100%; min-height: 48px; padding: 0 16px 0 44px; border-radius: 999px; font: inherit; font-size: 14px;
-  background: rgba(20, 24, 30, .45); backdrop-filter: blur(14px); color: var(--text); border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(8, 40, 112, .45); backdrop-filter: blur(14px); color: var(--text); border: 1px solid rgba(255, 255, 255, .12);
   transition: border-color .25s, box-shadow .25s, background .25s;
 }
 .polls-search input::placeholder { color: var(--muted); }
-.polls-search input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .22); background: rgba(20, 24, 30, .7); }
+.polls-search input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .22); background: rgba(8, 40, 112, .7); }
 .polls-search:focus-within svg { color: var(--text); }
 
 .polls-groups { position: relative; display: flex; flex-direction: column; gap: 8px; }
 .group-filter {
   position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 16px; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, .12); background: rgba(20, 24, 30, .3); color: var(--text);
+  border: 1px solid rgba(255, 255, 255, .12); background: rgba(8, 40, 112, .3); color: var(--text);
   font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
   transition: color .3s ease, background .3s ease, border-color .3s ease, transform .2s;
 }
@@ -145,7 +145,7 @@
   background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .1);
   box-shadow: 0 24px 60px rgba(0, 0, 0, .35);
 }
-.poll-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(7, 16, 31, .55), transparent 55%); }
+.poll-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6, 34, 96, .55), transparent 55%); }
 .poll-banner-img { position: absolute; inset: 0; background-size: cover; background-position: center; animation: kenburns 14s ease-out both; }
 
 /* glass info card (same as the news cards) */

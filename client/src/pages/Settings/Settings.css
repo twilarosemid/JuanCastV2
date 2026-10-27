@@ -7,13 +7,13 @@
 .st-title { margin: 0; font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
 .st-back {
   display: grid; place-items: center; flex: none; width: 42px; height: 42px; padding: 0; border-radius: 50%; color: var(--text); cursor: pointer;
-  background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .14); backdrop-filter: blur(12px); transition: background .2s, transform .2s;
+  background: rgba(8, 40, 112, .4); border: 1px solid rgba(255, 255, 255, .14); backdrop-filter: blur(12px); transition: background .2s, transform .2s;
 }
 .st-back svg { width: 20px; height: 20px; }
 .st-back:hover { background: rgba(255, 255, 255, .14); transform: translateX(-3px); }
 .st-back:focus-visible, .st-row:focus-visible, .st-btn:focus-visible, .st-faq-q:focus-visible, .st-submit:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
 
-.st-card { overflow: hidden; border-radius: 20px; background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); }
+.st-card { overflow: hidden; border-radius: 20px; background: rgba(8, 40, 112, .4); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); }
 
 /* ---------- menu rows ---------- */
 .st-row {
