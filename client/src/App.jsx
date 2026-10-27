@@ -9,6 +9,7 @@ import Market from './pages/Market/Market.jsx';
 import Login from './pages/Login/Login.jsx';
 import Profile from './pages/Profile/Profile.jsx';
 import EditProfile from './pages/Profile/EditProfile/EditProfile.jsx';
+import Transactions from './pages/Transactions/Transactions.jsx';
 import Placeholder from './pages/Placeholder/Placeholder.jsx';
 import Atmosphere from './components/Atmosphere/Atmosphere';
 import ScrollProgress from './components/ScrollProgress/ScrollProgress';
@@ -43,7 +44,7 @@ function Shell() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/profile/:username" element={<Profile />} />
-          <Route path="/transactions" element={<Placeholder title="Transactions" />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="/settings" element={<Placeholder title="Settings" />} />
           <Route path="*" element={<Placeholder title="Page not found" />} />
         </Routes>
