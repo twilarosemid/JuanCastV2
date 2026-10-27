@@ -7,6 +7,8 @@ import Spin from './Spin/Spin';
 import Powerups from './Powerups/Powerups';
 import './Market.css';
 
+const CENTERED = ['suns', 'spin'];
+
 const SECTIONS = [
   { id: 'stars', label: 'Stars', title: 'Stars for Minor Polls', blurb: 'Choose a Stars package for your account.' },
   { id: 'suns', label: 'Suns', title: 'Sun Conversion', blurb: 'Convert Suns to Stars for Votes.' },
@@ -46,11 +48,11 @@ export default function Market() {
       </aside>
 
       <main className="mk-main">
-        <header className={`mk-head${active === 'suns' ? ' centered' : ''}`} key={`h-${active}`}>
+        <header className={`mk-head${CENTERED.includes(active) ? ' centered' : ''}`} key={`h-${active}`}>
           <h1 className="mk-title">{current.title}</h1>
           <p className="mk-blurb">{current.blurb}</p>
         </header>
-        <div className={`mk-section${active === 'suns' ? ' centered' : ''}`} key={active}>
+        <div className={`mk-section${CENTERED.includes(active) ? ' centered' : ''}`} key={active}>
           {active === 'stars' && <StarsShop />}
           {active === 'suns' && <SunsConvert user={user} />}
           {active === 'spin' && <Spin user={user} />}

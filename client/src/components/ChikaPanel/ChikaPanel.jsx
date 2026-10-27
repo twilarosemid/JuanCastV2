@@ -71,7 +71,7 @@ export default function ChikaPanel() {
               onClick={() => open(c.url)}
               onKeyDown={onKey(c.url)}
             >
-              <div className="chika-thumb"><div style={bg(c.imageUrl)} /></div>
+              <div className="chika-thumb" style={c.imageUrl ? { '--img': `url("${img(c.imageUrl)}")` } : undefined}><div style={bg(c.imageUrl)} /></div>
               <div className="chika-row-text">
                 <h4>{c.title}</h4>
                 <p>{c.description}</p>
