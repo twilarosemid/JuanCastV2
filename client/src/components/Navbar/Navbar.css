@@ -81,7 +81,11 @@ nav.site-nav {
 }
 .menu a, .menu button { transition: background .2s, transform .2s; }
 .menu a:hover, .menu button:hover { background: rgba(255,255,255,.1); transform: translateX(3px); }
-.menu-head { padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
+.menu-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
+.menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-balances { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.menu-balances .bal { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 99px; background: rgba(255,255,255,.1); font-size: 13px; font-weight: 700; }
+.menu-balances .bal img { width: 15px; height: 15px; object-fit: contain; }
 .sep { height: 1px; margin: 6px 8px; background: rgba(255,255,255,.12); }
 .count {
   margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 99px;

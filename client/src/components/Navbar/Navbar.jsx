@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser } from '../../api';
+import StarCurr from '../../assets/StarCurr.png';
+import SunCurr from '../../assets/SunCurr.png';
 import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
 import useMountTransition from '../../hooks/useMountTransition';
 import './Navbar.css';
@@ -222,7 +224,13 @@ export default function Navbar() {
           <div className={`menu ${menuVisible ? 'show' : ''}`} role="menu">
             {loggedIn ? (
               <>
-                <div className="menu-head">{name.startsWith('@') ? name : `@${name}`}</div>
+                <div className="menu-head">
+                  <span className="menu-name">{name.startsWith('@') ? name : `@${name}`}</span>
+                  <span className="menu-balances">
+                    <span className="bal" title="Suns"><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+                    <span className="bal" title="Stars"><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+                  </span>
+                </div>
                 <div className="sep" />
                 <Link role="menuitem" to={LINKS.profile}><UserIcon /> Profile</Link>
                 <button role="menuitem" type="button" onClick={() => { setOpen(false); setDailyOpen(true); }}>
