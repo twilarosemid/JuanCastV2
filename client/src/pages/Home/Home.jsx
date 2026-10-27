@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getJSON } from '../../api';
 import HeroCarousel from '../../components/HeroCarousel/HeroCarousel';
-import ScrollWash from '../../components/ScrollWash/ScrollWash';
 import RankingRow from '../../components/RankingRow/RankingRow';
 import PollsCarousel from '../../components/PollsCarousel/PollsCarousel';
 import Reveal from '../../components/Reveal/Reveal';
@@ -21,8 +20,6 @@ export default function Home() {
   return (
     <>
       <HeroCarousel banners={banners} />
-      <ScrollWash />
-      <div className="vignette" />
       <main>
         <div className="sheet">
           <Reveal><RankingRow /></Reveal>

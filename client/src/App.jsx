@@ -30,7 +30,7 @@ function Shell() {
       <Navbar />
       <ScrollProgress />
       {/* Home gets its glow from the hero banner; every other page gets the shared one */}
-      {pathname !== '/' && <Atmosphere />}
+      <Atmosphere />
       {/* key = pathname re-runs the fade-in on every page change */}
       <div className="page" key={pathname}>
         <Routes>

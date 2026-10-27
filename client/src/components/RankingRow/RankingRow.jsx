@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { getJSON, img, getUser, castVote } from '../../api';
 import Reveal from '../Reveal/Reveal';
 import CountUp from '../CountUp/CountUp';
@@ -10,12 +11,14 @@ export default function RankingRow() {
   const [list, setList] = useState([]);
   const [title, setTitle] = useState('Top Rankings');
   const [flashId, setFlashId] = useState(null);
+  const [pollId, setPollId] = useState(null);
 
   useEffect(() => {
     (async () => {
-      const [rankings, settings] = await Promise.all([
+      const [rankings, settings, polls] = await Promise.all([
         getJSON('/api/rankings'),
-        getJSON('/api/settings')
+        getJSON('/api/settings'),
+        getJSON('/api/polls').catch(() => [])
       ]);
       let items = rankings;
       if (settings.featuredCategory) {
@@ -26,6 +29,16 @@ export default function RankingRow() {
             (!settings.featuredGroup || r.group === settings.featuredGroup)
         );
       }
+      // the poll these rankings belong to (same match PollDetail uses: poll.title = category, poll.group = group)
+      const first = items[0];
+      const matches = polls.filter(
+        (p) => p.title === (settings.featuredCategory || first?.category) &&
+               (!(settings.featuredGroup || first?.group) || p.group === (settings.featuredGroup || first?.group))
+      );
+      const now = new Date();
+      const live = matches.find((p) => new Date(p.fromDate) <= now && now <= new Date(p.toDate));
+      const poll = live || matches[matches.length - 1];
+      setPollId(poll ? poll._id || poll.id : null);
       // podium only: top 3
       setList([...items].sort((a, b) => a.position - b.position).slice(0, 3));
     })().catch(console.error);
@@ -53,7 +66,7 @@ export default function RankingRow() {
     <section>
       <div className="section-head">
         <h2 className="section-title" id="vote">{title}</h2>
-        <a href="#vote">View All</a>
+        <Link to={pollId ? `/polls/${pollId}` : '/polls'}>View All</Link>
       </div>
 
       <div className="podium">
