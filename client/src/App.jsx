@@ -12,6 +12,7 @@ import EditProfile from './pages/Profile/EditProfile/EditProfile.jsx';
 import Transactions from './pages/Transactions/Transactions.jsx';
 import Settings from './pages/Settings/Settings.jsx';
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword.jsx';
+import SignUp from './pages/SignUp/SignUp.jsx';
 import Placeholder from './pages/Placeholder/Placeholder.jsx';
 import Atmosphere from './components/Atmosphere/Atmosphere';
 import ScrollProgress from './components/ScrollProgress/ScrollProgress';
@@ -38,7 +39,7 @@ function Shell() {
           <Route path="/polls/:id" element={<PollDetail />} />
           <Route path="/vote" element={<Navigate to="/polls" replace />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Placeholder title="Sign Up" />} />
+          <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/community" element={<Community />} />
           <Route path="/market" element={<Market />} />

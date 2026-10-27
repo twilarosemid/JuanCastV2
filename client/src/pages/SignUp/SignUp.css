@@ -1,0 +1,106 @@
+/* the card, fields and buttons come from the Login page styles */
+
+/* ---------- progress ---------- */
+.su-steps { display: flex; align-items: center; gap: 0; margin: 0 0 26px; padding: 0; list-style: none; }
+.su-step { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+.su-step:last-child { flex: none; }
+.su-step:not(:last-child)::after { content: ''; flex: 1; height: 2px; margin: 0 10px; border-radius: 2px; background: rgba(255, 255, 255, .14); transition: background .4s; }
+.su-step.done:not(:last-child)::after { background: #fff; }
+.su-dot { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; font-size: 12px; font-weight: 800; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .16); transition: background .3s, color .3s, transform .3s; }
+.su-step.active .su-dot { background: #fff; color: #0b1220; border-color: #fff; transform: scale(1.1); }
+.su-step.done .su-dot { background: rgba(94, 224, 143, .2); color: #7ff0a8; border-color: rgba(94, 224, 143, .45); }
+.su-step.active .su-step-label { color: var(--text); }
+.su-step-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.su-pane { animation: suIn .45s cubic-bezier(.2, .7, .2, 1) backwards; }
+@keyframes suIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+.su-sub { margin-bottom: 22px; }
+
+/* ---------- gender pills ---------- */
+.su-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.su-seg-btn {
+  min-height: 46px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 700; color: var(--text); cursor: pointer;
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: background .25s, color .25s, border-color .25s, transform .2s;
+}
+.su-seg-btn:hover:not(.active) { background: rgba(255, 255, 255, .14); }
+.su-seg-btn:active { transform: scale(.97); }
+.su-seg-btn.active { background: #fff; color: #0b1220; border-color: #fff; }
+.su-seg-btn:focus-visible, .su-cc-btn:focus-visible, .su-cc-opt:focus-visible, .su-ghost:focus-visible, .su-link:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+
+.su-terms { display: flex; align-items: flex-start; gap: 10px; color: var(--text); font-size: 14px; line-height: 1.45; cursor: pointer; }
+.su-terms input { flex: none; width: 17px; height: 17px; margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
+
+/* ---------- password checks ---------- */
+.su-checks { margin: -4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.su-checks li { display: flex; align-items: center; gap: 8px; transition: color .25s; }
+.su-checks li::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .25); transition: background .25s, border-color .25s; }
+.su-checks li.ok { color: #7ff0a8; }
+.su-checks li.ok::before { background: #5ee08f; border-color: #5ee08f; }
+
+/* ---------- phone ---------- */
+.su-phone { display: flex; gap: 10px; }
+.su-phone > input {
+  flex: 1; min-width: 0; min-height: 48px; padding: 0 16px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 400;
+  background: rgba(255, 255, 255, .08); color: var(--text); border: 1px solid rgba(255, 255, 255, .14); transition: border-color .25s, box-shadow .25s;
+}
+.su-phone > input::placeholder { color: rgba(169, 182, 211, .55); }
+.su-phone > input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+
+.su-cc { position: relative; flex: none; }
+.su-cc-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 96px; min-height: 48px; padding: 0 12px 0 16px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 700; color: var(--text); cursor: pointer;
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: background .25s, border-color .25s;
+}
+.su-cc-btn:hover, .su-cc-btn.open { background: rgba(255, 255, 255, .14); }
+.su-cc-btn svg { width: 15px; height: 15px; margin-left: auto; color: var(--muted); transition: transform .3s cubic-bezier(.2, .7, .2, 1); }
+.su-cc-btn.open svg { transform: rotate(180deg); }
+.su-cc-list {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 270px; max-height: 280px; margin: 0; padding: 6px; overflow-y: auto; list-style: none;
+  border-radius: 18px; background: rgba(12, 18, 34, .97); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 22px 44px rgba(0, 0, 0, .5);
+  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; animation: suMenu .22s cubic-bezier(.2, .7, .2, 1);
+}
+@keyframes suMenu { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.su-cc-opt {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; font: inherit; font-size: 13.5px; color: var(--text); text-align: left; cursor: pointer;
+  background: transparent; transition: background .2s;
+}
+.su-cc-opt b { flex: none; width: 46px; font-weight: 800; }
+.su-cc-opt span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.su-cc-opt:hover:not(.selected) { background: rgba(255, 255, 255, .1); }
+.su-cc-opt.selected { background: #fff; color: #0b1220; }
+.su-cc-opt.selected span { color: #3a4666; }
+
+/* ---------- verification code ---------- */
+.su-otp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.su-otp-box {
+  width: 100%; min-width: 0; aspect-ratio: 1 / 1.12; padding: 0; border-radius: 14px; font: inherit; font-size: 24px; font-weight: 800; text-align: center; color: var(--text);
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); caret-color: transparent; transition: border-color .25s, box-shadow .25s, background .25s;
+}
+.su-otp-box:focus { outline: 0; border-color: var(--accent); background: rgba(255, 255, 255, .12); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.su-notice { margin: 0; color: #7ff0a8; font-size: 14px; font-weight: 700; text-align: center; }
+.su-resend { margin: 0; color: var(--muted); font-size: 14px; text-align: center; }
+.su-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; color: #7fb0ff; cursor: pointer; transition: color .2s; }
+.su-link:hover:not(:disabled) { color: #fff; }
+.su-link:disabled { color: var(--muted); cursor: default; }
+
+/* ---------- buttons row ---------- */
+.su-actions { display: flex; gap: 12px; }
+.su-actions .login-btn { flex: 1; }
+.su-ghost {
+  min-height: 50px; padding: 0 24px; border-radius: 999px; font: inherit; font-size: 14px; font-weight: 800; color: var(--text); cursor: pointer;
+  background: transparent; border: 1px solid rgba(255, 255, 255, .22); transition: background .2s, transform .15s;
+}
+.su-ghost:hover { background: rgba(255, 255, 255, .1); }
+.su-ghost:active { transform: scale(.97); }
+
+/* fallback so the page never depends on another page's CSS (zero specificity: the shared one wins) */
+:where(.rise) { animation: riseIn .6s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: var(--d, 0ms); }
+@keyframes riseIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 760px) {
+  .su-step-label { display: none; }
+  .su-step:not(:last-child)::after { margin: 0 8px; }
+  .su-otp { gap: 7px; }
+  .su-otp-box { font-size: 21px; }
+  .su-cc-list { width: min(270px, 78vw); }
+}
