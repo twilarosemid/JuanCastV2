@@ -3,9 +3,9 @@
 .hero-frame {
   position: relative; width: 100%; max-height: 80vh; overflow: hidden;
   transition: aspect-ratio .6s ease;
-  /* melt the bottom edge into the page instead of ending in a hard line */
-  -webkit-mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
-          mask-image: linear-gradient(to bottom, #000 80%, transparent 100%);
+  /* melt the top and bottom edges into the page instead of ending in hard lines */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0%, #000 22%, #000 78%, transparent 100%);
 }
 /* slides stack and crossfade */
 .slide {
