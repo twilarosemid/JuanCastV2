@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { API } from '../../api';
 import useUser from '../../hooks/useUser';
@@ -49,6 +49,58 @@ const Icon = ({ category }) => {
       return <svg {...props}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
   }
 };
+
+// Custom dropdown (the browser's native <select> popup can't be themed, so it came out white-on-white)
+function RangeMenu({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  const current = RANGES.find((r) => r.id === value) || RANGES[0];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
+  return (
+    <div className="tx-menu" ref={box}>
+      <button
+        type="button"
+        className={`tx-select${open ? ' open' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`Date range: ${current.label}`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{current.label}</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <ul className="tx-menu-list" role="listbox" aria-label="Date range">
+          {RANGES.map((r) => (
+            <li key={r.id} role="presentation">
+              <button
+                type="button"
+                role="option"
+                aria-selected={r.id === value}
+                className={`tx-option${r.id === value ? ' selected' : ''}`}
+                onClick={() => { onChange(r.id); setOpen(false); }}
+              >
+                {r.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function Transactions() {
   const user = useUser();
@@ -141,9 +193,7 @@ export default function Transactions() {
                 </button>
               ))}
             </div>
-            <select className="tx-select" value={range} onChange={(e) => setRange(e.target.value)} aria-label="Filter by date range">
-              {RANGES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
+            <RangeMenu value={range} onChange={setRange} />
           </div>
 
           <section className="tx-panel rise" style={{ '--d': '140ms' }} aria-live="polite">

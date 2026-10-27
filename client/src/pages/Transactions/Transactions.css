@@ -17,7 +17,7 @@
 .tx-refresh:focus-visible, .tx-btn:focus-visible, .tx-chip:focus-visible, .tx-select:focus-visible, .tx-pager button:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
 
 /* ---------- filters ---------- */
-.tx-controls { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+.tx-controls { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
 .tx-chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .tx-chip {
   min-height: 38px; padding: 0 16px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer;
@@ -28,13 +28,32 @@
 .tx-chip:active { transform: scale(.96); }
 .tx-chip.active { background: #fff; color: #0b1220; border-color: #fff; }
 
+/* date-range dropdown */
+.tx-menu { position: relative; flex: none; }
 .tx-select {
-  flex: none; min-height: 38px; padding: 0 38px 0 16px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer;
-  color-scheme: dark; appearance: none; -webkit-appearance: none;
-  background: rgba(20, 24, 30, .4) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9b6d3' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 16px;
-  border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(12px);
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 150px; min-height: 38px; padding: 0 14px 0 18px;
+  border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer;
+  background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(12px);
+  transition: background .25s, border-color .25s, transform .2s;
 }
-.tx-select:hover { background-color: rgba(255, 255, 255, .12); }
+.tx-select:hover, .tx-select.open { background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .22); }
+.tx-select:active { transform: scale(.97); }
+.tx-select svg { width: 16px; height: 16px; color: var(--muted); transition: transform .3s cubic-bezier(.2, .7, .2, 1); }
+.tx-select.open svg { transform: rotate(180deg); }
+
+.tx-menu-list {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; min-width: 100%; width: max-content; margin: 0; padding: 6px; list-style: none;
+  border-radius: 18px; background: rgba(12, 18, 34, .96); border: 1px solid rgba(255, 255, 255, .14); backdrop-filter: blur(16px);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, .5); transform-origin: top right; animation: txMenuIn .22s cubic-bezier(.2, .7, .2, 1);
+}
+@keyframes txMenuIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.tx-option {
+  display: flex; width: 100%; align-items: center; min-height: 38px; padding: 0 16px; border: 0; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--text); text-align: left; white-space: nowrap; cursor: pointer; background: transparent; transition: background .2s, color .2s;
+}
+.tx-option:hover:not(.selected) { background: rgba(255, 255, 255, .12); }
+.tx-option.selected { background: #fff; color: #0b1220; }
+.tx-option:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: -2px; }
 
 /* ---------- list ---------- */
 .tx-panel { border-radius: 18px; background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); overflow: hidden; }
@@ -98,7 +117,9 @@
   .tx-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -5vw; padding: 2px 5vw; }
   .tx-chips::-webkit-scrollbar { display: none; }
   .tx-chip { flex: none; }
+  .tx-menu { width: 100%; }
   .tx-select { width: 100%; }
+  .tx-menu-list { left: 0; right: 0; width: auto; }
 }
 @media (max-width: 640px) {
   .tx-list-head { display: none; }
