@@ -119,7 +119,7 @@ export default function Navbar() {
   const initial = name.replace(/^@/, '').charAt(0).toUpperCase() || '?';
 
   return (
-    <nav>
+    <nav className="site-nav">
       <Link className="logo" to={LINKS.home}>JuanCast</Link>
 
       <div className="pill" ref={menuRef}>

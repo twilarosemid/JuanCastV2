@@ -1,4 +1,4 @@
-nav {
+nav.site-nav {
   position: fixed; top: 0; left: 0; right: 0; z-index: 10;
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 5vw;
@@ -87,7 +87,7 @@ nav {
 }
 
 @media (max-width: 760px) {
-  nav { flex-wrap: wrap; row-gap: 12px; }
+  nav.site-nav { flex-wrap: wrap; row-gap: 12px; }
   .pill { flex-wrap: wrap; justify-content: center; }
   .menu { width: min(280px, 90vw); }
 }
