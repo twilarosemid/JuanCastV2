@@ -56,7 +56,7 @@ export default function PollsCarousel() {
     <section>
       <div className="section-head">
         <h2 className="section-title" id="polls">Polls</h2>
-        <Link to="/polls">View All</Link>
+        <Link to="/polls">View All <span aria-hidden="true">→</span></Link>
       </div>
       <div
         className="carousel"
