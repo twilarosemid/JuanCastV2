@@ -137,9 +137,14 @@ export default function Navbar() {
       setCondensed(hero ? hero.getBoundingClientRect().bottom < 90 : window.scrollY > 120);
     };
     check();
+    // the new page scrolls to the top a moment after the route changes; re-check once it has
+    const raf = requestAnimationFrame(() => requestAnimationFrame(check));
+    const later = setTimeout(check, 250);
     window.addEventListener('scroll', check, { passive: true });
     window.addEventListener('resize', check);
     return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(later);
       window.removeEventListener('scroll', check);
       window.removeEventListener('resize', check);
     };

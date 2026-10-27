@@ -102,12 +102,12 @@ nav.site-nav {
 .nav-ico { display: none; }
 
 /* web view, scrolled past the banner: Home / Vote / Community / Market slide away,
-   leaving logo + bell + avatar. Hover (or keyboard focus) on the pill brings them back. */
+   leaving logo + bell + avatar. Hover (or keyboard focus - not mouse-click focus, which would leave it stuck open) on the pill brings them back. */
 @media (min-width: 761px) {
   nav.site-nav .links, nav.site-nav .divider {
     transition: max-width .5s cubic-bezier(.4, 0, .2, 1), opacity .35s ease, margin .5s cubic-bezier(.4, 0, .2, 1);
   }
   nav.site-nav .links { max-width: 640px; overflow: hidden; }
-  nav.site-nav.condensed .pill:not(:hover):not(:focus-within) .links { max-width: 0; opacity: 0; pointer-events: none; }
-  nav.site-nav.condensed .pill:not(:hover):not(:focus-within) .divider { opacity: 0; margin: 0; }
+  nav.site-nav.condensed .pill:not(:hover):not(:has(:focus-visible)) .links { max-width: 0; opacity: 0; pointer-events: none; }
+  nav.site-nav.condensed .pill:not(:hover):not(:has(:focus-visible)) .divider { opacity: 0; margin: 0; }
 }
