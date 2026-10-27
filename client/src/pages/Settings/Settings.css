@@ -1,0 +1,116 @@
+/* ================= settings ================= */
+.st-page { min-height: 100vh; padding: 120px 5vw 80px; }
+.st-inner { width: min(100%, 720px); margin: 0 auto; }
+.st-inner.wide { width: min(100%, 860px); }
+
+.st-head { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
+.st-title { margin: 0; font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; }
+.st-back {
+  display: grid; place-items: center; flex: none; width: 42px; height: 42px; padding: 0; border-radius: 50%; color: var(--text); cursor: pointer;
+  background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .14); backdrop-filter: blur(12px); transition: background .2s, transform .2s;
+}
+.st-back svg { width: 20px; height: 20px; }
+.st-back:hover { background: rgba(255, 255, 255, .14); transform: translateX(-3px); }
+.st-back:focus-visible, .st-row:focus-visible, .st-btn:focus-visible, .st-faq-q:focus-visible, .st-submit:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+
+.st-card { overflow: hidden; border-radius: 20px; background: rgba(20, 24, 30, .4); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); }
+
+/* ---------- menu rows ---------- */
+.st-row {
+  display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 22px; color: var(--text); text-decoration: none;
+  border-bottom: 1px solid rgba(255, 255, 255, .07); transition: background .25s, padding-left .3s cubic-bezier(.2, .7, .2, 1);
+}
+.st-row:last-child { border-bottom: 0; }
+a.st-row:hover { background: rgba(255, 255, 255, .08); padding-left: 28px; }
+.st-row.disabled { cursor: not-allowed; opacity: .55; }
+.st-ico { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 13px; background: rgba(255, 255, 255, .08); }
+.st-ico svg { width: 20px; height: 20px; }
+.st-label { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; }
+.st-chev { display: grid; color: var(--muted); transition: transform .3s cubic-bezier(.2, .7, .2, 1), color .2s; }
+.st-chev svg { width: 18px; height: 18px; }
+a.st-row:hover .st-chev { color: #fff; transform: translateX(4px); }
+.st-soon { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid rgba(255, 255, 255, .18); }
+
+.st-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.st-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 24px; border-radius: 999px;
+  background: #fff; color: #0b1220; font: inherit; font-size: 14px; font-weight: 800; text-decoration: none; cursor: pointer; border: 0;
+  transition: transform .2s, box-shadow .3s;
+}
+.st-btn svg { width: 18px; height: 18px; }
+.st-btn:hover { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
+.st-btn:active { transform: scale(.97); }
+
+/* ---------- share ---------- */
+.st-intro { padding: 24px 22px 18px; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.st-intro h2 { margin: 0 0 6px; font-size: 19px; font-weight: 800; }
+.st-intro p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* ---------- faq ---------- */
+.st-faq { border-bottom: 1px solid rgba(255, 255, 255, .07); }
+.st-faq:last-child { border-bottom: 0; }
+.st-faq-q {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 60px; padding: 14px 22px; border: 0; background: transparent;
+  color: var(--text); font: inherit; font-size: 15.5px; font-weight: 700; text-align: left; cursor: pointer; transition: background .25s;
+}
+.st-faq-q:hover { background: rgba(255, 255, 255, .06); }
+.st-faq-chev { display: grid; flex: none; color: var(--muted); transition: transform .35s cubic-bezier(.2, .7, .2, 1); }
+.st-faq-chev svg { width: 18px; height: 18px; }
+.st-faq.open .st-faq-chev { transform: rotate(180deg); color: #fff; }
+/* smooth open/close without measuring heights */
+.st-faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s cubic-bezier(.2, .7, .2, 1); }
+.st-faq.open .st-faq-a { grid-template-rows: 1fr; }
+.st-faq-a-inner { min-height: 0; overflow: hidden; padding: 0 22px; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+.st-faq.open .st-faq-a-inner { padding-bottom: 18px; }
+.st-faq-a-inner p { margin: 0 0 10px; }
+.st-faq-a-inner p:last-child { margin-bottom: 0; }
+.st-faq-a-inner ol { margin: 0 0 10px; padding-left: 20px; }
+.st-faq-a-inner li { margin-bottom: 6px; }
+
+/* ---------- legal text ---------- */
+.st-legal { padding: 30px clamp(20px, 4vw, 36px) 34px; }
+.legal-document h3 { margin: 26px 0 8px; font-size: 17px; font-weight: 800; }
+.legal-document h3:first-child { margin-top: 0; }
+.legal-document p, .legal-document li { color: var(--muted); font-size: 14.5px; line-height: 1.65; }
+.legal-document p { margin: 0 0 10px; }
+.legal-document ol { margin: 0 0 10px; padding-left: 22px; }
+.legal-document li { margin-bottom: 6px; }
+
+/* ---------- report form ---------- */
+.st-form { display: flex; flex-direction: column; gap: 18px; padding: 26px clamp(18px, 4vw, 30px) 28px; }
+.st-field { display: flex; flex-direction: column; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.st-field em { font-style: normal; font-weight: 500; opacity: .75; }
+.st-field input[type='text'], .st-field textarea {
+  width: 100%; padding: 13px 16px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 400; color: var(--text);
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: border-color .25s, box-shadow .25s;
+}
+.st-field textarea { min-height: 150px; resize: vertical; }
+.st-field input[type='text']:focus, .st-field textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.st-file { color: var(--muted); font: inherit; font-size: 14px; }
+.st-file::file-selector-button {
+  margin-right: 14px; padding: 9px 18px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, .14); color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s;
+}
+.st-file::file-selector-button:hover { background: rgba(255, 255, 255, .24); }
+.st-hint { color: var(--muted); font-weight: 500; }
+.st-err { color: #ff8a96; font-weight: 700; }
+.st-submit {
+  min-height: 50px; border: 0; border-radius: 999px; background: #fff; color: #0b1220; font: inherit; font-size: 15px; font-weight: 800;
+  letter-spacing: .04em; text-transform: uppercase; cursor: pointer; transition: transform .2s, box-shadow .3s, opacity .2s;
+}
+.st-submit:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
+.st-submit:active:not(:disabled) { transform: scale(.98); }
+.st-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+/* fallbacks so this page never depends on another page's CSS (zero specificity: the shared ones win) */
+:where(.rise) { animation: riseIn .6s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: var(--d, 0ms); }
+@keyframes riseIn { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 860px) {
+  .st-page { padding: 150px 5vw 80px; }
+}
+@media (max-width: 520px) {
+  .st-row { min-height: 60px; padding: 0 16px; gap: 12px; }
+  a.st-row:hover { padding-left: 16px; }
+  .st-faq-q, .st-faq-a-inner { padding-left: 16px; padding-right: 16px; }
+}
