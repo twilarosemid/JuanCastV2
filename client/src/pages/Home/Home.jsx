@@ -6,6 +6,7 @@ import PollsCarousel from '../../components/PollsCarousel/PollsCarousel';
 import Reveal from '../../components/Reveal/Reveal';
 import HomeFeed from '../../components/HomeFeed/HomeFeed';
 import StartupAd from '../../components/StartupAd/StartupAd';
+import ScrollHint from '../../components/ScrollHint/ScrollHint';
 import './Home.css';
 
 export default function Home() {
@@ -22,6 +23,7 @@ export default function Home() {
     <>
       <StartupAd />
       <HeroCarousel banners={banners} />
+      <ScrollHint />
       <main>
         <div className="sheet">
           <Reveal><RankingRow /></Reveal>

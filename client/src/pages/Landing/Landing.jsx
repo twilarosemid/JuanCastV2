@@ -4,6 +4,7 @@ import { getJSON } from '../../api';
 import { markEntered } from '../../landingGate';
 import Reveal from '../../components/Reveal/Reveal';
 import LandingStage from '../../components/LandingStage/LandingStage';
+import ScrollHint from '../../components/ScrollHint/ScrollHint';
 import './Landing.css';
 
 const Svg = ({ children, size = 20 }) => (
@@ -47,6 +48,7 @@ export default function Landing() {
 
   return (
     <>
+      <ScrollHint />
       <section className="lp-hero" aria-label="JuanCast">
         <div className="lp-frame">
           <h1 className="lp-sr">JuanCast: Every Juan’s Choice</h1>
