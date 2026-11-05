@@ -1,0 +1,16 @@
+/* the image is the whole popup: no card chrome around it */
+.modal.sa-modal { width: auto; max-width: 100%; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.sa-wrap { position: relative; display: block; line-height: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.sa-wrap a { display: block; }
+.sa-wrap img {
+  display: block; width: auto; height: auto; max-width: min(92vw, 520px); max-height: 80vh; margin: 0 auto;
+  border-radius: 18px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55); -webkit-user-drag: none;
+}
+.sa-close {
+  position: absolute; z-index: 1; top: -14px; right: -14px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: #fff; color: #0b1220; font: inherit; font-size: 24px; font-weight: 800; line-height: 1; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .4); transition: transform .2s;
+}
+.sa-close:hover { transform: scale(1.08) rotate(90deg); }
+.sa-close:focus-visible { outline: 3px solid rgba(47, 123, 255, .8); outline-offset: 2px; }
+@media (max-width: 520px) { .sa-close { top: -12px; right: -6px; } }

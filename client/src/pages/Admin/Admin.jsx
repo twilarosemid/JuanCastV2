@@ -29,6 +29,8 @@ const TABS = [
   { key: 'chika', label: 'Chika' },
   { key: 'contents', label: 'Contents' },
   { key: 'banners', label: 'Banners' },
+  { key: 'ads', label: 'Ads' },
+  { key: 'landing', label: 'Landing' },
   { key: 'reports', label: 'Reports' }
 ];
 
@@ -421,6 +423,259 @@ function BannersTab({ banners, ctx }) {
   );
 }
 
+/* ------------------------------------------------------------------ ads tab */
+const AD_PLACEMENT_LABELS = { market: 'Market side ad', startup: 'Startup popup' };
+
+function AdsTab({ ads, ctx }) {
+  const { reload, notify, fail, askConfirm } = ctx;
+  const [placement, setPlacement] = useState('market');
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [sizeNote, setSizeNote] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [altText, setAltText] = useState('');
+  const [fileKey, setFileKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editLink, setEditLink] = useState('');
+  const [editAlt, setEditAlt] = useState('');
+  const [editFile, setEditFile] = useState(null);
+  const [editBusy, setEditBusy] = useState(false);
+
+  useEffect(() => {
+    if (!file) { setPreviewUrl(''); setSizeNote(''); return undefined; }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    const probe = new Image();
+    probe.onload = () => {
+      const ratio = probe.naturalHeight / probe.naturalWidth;
+      setSizeNote(placement === 'market' && Math.abs(ratio - 2) > 0.15
+        ? `This image is ${probe.naturalWidth}×${probe.naturalHeight}. Side ads are shown tall (1:2), so it will be cropped to fit. 720×1440 is ideal.`
+        : '');
+    };
+    probe.src = url;
+    return () => URL.revokeObjectURL(url);
+  }, [file, placement]);
+
+  const pick = (e) => {
+    const chosen = e.target.files?.[0];
+    if (!chosen) return;
+    if (!/^image\//.test(chosen.type)) {
+      notify('Please choose an image file.', 'err');
+      setFileKey((k) => k + 1);
+      return;
+    }
+    setFile(chosen);
+  };
+
+  const upload = async () => {
+    if (!file) { notify('Choose an image first.', 'err'); return; }
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('image', file);
+      body.append('placement', placement);
+      if (linkUrl.trim()) body.append('linkUrl', linkUrl.trim());
+      if (altText.trim()) body.append('altText', altText.trim());
+      await adminFetch('/api/ads', { method: 'POST', body });
+      notify(placement === 'startup' ? 'Startup ad added. It pops up when the home page opens.' : 'Ad added. It shows in the Market now.');
+      setFile(null); setLinkUrl(''); setAltText(''); setFileKey((k) => k + 1);
+      await reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (ad) => {
+    try {
+      const body = new FormData();
+      body.append('active', String(!ad.active));
+      await adminFetch(`/api/ads/${idOf(ad)}`, { method: 'PUT', body });
+      notify(ad.active ? 'Ad paused. It is hidden from the site.' : 'Ad is live again.');
+      await reload();
+    } catch (err) {
+      fail(err);
+    }
+  };
+
+  const remove = (ad) => askConfirm({
+    title: 'Delete this ad?',
+    body: 'It will disappear from the site for good.',
+    confirmLabel: 'Delete',
+    run: async () => {
+      await adminFetch(`/api/ads/${idOf(ad)}`, { method: 'DELETE' });
+      notify('Ad deleted.');
+      await reload();
+    }
+  });
+
+  const openEdit = (ad) => { setEditing(ad); setEditLink(ad.linkUrl || ''); setEditAlt(ad.altText || ''); setEditFile(null); };
+  const closeEdit = () => { setEditing(null); setEditFile(null); };
+
+  const saveEdit = async () => {
+    setEditBusy(true);
+    try {
+      const body = new FormData();
+      body.append('linkUrl', editLink.trim());
+      body.append('altText', editAlt.trim());
+      if (editFile) body.append('image', editFile);
+      await adminFetch(`/api/ads/${idOf(editing)}`, { method: 'PUT', body });
+      notify('Ad updated.');
+      closeEdit();
+      await reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const liveCount = ads.filter((a) => a.active).length;
+
+  return (
+    <div className="ad-stack">
+      <div className="ad-card">
+        <h2>Add an ad</h2>
+        <p className="ad-note">
+          <strong>Market side ad:</strong> a tall column pinned to the right of every Market section, on desktop web only (hidden on phones). With more than one live ad they take turns every few seconds. Best size 720×1440 (1:2).<br />
+          <strong>Startup popup:</strong> opens over the home page when someone arrives (once per visit, on every device). Any shape works; the whole image is shown. It also shows again right after someone logs in, before the daily check-in. Set the link in the Popup link box. The link opens in a new tab, and you can change it any time with Edit.
+        </p>
+        <div className="ad-banner-form">
+          <div className="ad-field">
+            <label htmlFor="ad-ads-placement">Where it shows</label>
+            <select id="ad-ads-placement" className="ad-input" value={placement} onChange={(e) => setPlacement(e.target.value)}>
+              {Object.entries(AD_PLACEMENT_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+          <div className="ad-field">
+            <label htmlFor="ad-ads-file">Image</label>
+            <input key={fileKey} id="ad-ads-file" type="file" accept="image/*" className="ad-input" onChange={pick} />
+          </div>
+          <div className="ad-row2">
+            <div className="ad-field">
+              <label htmlFor="ad-ads-link">{placement === 'startup' ? 'Popup link' : 'Link when clicked'} <small>{placement === 'startup' ? '(opens in a new tab when the popup is tapped)' : '(optional)'}</small></label>
+              <input id="ad-ads-link" className="ad-input" placeholder="https://…" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
+            </div>
+            <div className="ad-field">
+              <label htmlFor="ad-ads-alt">Alt text <small>(optional)</small></label>
+              <input id="ad-ads-alt" className="ad-input" placeholder="Describe the ad" value={altText} onChange={(e) => setAltText(e.target.value)} />
+            </div>
+          </div>
+          {previewUrl && (
+            <div className="ad-ready">
+              <img className="ad-tall-preview" src={previewUrl} alt="Ad preview" />
+              <span>Ready to upload</span>
+            </div>
+          )}
+          {sizeNote && <p className="ad-note" style={{ margin: 0 }}>{sizeNote}</p>}
+          <div className="ad-actions">
+            <button type="button" className="btn-solid" onClick={upload} disabled={busy || !file}>{busy ? 'Uploading…' : 'Add ad'}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="ad-card">
+        <h2>Ads <span className="ad-count">{liveCount} live / {ads.length}</span></h2>
+        {ads.length === 0 ? <p className="ad-empty">No ads yet.</p> : ads.map((ad, i) => (
+          <div className="ad-item" key={idOf(ad)}>
+            <img className="ad-tall-thumb" src={img(ad.imageUrl)} alt={ad.altText || 'Ad'} loading="lazy" />
+            <div className="ad-item-body">
+              <div className="ad-item-title">
+                Ad {i + 1} · {AD_PLACEMENT_LABELS[ad.placement] || AD_PLACEMENT_LABELS.market}
+                <span className={`ad-status ${ad.active ? 'live' : 'paused'}`}>{ad.active ? 'Live' : 'Paused'}</span>
+              </div>
+              <div className="ad-item-sub">{ad.linkUrl ? `Links to ${ad.linkUrl}` : 'No link'}</div>
+              <div className="ad-item-sub">Added {fmtDate(ad.createdAt)}</div>
+            </div>
+            <div className="ad-item-actions">
+              <button type="button" className="ad-btn" onClick={() => toggle(ad)}>{ad.active ? 'Pause' : 'Resume'}</button>
+              <button type="button" className="ad-btn" onClick={() => openEdit(ad)}>Edit</button>
+              <button type="button" className="ad-btn danger" onClick={() => remove(ad)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal open={Boolean(editing)} onClose={closeEdit} label="Edit ad" className="ad-modal">
+        <h3>Edit ad</h3>
+        <div className="ad-banner-form">
+          <div className="ad-field">
+            <label htmlFor="ad-edit-link">{editing?.placement === 'startup' ? 'Popup link' : 'Link when clicked'} <small>(leave empty for no link)</small></label>
+            <input id="ad-edit-link" className="ad-input" placeholder="https://…" value={editLink} onChange={(e) => setEditLink(e.target.value)} />
+          </div>
+          <div className="ad-field">
+            <label htmlFor="ad-edit-alt">Alt text</label>
+            <input id="ad-edit-alt" className="ad-input" value={editAlt} onChange={(e) => setEditAlt(e.target.value)} />
+          </div>
+          <div className="ad-field">
+            <label htmlFor="ad-edit-file">Replace image <small>(optional)</small></label>
+            <input id="ad-edit-file" type="file" accept="image/*" className="ad-input" onChange={(e) => setEditFile(e.target.files?.[0] || null)} />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={closeEdit}>Cancel</button>
+          <button type="button" className="btn-solid" onClick={saveEdit} disabled={editBusy}>{editBusy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ landing tab */
+const LANDING_LINKS = [
+  { key: 'playStoreUrl', label: 'Play Store button', placeholder: 'https://play.google.com/store/apps/details?id=…' },
+  { key: 'facebookUrl', label: 'Facebook', placeholder: 'https://facebook.com/…' },
+  { key: 'xUrl', label: 'X (Twitter)', placeholder: 'https://x.com/…' },
+  { key: 'youtubeUrl', label: 'YouTube', placeholder: 'https://youtube.com/@…' },
+  { key: 'tiktokUrl', label: 'TikTok', placeholder: 'https://tiktok.com/@…' }
+];
+
+function LandingTab({ settings, ctx }) {
+  const { reload, notify, fail } = ctx;
+  const [form, setForm] = useState({});
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setForm(Object.fromEntries(LANDING_LINKS.map((l) => [l.key, settings?.[l.key] || ''])));
+  }, [settings]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      const payload = Object.fromEntries(LANDING_LINKS.map((l) => [l.key, (form[l.key] || '').trim()]));
+      await adminFetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      notify('Landing page links saved.');
+      await reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="ad-stack">
+      <div className="ad-card">
+        <h2>Landing page links</h2>
+        <p className="ad-note">These power the buttons and icons on the landing page (<Link className="ad-link" to="/landing" target="_blank">/landing</Link>). Leave a social link empty to hide its icon. An empty Play Store link falls back to the default JuanCast Play Store listing.</p>
+        <div className="ad-banner-form">
+          {LANDING_LINKS.map((l) => (
+            <div className="ad-field" key={l.key}>
+              <label htmlFor={`ad-lp-${l.key}`}>{l.label}</label>
+              <input id={`ad-lp-${l.key}`} className="ad-input" placeholder={l.placeholder} value={form[l.key] || ''} onChange={(e) => setForm((f) => ({ ...f, [l.key]: e.target.value }))} />
+            </div>
+          ))}
+          <div className="ad-actions">
+            <button type="button" className="btn-solid" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save links'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ reports tab */
 function ReportsTab({ reports, loading, ctx }) {
   const { reload, notify, fail, askConfirm } = ctx;
@@ -505,7 +760,7 @@ function Dashboard({ user }) {
   const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
   const setTab = (key) => setParams(key === 'overview' ? {} : { tab: key }, { replace: true });
 
-  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], banners: [], reports: [], settings: {} });
+  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], banners: [], ads: [], reports: [], settings: {} });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [sessionBad, setSessionBad] = useState(!user?.token);   // admins who logged in before the update have no token yet
@@ -530,20 +785,24 @@ function Dashboard({ user }) {
   const reload = useCallback(async () => {
     const safe = (p, fallback) => p.catch(() => fallback);
     try {
-      const [polls, groups, artists, chika, contents, banners, settings, reports] = await Promise.all([
+      const [polls, groups, artists, chika, contents, banners, ads, settings, reports] = await Promise.all([
         getJSON('/api/polls'),
         safe(getJSON('/api/poll-groups'), []),
         getJSON('/api/rankings'),
         getJSON('/api/chika'),
         safe(getJSON('/api/videos?platform=all'), []),
         safe(getJSON('/api/banners'), []),
+        adminFetch('/api/ads/all').catch((err) => {
+          if (err.status === 401 || err.status === 403) setSessionBad(true);
+          return [];
+        }),
         safe(getJSON('/api/settings'), {}),
         adminFetch('/api/reports').catch((err) => {
           if (err.status === 401 || err.status === 403) setSessionBad(true);
           return [];
         })
       ]);
-      setData({ polls, groups, artists, chika, contents, banners, reports: reports || [], settings });
+      setData({ polls, groups, artists, chika, contents, banners, ads: ads || [], reports: reports || [], settings });
       setLoadError('');
     } catch (err) {
       console.error(err);
@@ -729,6 +988,7 @@ function Dashboard({ user }) {
     { key: 'chika', label: 'Chika articles', value: data.chika.length },
     { key: 'contents', label: 'Contents', value: data.contents.length },
     { key: 'banners', label: 'Banners', value: data.banners.length },
+    { key: 'ads', label: 'Ads', value: data.ads.filter((a) => a.active).length, sub: `${data.ads.length} total` },
     { key: 'reports', label: 'Open reports', value: data.reports.length, tone: data.reports.length ? 'alert' : '' }
   ];
 
@@ -813,6 +1073,8 @@ function Dashboard({ user }) {
           {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
           {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
           {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
+          {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
+          {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
           {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
         </section>
       </div>

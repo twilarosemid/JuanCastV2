@@ -3,6 +3,10 @@
   display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px;
   max-width: none; margin: 0; padding: 120px 0 80px 5vw; min-height: 100vh;
 }
+/* with an ad: sidebar | content | ad */
+.market-page.has-ad { grid-template-columns: 260px minmax(0, 1fr) auto; }
+.market-page.has-ad .mk-main { padding-right: 0; }
+.mk-ad { width: calc(var(--ad-w) + 5vw); } /* the ad itself is fixed; this just keeps its column free */
 .mk-sidebar { position: sticky; top: 110px; align-self: start; }
 .mk-main { min-width: 0; padding-right: 5vw; }
 

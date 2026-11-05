@@ -1,6 +1,9 @@
 import { useSearchParams } from 'react-router-dom';
 import useBubble from '../../hooks/useBubble';
 import useUser from '../../hooks/useUser';
+import useAds from '../../hooks/useAds';
+import useDesktopWeb from '../../hooks/useDesktopWeb';
+import AdSlot from '../../components/AdSlot/AdSlot';
 import StarsShop from './StarsShop/StarsShop';
 import SunsConvert from './SunsConvert/SunsConvert';
 import Spin from './Spin/Spin';
@@ -19,6 +22,8 @@ const SECTIONS = [
 // Same shell as the Community page: sidebar with a sliding white bubble, section picked by ?tab=
 export default function Market() {
   const user = useUser();
+  const isWeb = useDesktopWeb();
+  const ads = useAds('market', isWeb); // side ads are for desktop web only
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
   const active = SECTIONS.some((s) => s.id === requested) ? requested : 'stars';
@@ -28,7 +33,7 @@ export default function Market() {
   const current = SECTIONS.find((s) => s.id === active);
 
   return (
-    <div className="market-page">
+    <div className={`market-page${ads.length ? ' has-ad' : ''}`}>
       <aside className="mk-sidebar rise">
         <nav className="mk-nav" aria-label="Market sections">
           {bubble.style && <span className="mk-bubble" style={bubble.style} />}
@@ -59,6 +64,12 @@ export default function Market() {
           {active === 'powerups' && <Powerups />}
         </div>
       </main>
+
+      {ads.length > 0 && (
+        <div className="mk-ad">
+          <AdSlot ads={ads} />
+        </div>
+      )}
     </div>
   );
 }

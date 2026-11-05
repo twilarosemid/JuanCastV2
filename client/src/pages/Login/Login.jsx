@@ -4,6 +4,7 @@ import { API, getUser, saveUser } from '../../api';
 import useUser from '../../hooks/useUser';
 import heroIcon from '../../assets/juancast_icon.webp';
 import './Login.css';
+import { resetStartupAd } from '../../startupAdGate';
 
 const REMEMBER_KEY = 'juancast_remembered_email';
 
@@ -58,6 +59,9 @@ export default function Login() {
       // only the email is remembered, never the password
       if (rememberMe) localStorage.setItem(REMEMBER_KEY, email);
       else localStorage.removeItem(REMEMBER_KEY);
+
+      // show the startup popup ad again for this login (it comes before the daily check-in)
+      resetStartupAd();
 
       // ask the navbar to pop the daily check-in once (admins skip it)
       if (!isAdmin) { try { sessionStorage.setItem('juancast_daily_prompt', '1'); } catch { /* ignore */ } }

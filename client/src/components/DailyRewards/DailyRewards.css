@@ -1,18 +1,24 @@
-.modal.dr-modal { width: min(640px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; padding: 0; scrollbar-width: thin; }
-.dr-banner { display: block; width: 100%; aspect-ratio: 16 / 6; object-fit: cover; border-radius: 22px 22px 0 0; }
-.dr-body { padding: 22px 24px 24px; }
-.dr-head { text-align: center; margin-bottom: 18px; }
-.dr-head h2 { margin: 0 0 4px; font-size: 24px; font-weight: 800; }
+/* Fits the screen with no scrolling: spacing, icons and the banner scale with the window height */
+.modal.dr-modal {
+  --dr-icon: clamp(30px, 6.2dvh, 52px);
+  --dr-gap: clamp(6px, 1.2dvh, 12px);
+  width: min(640px, 100%); max-height: calc(100dvh - 40px); overflow: hidden; padding: 0;
+  display: flex; flex-direction: column;
+}
+.dr-banner { display: block; flex: 0 1 auto; width: 100%; min-height: 0; aspect-ratio: 16 / 6; max-height: 20dvh; object-fit: cover; border-radius: 22px 22px 0 0; }
+.dr-body { flex: 1 1 auto; min-height: 0; padding: clamp(10px, 2dvh, 22px) clamp(14px, 3vw, 24px) clamp(10px, 2dvh, 22px); }
+.dr-head { text-align: center; margin-bottom: var(--dr-gap); }
+.dr-head h2 { margin: 0 0 2px; font-size: clamp(18px, 3dvh, 24px); font-weight: 800; }
 .dr-head p { margin: 0; color: var(--muted); font-size: 14px; }
 .dr-head strong { color: var(--text); }
 
-.dr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+.dr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--dr-gap); margin-bottom: var(--dr-gap); }
 .dr-card {
-  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 8px; border-radius: 16px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: clamp(3px, .8dvh, 6px); padding: clamp(7px, 1.5dvh, 14px) 8px; border-radius: 16px; text-align: center;
   background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); transition: transform .3s, border-color .3s;
 }
 .dr-card h3 { margin: 0; font-size: 13px; font-weight: 800; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.dr-card img { width: 52px; height: 52px; object-fit: contain; }
+.dr-card img { width: var(--dr-icon); height: var(--dr-icon); object-fit: contain; }
 .dr-card strong { font-size: 15px; }
 .dr-card strong span { color: var(--muted); font-size: 10px; font-weight: 700; }
 .dr-card.available { border-color: rgba(250, 204, 21, .7); background: rgba(250, 204, 21, .1); box-shadow: 0 0 0 3px rgba(250, 204, 21, .12); }
@@ -29,14 +35,14 @@
 .dr-btn.done { background: rgba(95, 211, 141, .2); color: #5fd38d; }
 .dr-btn.locked { background: rgba(255, 255, 255, .08); color: var(--muted); }
 
-.dr-grand { flex-direction: row; justify-content: space-between; padding: 14px 20px; gap: 14px; text-align: left; }
+.dr-grand { flex-direction: row; justify-content: space-between; padding: clamp(7px, 1.5dvh, 14px) 20px; gap: 14px; text-align: left; }
 .dr-grand-info { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .dr-grand-info h3 { font-size: 18px; color: var(--text); text-transform: none; }
 .dr-tag { padding: 2px 8px; border-radius: 999px; background: rgba(250, 204, 21, .2); color: #facc15; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
-.dr-grand img { width: 72px; height: 72px; }
+.dr-grand img { width: calc(var(--dr-icon) * 1.3); height: calc(var(--dr-icon) * 1.3); }
 
-.dr-notice { margin: 14px 0 0; text-align: center; color: #ff8a96; font-size: 14px; font-weight: 700; }
-.dr-close { display: flex; margin: 18px auto 0; }
+.dr-notice { margin: var(--dr-gap) 0 0; text-align: center; color: #ff8a96; font-size: 14px; font-weight: 700; }
+.dr-close { display: flex; margin: var(--dr-gap) auto 0; }
 
 .dr-win { display: flex; flex-direction: column; align-items: center; padding: 34px 26px 28px; text-align: center; }
 .dr-win h2 { margin: 0 0 20px; font-size: 24px; font-weight: 800; }
@@ -47,8 +53,12 @@
 .dr-win-note { margin: 0 0 24px; color: var(--muted); font-size: 15px; }
 
 @media (max-width: 520px) {
-  .dr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dr-body { padding: 18px 14px 20px; }
-  .dr-grand { padding: 12px 14px; }
-  .dr-grand img { width: 56px; height: 56px; }
+  .dr-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dr-card { padding-left: 4px; padding-right: 4px; }
+  .dr-card h3 { font-size: 11px; }
+  .dr-card strong { font-size: 13px; }
+  .dr-btn { min-width: 0; width: 100%; min-height: 28px; padding: 0 6px; font-size: 11px; }
+  .dr-grand { padding-left: 14px; padding-right: 14px; }
 }
+/* short screens (landscape phones, small laptops): drop the banner so the rewards stay in view */
+@media (max-height: 560px) { .dr-banner { display: none; } }

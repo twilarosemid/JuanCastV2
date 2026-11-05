@@ -56,6 +56,18 @@ const FEATURES = [
   { id: 'badges', icon: '🎖️', label: 'Badges', soon: true }
 ];
 
+// Same size and baseline for both footer buttons (emoji and text glyphs sat at different heights)
+const HeartIcon = ({ filled }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.8 6.2 4.5c2-.2 3.9.8 5.8 3 1.9-2.2 3.8-3.2 5.8-3 3.5.3 5.3 3.9 3.8 7.3C19.5 16.4 12 21 12 21z" />
+  </svg>
+);
+const ReplyIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.5L3 20.5l1.6-4.9A8.5 8.5 0 1 1 21 11.5z" />
+  </svg>
+);
+
 export default function Profile() {
   const { username: routeUsername } = useParams();
   const navigate = useNavigate();
@@ -149,6 +161,19 @@ export default function Profile() {
       .catch((error) => console.error('Error fetching posts:', error));
     return () => { cancelled = true; };
   }, [profile?.username]);
+
+  // opened from a notification (/profile#post-<id>): open that post's replies and scroll to it, once
+  const jumpedTo = useRef('');
+  useEffect(() => {
+    const match = /^#post-(.+)$/.exec(location.hash || '');
+    if (!match || jumpedTo.current === location.hash) return undefined;
+    const id = match[1];
+    if (!posts.some((p) => (p._id || p.id) === id)) return undefined;
+    jumpedTo.current = location.hash;
+    setExpanded((prev) => ({ ...prev, [id]: true }));
+    const t = setTimeout(() => document.getElementById(`post-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 200);
+    return () => clearTimeout(t);
+  }, [posts, location.hash]);
 
   // your own page needs a login
   if (!routeUsername && !viewer?.email) {
@@ -397,7 +422,7 @@ export default function Profile() {
             const liked = Boolean(viewer?.email) && likes.includes(myHandle);
             const avatarOf = (who, own) => own || (normalizeHandle(who) === normalizeHandle(profile.username) ? profile.avatar : '') || (normalizeHandle(who) === viewerHandle ? viewer?.avatar : '') || '';
             return (
-              <article key={id} className="pf-card pf-post rise" style={{ '--d': `${Math.min(i, 6) * 60}ms` }}>
+              <article key={id} id={`post-${id}`} className="pf-card pf-post rise" style={{ '--d': `${Math.min(i, 6) * 60}ms` }}>
                 <header>
                   <Avatar src={avatarOf(post.user, post.avatar)} className="pf-mini" />
                   <div>
@@ -407,11 +432,11 @@ export default function Profile() {
                 </header>
                 <p className="pf-post-text">{post.text}</p>
                 <footer>
-                  <button type="button" className={liked ? 'liked' : ''} onClick={() => toggleLike(id)} aria-pressed={liked}>
-                    {liked ? '❤️' : '♡'} {likes.length}
+                  <button type="button" className={liked ? 'liked' : ''} onClick={() => toggleLike(id)} aria-pressed={liked} aria-label={liked ? 'Unlike' : 'Like'}>
+                    <HeartIcon filled={liked} /> <span>{likes.length}</span>
                   </button>
                   <button type="button" onClick={() => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))} aria-expanded={Boolean(expanded[id])}>
-                    💬 {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+                    <ReplyIcon /> <span>{replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}</span>
                   </button>
                 </footer>
 

@@ -907,6 +907,19 @@ app.get('/api/notifications', async (req, res) => {
   }
 });
 
+// mark every unread notification of one user as read (registered before the :id route so "read-all" is never taken as an id)
+app.patch('/api/notifications/read-all', async (req, res) => {
+  try {
+    const username = normalizeHandle(req.body.username);
+    if (!username) return res.status(400).json({ message: 'Username is required.' });
+    const result = await Notification.updateMany({ recipient: username, isRead: false }, { isRead: true });
+    res.status(200).json({ updated: result.modifiedCount || 0 });
+  } catch (error) {
+    console.error('Error marking notifications read:', error);
+    res.status(500).json({ message: 'Failed to update notifications.' });
+  }
+});
+
 app.patch('/api/notifications/:id/read', async (req, res) => {
   try {
     const username = normalizeHandle(req.body.username);
@@ -1763,6 +1776,135 @@ app.delete('/api/banners/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// --- ADS (sidebar ads, e.g. the right-hand ad on the Market page) ---
+// 'market' = tall side ad on the Market page (desktop web). 'startup' = popup shown when the home page opens.
+const AD_PLACEMENTS = ['market', 'startup'];
+
+const adSchema = new mongoose.Schema({
+  imageUrl: { type: String, required: true },
+  linkUrl: { type: String, default: '' },
+  altText: { type: String, default: 'Advertisement' },
+  placement: { type: String, enum: AD_PLACEMENTS, default: 'market', index: true },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Ad = mongoose.model('Ad', adSchema);
+
+const imageOnly = (req, res, next) => {
+  upload.single('image')(req, res, (uploadError) => {
+    if (uploadError) {
+      console.error('Ad upload error:', uploadError);
+      return res.status(400).json({ message: 'Failed to upload image.' });
+    }
+    if (req.file && !/^image\//.test(req.file.mimetype || '')) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: 'Only image files can be used as ads.' });
+    }
+    next();
+  });
+};
+
+const cleanLink = (value = '') => {
+  const link = String(value || '').trim();
+  if (!link) return '';
+  return /^https?:\/\//i.test(link) ? link : `https://${link}`;
+};
+
+const removeUploadedFile = async (imageUrl = '') => {
+  if (!imageUrl.startsWith('/uploads/')) return;
+  const stillUsed = await Ad.exists({ imageUrl });
+  if (stillUsed) return;
+  fs.unlink(path.join(uploadDir, path.basename(imageUrl)), () => {});
+};
+
+// GET (public): active ads for a placement, oldest first so the rotation order matches upload order
+app.get('/api/ads', async (req, res) => {
+  try {
+    const placement = AD_PLACEMENTS.includes(req.query.placement) ? req.query.placement : 'market';
+    const ads = await Ad.find({ placement, active: true }).sort({ createdAt: 1 });
+    return res.status(200).json(ads.map((ad) => serializeImage(ad.toObject())));
+  } catch (error) {
+    console.error('Error fetching ads:', error);
+    return res.status(500).json({ message: 'Error fetching ads.' });
+  }
+});
+
+// GET (admin): every ad, including paused ones
+app.get('/api/ads/all', requireAdmin, async (req, res) => {
+  try {
+    const ads = await Ad.find().sort({ createdAt: 1 });
+    return res.status(200).json(ads.map((ad) => serializeImage(ad.toObject())));
+  } catch (error) {
+    console.error('Error fetching all ads:', error);
+    return res.status(500).json({ message: 'Error fetching ads.' });
+  }
+});
+
+// POST (admin): upload a new ad
+app.post('/api/ads', requireAdmin, imageOnly, async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: 'Please select an image to upload.' });
+  try {
+    const ad = await Ad.create({
+      imageUrl: normalizeImageUrl(`/uploads/${req.file.filename}`),
+      linkUrl: cleanLink(req.body.linkUrl),
+      altText: String(req.body.altText || '').trim() || 'Advertisement',
+      placement: AD_PLACEMENTS.includes(req.body.placement) ? req.body.placement : 'market',
+      active: req.body.active === undefined ? true : String(req.body.active) !== 'false'
+    });
+    return res.status(201).json(serializeImage(ad.toObject()));
+  } catch (error) {
+    console.error('Error saving ad:', error);
+    fs.unlink(req.file.path, () => {});
+    return res.status(500).json({ message: 'Failed to save ad.' });
+  }
+});
+
+// PUT (admin): edit link / alt text, pause or resume, or swap the image
+app.put('/api/ads/:id', requireAdmin, imageOnly, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ message: 'Invalid ad ID.' });
+    }
+    const ad = await Ad.findById(req.params.id);
+    if (!ad) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: 'Ad not found.' });
+    }
+
+    const oldImage = ad.imageUrl;
+    if (req.body.linkUrl !== undefined) ad.linkUrl = cleanLink(req.body.linkUrl);
+    if (req.body.altText !== undefined) ad.altText = String(req.body.altText).trim() || 'Advertisement';
+    if (req.body.active !== undefined) ad.active = String(req.body.active) !== 'false';
+    if (req.file) ad.imageUrl = normalizeImageUrl(`/uploads/${req.file.filename}`);
+
+    await ad.save();
+    if (req.file && oldImage !== ad.imageUrl) await removeUploadedFile(oldImage);
+    return res.status(200).json(serializeImage(ad.toObject()));
+  } catch (error) {
+    console.error('Error updating ad:', error);
+    if (req.file) fs.unlink(req.file.path, () => {});
+    return res.status(500).json({ message: 'Failed to update ad.' });
+  }
+});
+
+// DELETE (admin)
+app.delete('/api/ads/:id', requireAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid ad ID.' });
+    }
+    const deleted = await Ad.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Ad not found.' });
+    await removeUploadedFile(deleted.imageUrl);
+    return res.status(200).json({ message: 'Ad deleted successfully.' });
+  } catch (error) {
+    console.error('Error deleting ad:', error);
+    return res.status(500).json({ message: 'Error deleting ad.' });
+  }
+});
+
 const reportSchema = new mongoose.Schema({
   subject: { type: String, required: true },
   issue: { type: String, required: true },
@@ -1927,7 +2069,12 @@ app.get('/api/reports', requireAdmin, async (req, res) => {
 const settingsSchema = new mongoose.Schema({
   featuredGroup: { type: String, default: '' },
   featuredCategory: { type: String, default: '' },
-  featuredChikaId: { type: String, default: '' }
+  featuredChikaId: { type: String, default: '' },
+  playStoreUrl: { type: String, default: 'https://play.google.com/store/apps/details?id=com.JuanCast.myapplication&hl=en-US' },
+  facebookUrl: { type: String, default: '' },
+  xUrl: { type: String, default: '' },
+  youtubeUrl: { type: String, default: '' },
+  tiktokUrl: { type: String, default: '' }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
 
@@ -1956,6 +2103,11 @@ app.put('/api/settings', requireAdmin, async (req, res) => {
       settings.featuredChikaId = req.body.featuredChikaId || '';
     }
     
+    // landing page links (Play Store + social media): empty clears the link, anything else gets https:// if missing
+    ['playStoreUrl', 'facebookUrl', 'xUrl', 'youtubeUrl', 'tiktokUrl'].forEach((key) => {
+      if (Object.hasOwn(req.body, key)) settings[key] = cleanLink(req.body[key]);
+    });
+
     await settings.save();
     res.status(200).json(settings);
   } catch (error) {

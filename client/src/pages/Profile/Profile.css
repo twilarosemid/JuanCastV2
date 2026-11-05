@@ -65,10 +65,11 @@
 .pf-mini.pf-avatar-box { width: 42px; height: 42px; }
 .pf-mini.sm.pf-avatar-box { width: 30px; height: 30px; }
 .pf-post-text { margin: 12px 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.pf-post footer { display: flex; gap: 6px; }
-.pf-post footer button { padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s, transform .15s; }
+.pf-post footer { display: flex; align-items: center; gap: 6px; }
+.pf-post footer button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; line-height: 1; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s, transform .15s; }
 .pf-post footer button:hover { background: rgba(255, 255, 255, .1); color: var(--text); }
 .pf-post footer button:active { transform: scale(.94); }
+.pf-post footer button svg { flex: 0 0 auto; display: block; }
 .pf-post footer button.liked { color: #ff6b85; }
 .pf-empty { margin: 0; color: var(--muted); text-align: center; }
 

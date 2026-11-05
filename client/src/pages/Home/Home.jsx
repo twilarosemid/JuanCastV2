@@ -5,6 +5,7 @@ import RankingRow from '../../components/RankingRow/RankingRow';
 import PollsCarousel from '../../components/PollsCarousel/PollsCarousel';
 import Reveal from '../../components/Reveal/Reveal';
 import HomeFeed from '../../components/HomeFeed/HomeFeed';
+import StartupAd from '../../components/StartupAd/StartupAd';
 import './Home.css';
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
 
   return (
     <>
+      <StartupAd />
       <HeroCarousel banners={banners} />
       <main>
         <div className="sheet">

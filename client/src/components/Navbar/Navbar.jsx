@@ -5,7 +5,10 @@ import logoImg from '../../assets/juancast_logo.webp';
 import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
 import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
+import useStartupState from '../../hooks/useStartupState';
+import NotificationsMenu from '../NotificationsMenu/NotificationsMenu';
 import useMountTransition from '../../hooks/useMountTransition';
+import { markEntered } from '../../landingGate';
 import './Navbar.css';
 
 // Routes (see App.jsx). Links use react-router, so pages change without reloading.
@@ -19,8 +22,7 @@ const LINKS = {
   profile: '/profile',
   transactions: '/transactions',
   login: '/login',
-  settings: '/settings',
-  notifications: '/notifications'
+  settings: '/settings'
 };
 
 const NAV = [
@@ -75,11 +77,15 @@ export default function Navbar() {
   const loggedIn = Boolean(user?.email);
   const [, refresh] = useState(0);
   const [unread, setUnread] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [dailyWanted, setDailyWanted] = useState(false);
+  const startupState = useStartupState();
   const [condensed, setCondensed] = useState(false);
   const menuRef = useRef(null);
   const { mounted: menuMounted, visible: menuVisible } = useMountTransition(open, 220);
+  const { mounted: notifMounted, visible: notifVisible } = useMountTransition(notifOpen, 220);
 
   // sliding white "bubble" behind the link of the current page
   const { pathname } = useLocation();
@@ -110,28 +116,41 @@ export default function Navbar() {
     };
   }, []);
 
-  // close the account menu whenever the page changes
-  useEffect(() => { setOpen(false); }, [pathname]);
+  // close the account menu and notifications whenever the page changes
+  useEffect(() => { setOpen(false); setNotifOpen(false); }, [pathname]);
 
+  // unread count on the bell: loaded on login, then refreshed every minute and whenever you come back to the tab
   useEffect(() => {
-    if (!loggedIn || !user.username) return;
-    getJSON(`/api/notifications?username=${encodeURIComponent(user.username)}`)
-      .then((list) => setUnread(list.filter((n) => !n.isRead).length))
-      .catch(console.error);
+    if (!loggedIn || !user.username) { setUnread(0); return undefined; }
+    let alive = true;
+    const load = () => getJSON(`/api/notifications?username=${encodeURIComponent(user.username)}`)
+      .then((list) => { if (alive && Array.isArray(list)) setUnread(list.filter((n) => !n.isRead).length); })
+      .catch(() => {});
+    load();
+    const id = setInterval(load, 60000);
+    window.addEventListener('focus', load);
+    return () => { alive = false; clearInterval(id); window.removeEventListener('focus', load); };
   }, [loggedIn, user?.username]);
 
-  // close the menu on outside click or Escape
+  // lets any page open the popup: window.dispatchEvent(new Event('juancast-open-notifications'))
   useEffect(() => {
-    if (!open) return;
-    const onClick = (e) => { if (!menuRef.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const show = () => { setOpen(false); setNotifOpen(true); };
+    window.addEventListener('juancast-open-notifications', show);
+    return () => window.removeEventListener('juancast-open-notifications', show);
+  }, []);
+
+  // close the account menu / notifications on outside click or Escape
+  useEffect(() => {
+    if (!open && !notifOpen) return undefined;
+    const onClick = (e) => { if (!menuRef.current?.contains(e.target)) { setOpen(false); setNotifOpen(false); } };
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setNotifOpen(false); } };
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onClick);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, notifOpen]);
 
   // web view: once the page scrolls past the banner, the bar shrinks into a compact floating pill
   // (pages without a banner condense after a short scroll)
@@ -161,8 +180,21 @@ export default function Navbar() {
     if (!loggedIn) return;
     let flagged = false;
     try { flagged = sessionStorage.getItem(DAILY_PROMPT_KEY) === '1'; sessionStorage.removeItem(DAILY_PROMPT_KEY); } catch { /* ignore */ }
-    if (flagged && !daily.claimedToday) setDailyOpen(true);
+    if (flagged && !daily.claimedToday) setDailyWanted(true);
   }, [loggedIn, pathname]);
+
+  // the startup popup ad goes first: on the home page the check-in waits until that popup is closed
+  // (or until we know there isn't one). Anywhere else, or if it takes too long, it opens right away.
+  const waitingForAd = pathname === '/' && startupState !== 'done';
+  useEffect(() => {
+    if (!dailyWanted) return undefined;
+    if (!waitingForAd) {
+      const id = setTimeout(() => { setDailyWanted(false); if (!dailyState(getUser()).claimedToday) setDailyOpen(true); }, 350);
+      return () => clearTimeout(id);
+    }
+    const giveUp = setTimeout(() => { setDailyWanted(false); setDailyOpen(true); }, 15000);
+    return () => clearTimeout(giveUp);
+  }, [dailyWanted, waitingForAd]);
 
   // lets any page open the check-in: window.dispatchEvent(new Event('juancast-open-daily'))
   useEffect(() => {
@@ -191,6 +223,8 @@ export default function Navbar() {
   };
 
   const logout = () => {
+    // you are already inside the site, so logging out keeps you on the page you were on instead of bouncing to the landing page
+    markEntered();
     clearUser();
     setOpen(false);
   };
@@ -226,14 +260,17 @@ export default function Navbar() {
         </div>
         <span className="divider" aria-hidden="true" />
 
-        <Link
+        <button
+          type="button"
           className="icon-btn"
-          to={LINKS.notifications}
           aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+          aria-haspopup="dialog"
+          aria-expanded={notifOpen}
+          onClick={() => { setOpen(false); setNotifOpen((o) => !o); }}
         >
           <span className="bell"><BellIcon /></span>
           {unread > 0 && <span className="badge">{unread > 9 ? '9+' : unread}</span>}
-        </Link>
+        </button>
 
         <button
           type="button"
@@ -241,10 +278,14 @@ export default function Navbar() {
           aria-label="Account menu"
           aria-haspopup="menu"
           aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => { setNotifOpen(false); setOpen((o) => !o); }}
         >
           {loggedIn ? (user.avatar ? <img src={img(user.avatar)} alt="" /> : initial) : <UserIcon />}
         </button>
+
+        {notifMounted && (
+          <NotificationsMenu visible={notifVisible} onClose={() => setNotifOpen(false)} user={user} onUnreadChange={setUnread} />
+        )}
 
         {menuMounted && (
           <div className={`menu ${menuVisible ? 'show' : ''}`} role="menu">
@@ -272,7 +313,7 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link role="menuitem" to={LINKS.login}><LoginIcon /> Login</Link>
+                <Link role="menuitem" to="/landing"><LoginIcon /> Login</Link>
                 <Link role="menuitem" to={LINKS.settings}><SettingsIcon /> Settings</Link>
               </>
             )}

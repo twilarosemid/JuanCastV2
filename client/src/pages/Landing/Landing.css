@@ -1,0 +1,63 @@
+/* ================= landing: full-screen interactive stage that melts into the cloud backdrop, then glass panels (no navbar) ================= */
+.lp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.lp-hero { position: relative; z-index: 2; }
+/* the stage itself (blue gradient, grid, sun, clouds, stars, characters) lives in components/LandingStage */
+.lp-frame {
+  position: relative; width: 100%; overflow: hidden; isolation: isolate;
+  height: 100vh; height: 100svh; min-height: 560px; background: #4b78fb;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 86%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, #000 86%, transparent 100%);
+}
+
+.lp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 0 30px; border-radius: 999px;
+  font: inherit; font-size: 15px; font-weight: 800; text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s, background .25s, opacity .25s;
+}
+/* same two button looks as the rest of the site: white pill + glass pill */
+.lp-btn.primary { background: #fff; color: #0b1220; border: 0; box-shadow: 0 10px 28px rgba(4, 22, 70, .35); }
+.lp-btn.glass { background: rgba(8, 40, 112, .45); color: var(--text); border: 1px solid rgba(255, 255, 255, .28); backdrop-filter: blur(14px); box-shadow: 0 10px 28px rgba(4, 22, 70, .3); }
+.lp-btn:hover:not(:disabled) { transform: translateY(-2px) scale(1.04); box-shadow: 0 14px 32px rgba(4, 22, 70, .45); }
+.lp-btn.glass:hover:not(:disabled) { background: rgba(255, 255, 255, .16); }
+.lp-btn:active:not(:disabled) { transform: scale(.95); box-shadow: none; }
+.lp-btn:disabled { opacity: .7; cursor: not-allowed; }
+
+/* ---------- info panels: same glass look as the Market / Community panels ---------- */
+.lp-sheet { position: relative; z-index: 2; padding: 12px 5vw 80px; max-width: 1280px; margin-inline: auto; }
+.lp-panel {
+  display: flex; justify-content: space-between; gap: 32px 60px; flex-wrap: wrap; padding: 26px 28px 28px;
+  border-radius: 18px; background: rgba(8, 40, 112, .4); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px);
+}
+.lp-panel h2 { margin: 0 0 12px; font-size: 22px; font-weight: 800; }
+.lp-company p { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 15px; font-weight: 500; }
+.lp-company svg { flex: none; color: var(--accent); }
+.lp-panel a { color: inherit; text-decoration: none; transition: color .2s; }
+.lp-company a:hover, .lp-legal a:hover { color: var(--accent); }
+.lp-social { max-width: 440px; }
+.lp-social p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.lp-icons { display: flex; gap: 10px; }
+.lp-icons a {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, .12);
+  transition: background .25s, color .25s, transform .25s cubic-bezier(.2, .7, .2, 1);
+}
+.lp-icons a:hover { background: #fff; color: #0b1220; transform: translateY(-3px); }
+.lp-legal { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px 24px; padding: 18px 6px 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+.lp-legal nav { display: flex; gap: 24px; }
+.lp-legal a { color: var(--text); text-decoration: none; transition: color .2s; }
+
+/* no bottom tab bar on this page, so no space reserved for it */
+body.lp-bare { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ---------- tablets + phones: the stage stacks (logo, characters, buttons) and grows with its content ---------- */
+@media (max-width: 900px) {
+  .lp-frame {
+    height: auto; min-height: 0;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 0%, #000 92%, transparent 100%);
+  }
+  .lp-btn { width: 100%; }
+  .lp-sheet { padding-bottom: 40px; }
+  .lp-panel { padding: 20px 18px 22px; }
+  .lp-legal { flex-direction: column; align-items: flex-start; }
+}

@@ -173,3 +173,12 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
   .ad-alert { flex-direction: column; align-items: flex-start; }
   .ad-toast { bottom: calc(92px + env(safe-area-inset-bottom)); border-radius: 18px; }
 }
+
+/* ---------- ads tab ---------- */
+.ad-tall-thumb { flex: none; width: 64px; aspect-ratio: 1 / 2; object-fit: cover; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .14); }
+.ad-ready img.ad-tall-preview { width: 110px; aspect-ratio: 1 / 2; }
+.ad-status { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.ad-status.live { background: rgba(123, 227, 165, .18); color: #7be3a5; }
+.ad-status.paused { background: rgba(255, 255, 255, .12); color: var(--muted); }
+.ad-item-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 700px) { .ad-tall-thumb { width: 52px; } }

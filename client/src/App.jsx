@@ -15,12 +15,21 @@ import ForgotPassword from './pages/ForgotPassword/ForgotPassword.jsx';
 import SignUp from './pages/SignUp/SignUp.jsx';
 import Placeholder from './pages/Placeholder/Placeholder.jsx';
 import Admin from './pages/Admin/Admin.jsx';
+import Landing from './pages/Landing/Landing.jsx';
 import Atmosphere from './components/Atmosphere/Atmosphere';
 import ScrollProgress from './components/ScrollProgress/ScrollProgress';
 import './App.css';
 
+// Notifications are a popup now. An old /notifications link goes home and opens it.
+function OpenNotifications() {
+  useEffect(() => { window.dispatchEvent(new Event('juancast-open-notifications')); }, []);
+  return <Navigate to="/" replace />;
+}
+
 function Shell() {
   const { pathname } = useLocation();
+  // the landing page is full-screen: no navbar or shared backdrop
+  const bare = pathname === '/landing';
 
   // new page starts at the top
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
@@ -28,14 +37,15 @@ function Shell() {
   return (
     <>
       {/* The navbar lives outside <Routes>, so it never reloads and the white bubble can slide */}
-      <Navbar />
-      <ScrollProgress />
+      {!bare && <Navbar />}
+      {!bare && <ScrollProgress />}
       {/* Home gets its glow from the hero banner; every other page gets the shared one */}
-      <Atmosphere />
+      {!bare && <Atmosphere />}
       {/* key = pathname re-runs the fade-in on every page change */}
       <div className="page" key={pathname}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/landing" element={<Landing />} />
           <Route path="/polls" element={<AllPolls />} />
           <Route path="/polls/:id" element={<PollDetail />} />
           <Route path="/vote" element={<Navigate to="/polls" replace />} />
@@ -44,7 +54,7 @@ function Shell() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/community" element={<Community />} />
           <Route path="/market" element={<Market />} />
-          <Route path="/notifications" element={<Placeholder title="Notifications" />} />
+          <Route path="/notifications" element={<OpenNotifications />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/profile/:username" element={<Profile />} />
