@@ -221,3 +221,22 @@
   .links { width: min(380px, calc(100% - 24px)); }
   .links a { flex-direction: row; justify-content: center; gap: 6px; padding: 7px 4px; }
 }
+
+/* ================= STICKY FILTERS / TABS (phones + small tablets) =================
+   The Polls filters, the Community tabs (Chat / Chika / Content) and the Market tabs
+   (Stars / Suns / Spin / Powerups) stay pinned under the top bar while the page scrolls.
+   (On wide screens they are already sticky in each page's own CSS.) */
+@media (max-width: 860px) {
+  .polls-sidebar, .cm-sidebar, .mk-sidebar {
+    position: sticky; top: 92px; z-index: 6; align-self: start;
+  }
+  .cm-sidebar, .mk-sidebar { padding: 6px 0; }
+  /* the Polls block has several rows: give it a soft backdrop so the cards scrolling underneath don't show through */
+  .polls-sidebar {
+    margin-left: -5vw; padding-left: 5vw; padding-top: 8px; padding-bottom: 14px;
+    background: linear-gradient(to bottom, rgba(6, 34, 96, .92) 80%, rgba(6, 34, 96, 0));
+  }
+}
+@media (max-width: 760px) {
+  .polls-sidebar, .cm-sidebar, .mk-sidebar { top: calc(var(--top) - 10px); }
+}
