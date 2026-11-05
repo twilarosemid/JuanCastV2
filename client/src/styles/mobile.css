@@ -253,7 +253,8 @@
     display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
     height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
   }
-  .community-page .cm-sidebar { position: static; flex: none; }
+  /* align-self: stretch keeps the tab bar full width (the older sticky rule says align-self: start, which would shrink it in this column layout) */
+  .community-page .cm-sidebar { position: static; flex: none; align-self: stretch; }
   .community-page .cm-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-right: 0; }
   .community-page .cm-title { flex: none; }
   .community-page .cm-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -283,7 +284,7 @@
     display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
     height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
   }
-  .polls-page .polls-sidebar { position: static; flex: none; margin-left: 0; padding: 0 5vw 0 0; background: none; }
+  .polls-page .polls-sidebar { position: static; flex: none; align-self: stretch; margin-left: 0; padding: 0 5vw 0 0; background: none; }
   .polls-page .polls-sidebar::before { display: none; }
   .polls-page .polls-main {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
