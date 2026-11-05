@@ -51,6 +51,9 @@ body {
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 html { -webkit-text-size-adjust: 100%; }
+/* hide the page scrollbar so the site fills the whole window (scrolling still works: wheel, touch, keys, drag) */
+html { scrollbar-width: none; -ms-overflow-style: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 body { -webkit-tap-highlight-color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
