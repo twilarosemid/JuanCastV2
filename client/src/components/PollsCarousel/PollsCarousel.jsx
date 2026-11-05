@@ -9,6 +9,7 @@ const SIDE_SCALE = 0.72;
 const POS = [0, 92, 170, 248];   // 248 = just past the edge, where hidden frames wait
 const FADE = [1, 0.6, 0.3, 0];
 const AUTOPLAY_MS = 5000;
+const MIN_INFINITE = 4; // fewer polls than this: no looping, just a fixed row that slides the clicked poll to the center
 
 const fmt = (d) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -32,20 +33,22 @@ export default function PollsCarousel() {
 
   // no arrows now: advance on a timer (pauses while hovering) or click a side card
   useEffect(() => {
-    if (polls.length < 2 || paused) return;
+    if (polls.length < MIN_INFINITE || paused) return;
     const timer = setInterval(() => setIndex((i) => (i + 1) % polls.length), AUTOPLAY_MS);
     return () => clearInterval(timer);
   }, [polls.length, paused, index]);
 
   const len = polls.length;
   const half = Math.floor(len / 2);
-  // signed distance from the active card, wrapping around
-  const offset = (n) => ((n - index + len + half) % len) - half;
+  const infinite = len >= MIN_INFINITE;
+  // signed distance from the active card: wrapping around when infinite, plain list order otherwise
+  const offset = (n) => (infinite ? ((n - index + len + half) % len) - half : n - index);
+  const go = (i) => setIndex(infinite ? (i + len) % len : Math.min(Math.max(i, 0), len - 1));
 
   // remember positions after each render
   useLayoutEffect(() => {
     const next = {};
-    polls.forEach((p, n) => { next[p._id] = ((n - index + len + half) % len) - half; });
+    polls.forEach((p, n) => { next[p._id] = offset(n); });
     prevOffsets.current = next;
     prevIndex.current = index;
   });
@@ -70,7 +73,7 @@ export default function PollsCarousel() {
           if (!s) return;
           const dx = e.changedTouches[0].clientX - s.x;
           const dy = e.changedTouches[0].clientY - s.y;
-          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) setIndex((i) => (i + (dx < 0 ? 1 : -1) + len) % len);
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) go(index + (dx < 0 ? 1 : -1));
         }}
         onTouchCancel={() => { touchStart.current = null; setPaused(false); }}
       >
@@ -83,8 +86,8 @@ export default function PollsCarousel() {
             const before = prevOffsets.current[poll._id];
             // how far the strip just moved (shortest way round); a card is only "wrapping" if it did NOT
             // end up where that movement would have taken it. Normal 1- or 2-step moves slide smoothly.
-            const delta = ((index - prevIndex.current + len + half) % len) - half;
-            const wrapped = before !== undefined && delta !== 0 && before - delta !== off;
+            const delta = infinite ? ((index - prevIndex.current + len + half) % len) - half : 0;
+            const wrapped = infinite && before !== undefined && delta !== 0 && before - delta !== off;
             const side = Math.sign(off) || 1;
             const ended = new Date(poll.toDate) < new Date();
             const title = ended && !/\(ended\)/i.test(poll.title) ? `${poll.title} (ENDED)` : poll.title;
@@ -102,7 +105,7 @@ export default function PollsCarousel() {
                   zIndex: 10 - dist,
                   pointerEvents: far ? 'none' : 'auto'
                 }}
-                onClick={() => (off === 0 ? navigate(`/polls/${poll._id}`) : setIndex(n))}
+                onClick={() => (off === 0 ? navigate(`/polls/${poll._id}`) : go(n))}
               >
                 <div className="cover" style={{ backgroundImage: poll.imageUrl ? `url("${img(poll.imageUrl)}")` : 'none' }} />
                 <div className="meta">
@@ -122,7 +125,7 @@ export default function PollsCarousel() {
         </div>
       </div>
       {/* fills over the autoplay interval; hidden while hovering (autoplay is paused) */}
-      {polls.length > 1 && (
+      {infinite && (
         <div className="progress" aria-hidden="true">
           {!paused && <span key={index} style={{ animationDuration: `${AUTOPLAY_MS}ms` }} />}
         </div>
