@@ -244,3 +244,34 @@
 @media (max-width: 760px) {
   .polls-sidebar, .cm-sidebar, .mk-sidebar { top: calc(var(--top) - 10px); }
 }
+
+/* ================= COMMUNITY (phones): the page itself never scrolls ================= */
+/* Tabs stay put on top. Chat: the posting box stays put and only the posts scroll (same as the home page).
+   Chika / Content: the content scrolls below the tabs. Anything scrolling toward the tabs or the tab bar fades away. */
+@media (max-width: 760px) {
+  .community-page {
+    display: flex; flex-direction: column; gap: 10px; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  .community-page .cm-sidebar { position: static; flex: none; padding: 0; }
+  .community-page .cm-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-right: 0; }
+  .community-page .cm-title { flex: none; margin: 0 0 10px; }
+  .community-page .cm-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+  /* chat: composer fixed, posts scroll underneath it and fade out at the edges */
+  .community-page .chat { flex: 1 1 auto; min-height: 0; max-width: none; }
+  .community-page .chat-scroll {
+    flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px 0 34px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+
+  /* chika + content: the section scrolls (its right padding lets the swipe rows still run to the screen edge) */
+  .community-page .cm-section.cm-scroll {
+    display: block; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    margin-right: -5vw; padding: 12px 5vw 34px 0; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .community-page .cm-section.cm-scroll::-webkit-scrollbar { display: none; }
+}

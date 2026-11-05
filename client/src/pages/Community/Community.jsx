@@ -176,7 +176,7 @@ export default function Community() {
 
       <main className="cm-main">
         <h1 className="cm-title" key={`t-${active}`}>{title}</h1>
-        <div className="cm-section" key={active}>
+        <div className={`cm-section${active === 'chat' ? '' : ' cm-scroll'}`} key={active}>
           {active === 'chat' && <ChatPanel />}
           {active === 'chika' && <ChikaPanel />}
           {active === 'contents' && <ContentSection />}
