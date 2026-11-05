@@ -230,10 +230,15 @@
     position: sticky; top: 92px; z-index: 6; align-self: start;
   }
   .cm-sidebar, .mk-sidebar { padding: 6px 0; }
-  /* the Polls block has several rows: give it a soft backdrop so the cards scrolling underneath don't show through */
+  /* the Polls block has several rows: a clear frosted backdrop (blur, no dark colour) so the cards scrolling underneath don't show through */
   .polls-sidebar {
     margin-left: -5vw; padding-left: 5vw; padding-top: 8px; padding-bottom: 14px;
-    background: linear-gradient(to bottom, rgba(6, 34, 96, .92) 80%, rgba(6, 34, 96, 0));
+  }
+  .polls-sidebar::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent);
+            mask-image: linear-gradient(to bottom, #000 78%, transparent);
   }
 }
 @media (max-width: 760px) {
