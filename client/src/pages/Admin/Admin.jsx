@@ -153,8 +153,16 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState({});
   const [fileKey, setFileKey] = useState(0);
   const formRef = useRef(null);
+
+  const setFilter = (name, value) => setFilters((f) => {
+    const next = { ...f, [name]: value };
+    return cfg.filter?.onChange ? cfg.filter.onChange(next, name) : next;
+  });
+  const filtersOn = Boolean(cfg.filter) && cfg.filter.fields.some((fl) => filters[fl.name]);
+  const clearFilters = () => { setFilters({}); setQuery(''); };
 
   const reset = () => {
     setForm({ ...cfg.empty });
@@ -315,9 +323,10 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = q ? items.filter((it) => cfg.searchText(it).toLowerCase().includes(q)) : items;
+    let list = cfg.filter ? items.filter((it) => cfg.filter.match(it, filters)) : items;
+    if (q) list = list.filter((it) => cfg.searchText(it).toLowerCase().includes(q));
     return cfg.sort ? [...list].sort(cfg.sort) : list;
-  }, [items, query, cfg]);
+  }, [items, query, cfg, filters]);
 
   const grouped = useMemo(() => {
     if (!cfg.groupBy) return [['', rows]];
@@ -330,10 +339,15 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     return [...map.entries()].sort(([a], [b]) => (a === 'Uncategorized') - (b === 'Uncategorized') || a.localeCompare(b));
   }, [rows, cfg]);
 
-  const change = (name, v) => setForm((p) => {
-    const next = { ...p, [name]: v };
-    return cfg.onChange ? cfg.onChange(next, name) : next;
-  });
+  const change = (name, v) => {
+    const next = { ...form, [name]: v };
+    const out = cfg.onChange ? cfg.onChange(next, name) : next;
+    setForm(out);
+    // while adding, picking a group / poll in the form also narrows the list on the right
+    if (cfg.filter?.sync?.includes(name) && !editing) {
+      setFilters(Object.fromEntries(cfg.filter.sync.map((k) => [k, out[k] || ''])));
+    }
+  };
 
   const halfGrid = (fields) => {
     const out = [];
@@ -360,7 +374,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
         {stackable && <p className="ad-note">Fill one in and press <b>Add to list</b> (or Enter). {cfg.stack.keep.length ? 'Group and category stay filled for the next one. ' : ''}Save them all together when you’re done.</p>}
         {halfGrid(cfg.fields)}
         {stackable && queue.length > 0 && (
-          <div className="ad-inline">
+          <div className="ad-inline ad-queue">
             <div className="ad-list-head">
               <h3>Ready to save <span className="ad-count">{queue.length}</span></h3>
               <button type="button" className="ad-link" onClick={() => setQueue([])} disabled={saving}>Clear list</button>
@@ -381,7 +395,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
           </div>
         )}
         <div className="ad-actions">
-          {stackable && <button type="submit" data-action="add" className="btn-ghost" disabled={saving}>＋ Add to list</button>}
+          {stackable && <button type="submit" data-action="add" className="btn-ghost" disabled={saving}>+ Add to list</button>}
           <button type="submit" data-action="save" className="btn-solid" disabled={saving}>
             {saving
               ? (progress ? `Saving ${progress.done}/${progress.total}…` : 'Saving…')
@@ -396,15 +410,29 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
 
       <div className="ad-card">
         <div className="ad-list-head">
-          <h2>{cfg.listTitle} <span className="ad-count">{items.length}</span></h2>
-          <input className="ad-input ad-search" type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search ${cfg.listTitle}`} />
+          <h2>{cfg.listTitle} <span className="ad-count">{rows.length === items.length ? items.length : `${rows.length} of ${items.length}`}</span></h2>
         </div>
         {children}
+        <div className="ad-filters">
+          {cfg.filter?.fields.map((fl) => {
+            const options = fl.options(filters);
+            const value = filters[fl.name] || '';
+            return (
+              <select key={fl.name} className="ad-input" value={value} onChange={(e) => setFilter(fl.name, e.target.value)} aria-label={fl.all}>
+                <option value="">{fl.all}</option>
+                {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                {value && !options.includes(value) && <option value={value}>{value}</option>}
+              </select>
+            );
+          })}
+          <input className="ad-input ad-search" type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search ${cfg.listTitle}`} />
+          {(filtersOn || query) && <button type="button" className="ad-link ad-clear" onClick={clearFilters}>Clear filters</button>}
+        </div>
         {loading ? <p className="ad-empty">Loading…</p> : rows.length === 0 ? (
-          <p className="ad-empty">{items.length === 0 ? cfg.empty_text : 'Nothing matches that search.'}</p>
+          <p className="ad-empty">{items.length === 0 ? cfg.empty_text : <>Nothing matches these filters. <button type="button" className="ad-link" onClick={clearFilters}>Show everything</button></>}</p>
         ) : grouped.map(([group, list]) => (
           <div key={group || 'all'} className="ad-group">
-            {group && <h3 className="ad-group-title">{group}</h3>}
+            {group && <h3 className="ad-group-title"><span>{group}</span><em>{list.length}</em></h3>}
             {list.map((item) => {
               const row = cfg.row(item);
               return (
@@ -1002,6 +1030,11 @@ function Dashboard({ user }) {
   const configs = {
     polls: {
       endpoint: 'polls', noun: 'Poll', listTitle: 'Saved polls', empty_text: 'No polls yet.',
+      filter: {
+        sync: ['group'],
+        fields: [{ name: 'group', all: 'All groups', options: () => groupNames }],
+        match: (p, f) => !f.group || p.group === f.group
+      },
       empty: { title: '', group: '', type: 'Minor', description: '', fromDate: '', toDate: '', image: null },
       fields: [
         { name: 'title', label: 'Title', required: true, placeholder: 'e.g. Ace of the Year' },
@@ -1049,6 +1082,16 @@ function Dashboard({ user }) {
 
     artists: {
       endpoint: 'rankings', noun: 'Artist', listTitle: 'Saved artists', empty_text: 'No artists yet.',
+      filter: {
+        sync: ['group', 'category'],
+        fields: [
+          { name: 'group', all: 'All groups', options: () => groupNames },
+          { name: 'category', all: 'All polls', options: (f) => (f.group ? titlesForGroup(f.group) : pollTitles) }
+        ],
+        // picking another group drops a poll filter that doesn't belong to it
+        onChange: (next, name) => (name === 'group' && next.group && next.category && !titlesForGroup(next.group).includes(next.category) ? { ...next, category: '' } : next),
+        match: (a, f) => (!f.group || a.group === f.group) && (!f.category || a.category === f.category)
+      },
       stack: {
         keep: ['group', 'category'],
         key: (v) => [v.name, v.group, v.category].map((x) => String(x || '').trim().toLowerCase()).join('|')
@@ -1056,9 +1099,9 @@ function Dashboard({ user }) {
       empty: { name: '', group: '', category: '', position: '1', youtubeUrl: '', youtubeStartTime: '', image: null },
       fields: [
         { name: 'name', label: 'Artist name', required: true },
-        { name: 'group', label: 'Poll group', type: 'select', placeholder: 'Select group…', options: groupNames, half: true },
+        { name: 'group', label: 'Poll group', type: 'select', placeholder: 'Select group…', options: groupNames },
         {
-          name: 'category', label: 'Category (poll title)', type: 'select', half: true,
+          name: 'category', label: 'Category (poll title)', type: 'select',
           options: (f) => titlesForGroup(f.group),
           placeholder: (f) => (titlesForGroup(f.group).length ? 'Select category…' : f.group ? 'No polls in this group yet' : 'Select a group first…'),
           hint: 'Only polls in the selected group are listed.'
@@ -1075,7 +1118,7 @@ function Dashboard({ user }) {
       searchText: (a) => `${a.name} ${a.group} ${a.category}`,
       groupBy: (a) => (a.category ? (a.group ? `${a.group} · ${a.category}` : a.category) : 'Uncategorized'),
       sort: (a, b) => Number(a.position) - Number(b.position),
-      row: (a) => ({ title: a.name, lines: [`#${a.position} · ${nf.format(a.voteCount || 0)} votes`, a.group] })
+      row: (a) => ({ title: a.name, badge: { label: `#${a.position}`, tone: 'rank' }, lines: [`${nf.format(a.voteCount || 0)} votes`, a.category ? '' : a.group] })
     },
 
     chika: {
@@ -1138,8 +1181,8 @@ function Dashboard({ user }) {
   const featuredTitles = featured.featuredGroup ? titlesForGroup(featured.featuredGroup) : pollTitles;
 
   const featuredCard = (
-    <div className="ad-inline">
-      <h3>Homepage featured ranking</h3>
+    <details className="ad-inline ad-fold">
+      <summary>Homepage featured ranking</summary>
       <p className="ad-note">Choose which poll’s top 3 appear on the homepage podium.</p>
       <div className="ad-row2">
         <select className="ad-input" value={featured.featuredGroup} onChange={(e) => setFeatured((f) => {
@@ -1159,19 +1202,19 @@ function Dashboard({ user }) {
         </select>
       </div>
       <button type="button" className="btn-solid" onClick={() => saveSettings({ featuredGroup: featured.featuredGroup, featuredCategory: featured.featuredCategory }, 'Homepage ranking updated.')}>Save homepage ranking</button>
-    </div>
+    </details>
   );
 
   const headlineCard = (
-    <div className="ad-inline">
-      <h3>Headline article</h3>
+    <details className="ad-inline ad-fold">
+      <summary>Headline article</summary>
       <p className="ad-note">The big card at the top of the Chika section.</p>
       <select className="ad-input" value={featured.featuredChikaId} onChange={(e) => setFeatured((f) => ({ ...f, featuredChikaId: e.target.value }))} aria-label="Headline article">
         <option value="">Use the latest article</option>
         {data.chika.map((c) => <option key={idOf(c)} value={idOf(c)}>{c.title}</option>)}
       </select>
       <button type="button" className="btn-solid" onClick={() => saveSettings({ featuredChikaId: featured.featuredChikaId }, 'Headline updated.')}>Save headline</button>
-    </div>
+    </details>
   );
 
   /* ---- overview ---- */

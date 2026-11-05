@@ -182,3 +182,50 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
 .ad-status.paused { background: rgba(255, 255, 255, .12); color: var(--muted); }
 .ad-item-actions { flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 700px) { .ad-tall-thumb { width: 52px; } }
+
+/* ---------- admin polish: filters, tidier forms, collapsible settings ---------- */
+.ad-split { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); }
+.ad-form { max-height: calc(100vh - 124px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
+.ad-form .ad-actions {
+  position: sticky; bottom: 0; z-index: 2; margin: 4px -22px -22px; padding: 16px 22px 22px;
+  background: linear-gradient(180deg, rgba(8, 40, 112, 0), rgba(8, 40, 112, .94) 28%);
+}
+.ad-form .ad-actions .btn-solid { flex: 1 1 auto; }
+
+/* filter bar above a list */
+.ad-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: center; margin-bottom: 6px; }
+.ad-filters .ad-search { width: 100%; min-height: 44px; }
+.ad-filters .ad-clear { justify-self: start; font-size: 13px; }
+.ad-list-head { margin-bottom: 12px; }
+
+/* group headings with a count */
+.ad-group-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ad-group-title em { font-style: normal; padding: 1px 8px; border-radius: 999px; font-size: 11px; letter-spacing: 0; background: rgba(255, 255, 255, .12); color: var(--muted); }
+.ad-chip.rank { background: rgba(245, 197, 66, .18); color: #ffd870; }
+
+/* the stack of artists waiting to be saved */
+.ad-queue { gap: 4px; margin: 2px 0 0; padding: 12px 14px; background: rgba(74, 168, 255, .12); border-color: rgba(74, 168, 255, .35); }
+.ad-queue .ad-list-head { margin-bottom: 4px; }
+.ad-queue .ad-list-head h3 { font-size: 14px; }
+.ad-queue .ad-item { padding: 8px; margin: 0 -8px; gap: 10px; }
+.ad-queue .ad-thumb { width: 38px; height: 38px; border-radius: 10px; }
+.ad-queue .ad-item-title { font-size: 14px; }
+.ad-queue .ad-item-sub { font-size: 12px; }
+.ad-queue .ad-btn { min-height: 30px; padding: 0 11px; font-size: 12px; }
+
+/* collapsible settings blocks (homepage ranking, headline) */
+.ad-fold { padding: 0; gap: 0; }
+.ad-fold > summary { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; cursor: pointer; list-style: none; font-size: 15px; font-weight: 800; }
+.ad-fold > summary::-webkit-details-marker { display: none; }
+.ad-fold > summary::after { content: ''; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translate(-2px, -2px); transition: transform .25s; }
+.ad-fold[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.ad-fold[open] { padding-bottom: 16px; gap: 10px; }
+.ad-fold[open] > :not(summary) { margin-left: 16px; margin-right: 16px; }
+.ad-fold .ad-row2 { grid-template-columns: 1fr; }
+.ad-fold .btn-solid { justify-self: start; }
+
+@media (max-width: 960px) {
+  .ad-split { grid-template-columns: 1fr; }
+  .ad-form { max-height: none; overflow: visible; }
+  .ad-form .ad-actions { position: static; margin: 4px 0 0; padding: 0; background: none; }
+}
