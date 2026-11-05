@@ -63,7 +63,7 @@ function Thumb({ url, label = '' }) {
   );
 }
 
-function Field({ field, value, onChange, fileKey, currentImage }) {
+function Field({ field, value, onChange, fileKey, currentImage, form = {} }) {
   const [preview, setPreview] = useState('');
 
   // preview of a freshly chosen file
@@ -75,7 +75,10 @@ function Field({ field, value, onChange, fileKey, currentImage }) {
   }, [field.type, value]);
 
   const id = `ad-f-${field.name}`;
-  const common = { id, className: 'ad-input', placeholder: field.placeholder || '' };
+  // options / placeholder may be functions of the whole form, so one dropdown can follow another
+  const optionList = typeof field.options === 'function' ? field.options(form) : (field.options || []);
+  const placeholder = typeof field.placeholder === 'function' ? field.placeholder(form) : (field.placeholder || '');
+  const common = { id, className: 'ad-input', placeholder };
 
   let control;
   if (field.type === 'textarea') {
@@ -83,12 +86,15 @@ function Field({ field, value, onChange, fileKey, currentImage }) {
   } else if (field.type === 'select') {
     control = (
       <select {...common} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
-        {field.placeholder && <option value="">{field.placeholder}</option>}
-        {/* keep the saved value selectable even if it is no longer in the list (e.g. a deleted group) */}
-        {[...(field.options || []), ...(value && !(field.options || []).includes(value) ? [value] : [])].map((o) => {
+        {placeholder && <option value="">{placeholder}</option>}
+        {optionList.map((o) => {
           const opt = typeof o === 'string' ? { value: o, label: o } : o;
           return <option key={opt.value} value={opt.value}>{opt.label}</option>;
         })}
+        {/* keep the saved value visible even if it is no longer in the list (e.g. a deleted group), but flag it */}
+        {value && !optionList.some((o) => (typeof o === 'string' ? o : o.value) === value) && (
+          <option value={value}>{value} (not in the current list)</option>
+        )}
       </select>
     );
   } else if (field.type === 'file') {
@@ -173,7 +179,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
 
   const remove = (item) => askConfirm({
     title: `Delete this ${cfg.noun.toLowerCase()}?`,
-    body: `“${cfg.titleOf(item)}” will be removed from the site for everyone. This can’t be undone.`,
+    body: `“${cfg.titleOf(item)}” will be removed from the site for everyone. This can’t be undone.${cfg.deleteNote?.(item) ? ` ${cfg.deleteNote(item)}` : ''}`,
     confirmLabel: 'Delete',
     run: async () => {
       await adminFetch(`/api/${cfg.endpoint}/${idOf(item)}`, { method: 'DELETE' });
@@ -200,19 +206,24 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     return [...map.entries()].sort(([a], [b]) => (a === 'Uncategorized') - (b === 'Uncategorized') || a.localeCompare(b));
   }, [rows, cfg]);
 
+  const change = (name, v) => setForm((p) => {
+    const next = { ...p, [name]: v };
+    return cfg.onChange ? cfg.onChange(next, name) : next;
+  });
+
   const halfGrid = (fields) => {
     const out = [];
     for (let i = 0; i < fields.length; i += 1) {
       const f = fields[i];
       if (f.half && fields[i + 1]?.half) {
         out.push(<div className="ad-row2" key={f.name}>{[f, fields[i + 1]].map((x) => (
-          <Field key={x.name} field={x} value={form[x.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
-            onChange={(v) => setForm((p) => ({ ...p, [x.name]: v }))} />
+          <Field key={x.name} field={x} form={form} value={form[x.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
+            onChange={(v) => change(x.name, v)} />
         ))}</div>);
         i += 1;
       } else {
-        out.push(<Field key={f.name} field={f} value={form[f.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
-          onChange={(v) => setForm((p) => ({ ...p, [f.name]: v }))} />);
+        out.push(<Field key={f.name} field={f} form={form} value={form[f.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
+          onChange={(v) => change(f.name, v)} />);
       }
     }
     return out;
@@ -828,6 +839,11 @@ function Dashboard({ user }) {
   /* ---- per-resource configs ---- */
   const groupNames = data.groups.map((g) => g.name);
   const pollTitles = [...new Set(data.polls.map((p) => p.title).filter(Boolean))];
+  // An artist shows in a poll only when its group AND category match that poll (see PollDetail),
+  // so the category list only offers titles of polls that belong to the chosen group.
+  const titlesForGroup = (group) => [...new Set(
+    data.polls.filter((p) => (p.group || '') === (group || '')).map((p) => p.title).filter(Boolean)
+  )];
 
   const configs = {
     polls: {
@@ -865,6 +881,13 @@ function Dashboard({ user }) {
         { name: 'image', label: 'Icon', type: 'file' }
       ],
       toForm: null,   // the server has no edit route for groups: delete and re-add
+      deleteNote: (g) => {
+        const polls = data.polls.filter((p) => p.group === g.name).length;
+        const artists = data.artists.filter((a) => a.group === g.name).length;
+        return polls || artists
+          ? `${polls} poll${polls === 1 ? '' : 's'} and ${artists} artist${artists === 1 ? '' : 's'} still use this group and will keep its name until you change them.`
+          : '';
+      },
       titleOf: (g) => g.name,
       searchText: (g) => g.name,
       row: (g) => ({ title: g.name, lines: [`${data.polls.filter((p) => p.group === g.name).length} polls · ${data.artists.filter((a) => a.group === g.name).length} artists`] })
@@ -876,16 +899,23 @@ function Dashboard({ user }) {
       fields: [
         { name: 'name', label: 'Artist name', required: true },
         { name: 'group', label: 'Poll group', type: 'select', placeholder: 'Select group…', options: groupNames, half: true },
-        { name: 'category', label: 'Category (poll title)', type: 'select', placeholder: 'Select category…', options: pollTitles, half: true },
+        {
+          name: 'category', label: 'Category (poll title)', type: 'select', half: true,
+          options: (f) => titlesForGroup(f.group),
+          placeholder: (f) => (titlesForGroup(f.group).length ? 'Select category…' : f.group ? 'No polls in this group yet' : 'Select a group first…'),
+          hint: 'Only polls in the selected group are listed.'
+        },
         { name: 'youtubeUrl', label: 'YouTube video', placeholder: 'https://youtube.com/…', hint: 'Optional. Plays when someone opens the artist.' },
         { name: 'youtubeStartTime', label: 'Start time (seconds)', type: 'number', min: 0, placeholder: 'e.g. 75 for 1:15', half: true },
         { name: 'position', label: 'Current rank', type: 'number', min: 1, hint: 'Ranks re-sort by votes automatically.', half: true },
         { name: 'image', label: 'Photo', type: 'file' }
       ],
+      // changing the group clears a category that doesn't belong to the new group
+      onChange: (next, name) => (name === 'group' && next.category && !titlesForGroup(next.group).includes(next.category) ? { ...next, category: '' } : next),
       toForm: (a) => ({ name: a.name || '', group: a.group || '', category: a.category || '', position: String(a.position || 1), youtubeUrl: a.youtubeUrl || '', youtubeStartTime: a.youtubeStartTime || '', image: null }),
       titleOf: (a) => a.name,
       searchText: (a) => `${a.name} ${a.group} ${a.category}`,
-      groupBy: (a) => a.category || 'Uncategorized',
+      groupBy: (a) => (a.category ? (a.group ? `${a.group} · ${a.category}` : a.category) : 'Uncategorized'),
       sort: (a, b) => Number(a.position) - Number(b.position),
       row: (a) => ({ title: a.name, lines: [`#${a.position} · ${nf.format(a.voteCount || 0)} votes`, a.group] })
     },
@@ -947,18 +977,27 @@ function Dashboard({ user }) {
     }
   };
 
+  const featuredTitles = featured.featuredGroup ? titlesForGroup(featured.featuredGroup) : pollTitles;
+
   const featuredCard = (
     <div className="ad-inline">
       <h3>Homepage featured ranking</h3>
       <p className="ad-note">Choose which poll’s top 3 appear on the homepage podium.</p>
       <div className="ad-row2">
-        <select className="ad-input" value={featured.featuredGroup} onChange={(e) => setFeatured((f) => ({ ...f, featuredGroup: e.target.value }))} aria-label="Featured group">
+        <select className="ad-input" value={featured.featuredGroup} onChange={(e) => setFeatured((f) => {
+          const group = e.target.value;
+          const keep = !group || !f.featuredCategory || titlesForGroup(group).includes(f.featuredCategory);
+          return { ...f, featuredGroup: group, featuredCategory: keep ? f.featuredCategory : '' };
+        })} aria-label="Featured group">
           <option value="">Any group</option>
           {groupNames.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
         <select className="ad-input" value={featured.featuredCategory} onChange={(e) => setFeatured((f) => ({ ...f, featuredCategory: e.target.value }))} aria-label="Featured category">
           <option value="">Top rankings (everything)</option>
-          {pollTitles.map((t) => <option key={t} value={t}>{t}</option>)}
+          {featuredTitles.map((t) => <option key={t} value={t}>{t}</option>)}
+          {featured.featuredCategory && !featuredTitles.includes(featured.featuredCategory) && (
+            <option value={featured.featuredCategory}>{featured.featuredCategory} (not in the current list)</option>
+          )}
         </select>
       </div>
       <button type="button" className="btn-solid" onClick={() => saveSettings({ featuredGroup: featured.featuredGroup, featuredCategory: featured.featuredCategory }, 'Homepage ranking updated.')}>Save homepage ranking</button>
@@ -1057,7 +1096,7 @@ function Dashboard({ user }) {
                       <Thumb url={a.imageUrl} label={a.name} />
                       <div className="ad-item-body">
                         <div className="ad-item-title">{a.name}</div>
-                        <div className="ad-item-sub">{a.category || 'Uncategorized'}</div>
+                        <div className="ad-item-sub">{[a.group, a.category].filter(Boolean).join(' · ') || 'Uncategorized'}</div>
                       </div>
                       <strong className="ad-votes">{nf.format(a.voteCount || 0)}</strong>
                     </div>
