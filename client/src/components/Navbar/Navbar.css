@@ -122,3 +122,9 @@ nav.site-nav {
 .badge, .count { background: var(--gold); color: #06307f; }
 .badge::after { border-color: var(--gold); }
 @media (max-width: 760px) { .logo img { height: 30px; } }
+
+/* web view, scrolled past the banner: the logo dims along with the minimized navbar (hover / keyboard focus brings it back) */
+@media (min-width: 761px) {
+  nav.site-nav .logo { transition: opacity .5s cubic-bezier(.4, 0, .2, 1), transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+  nav.site-nav.condensed .logo:not(:hover):not(:focus-visible) { opacity: .35; }
+}
