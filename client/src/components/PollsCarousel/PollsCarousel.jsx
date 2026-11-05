@@ -9,7 +9,7 @@ const SIDE_SCALE = 0.72;
 const POS = [0, 92, 170, 248];   // 248 = just past the edge, where hidden frames wait
 const FADE = [1, 0.6, 0.3, 0];
 const AUTOPLAY_MS = 5000;
-const MIN_INFINITE = 4; // fewer polls than this: no looping, just a fixed row that slides the clicked poll to the center
+const MIN_INFINITE = 4; // fewer polls than this: no looping, a fixed row that slides the clicked poll to the center
 
 const fmt = (d) =>
   new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -24,6 +24,7 @@ export default function PollsCarousel() {
   const prevOffsets = useRef({});
   const prevIndex = useRef(0);
   const touchStart = useRef(null);
+  const dirRef = useRef(1); // bounce direction when there are fewer than 4 polls
 
   useEffect(() => {
     Promise.all([getJSON('/api/polls'), getJSON('/api/poll-groups')])
@@ -32,9 +33,17 @@ export default function PollsCarousel() {
   }, []);
 
   // no arrows now: advance on a timer (pauses while hovering) or click a side card
+  // 4+ polls loop forward forever; fewer bounce back and forth along the fixed row
   useEffect(() => {
-    if (polls.length < MIN_INFINITE || paused) return;
-    const timer = setInterval(() => setIndex((i) => (i + 1) % polls.length), AUTOPLAY_MS);
+    if (polls.length < 2 || paused) return;
+    const timer = setInterval(() => {
+      const n = polls.length;
+      if (n >= MIN_INFINITE) { setIndex((index + 1) % n); return; }
+      let d = dirRef.current;
+      if (index + d > n - 1 || index + d < 0) d = -d;
+      dirRef.current = d;
+      setIndex(index + d);
+    }, AUTOPLAY_MS);
     return () => clearInterval(timer);
   }, [polls.length, paused, index]);
 
@@ -125,7 +134,7 @@ export default function PollsCarousel() {
         </div>
       </div>
       {/* fills over the autoplay interval; hidden while hovering (autoplay is paused) */}
-      {infinite && (
+      {polls.length > 1 && (
         <div className="progress" aria-hidden="true">
           {!paused && <span key={index} style={{ animationDuration: `${AUTOPLAY_MS}ms` }} />}
         </div>
