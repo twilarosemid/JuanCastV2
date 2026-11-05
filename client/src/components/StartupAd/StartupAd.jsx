@@ -47,7 +47,7 @@ export default function StartupAd() {
 
   return (
     <Modal open={open} onClose={close} label="Announcement" className="sa-modal">
-      <div className="sa-wrap" key={ad._id || ad.id || index} onContextMenu={(e) => e.preventDefault()}>
+      <div className="sa-wrap" key={ad._id || ad.id || index} onContextMenu={(e) => e.preventDefault()} onDragStart={(e) => e.preventDefault()}>
         <button type="button" className="sa-close" onClick={close} aria-label="Close">×</button>
         {ad.linkUrl ? (
           <a href={ad.linkUrl} target="_blank" rel="noopener noreferrer sponsored" onClick={finish} draggable="false">{picture}</a>

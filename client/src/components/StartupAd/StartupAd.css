@@ -1,10 +1,18 @@
 /* the image is the whole popup: no card chrome around it */
-.modal.sa-modal { width: auto; max-width: 100%; padding: 0; background: transparent; border: 0; box-shadow: none; }
-.sa-wrap { position: relative; display: block; line-height: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.sa-wrap a { display: block; }
+.modal.sa-modal {
+  width: auto; max-width: 100%; margin: 0 auto; padding: 0; background: transparent; border: 0; box-shadow: none;
+  touch-action: none; overscroll-behavior: contain;
+}
+.sa-wrap {
+  position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto; line-height: 0;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  touch-action: none; /* the popup stays put: no panning or dragging */
+}
+.sa-wrap a { display: block; -webkit-user-drag: none; user-drag: none; }
 .sa-wrap img {
-  display: block; width: auto; height: auto; max-width: min(92vw, 520px); max-height: 80vh; margin: 0 auto;
-  border-radius: 18px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55); -webkit-user-drag: none;
+  display: block; width: auto; height: auto; max-width: min(100%, 520px); max-height: 80vh; max-height: 80dvh; margin: 0 auto;
+  border-radius: 18px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+  -webkit-user-drag: none; user-drag: none; pointer-events: none; /* clicks go to the link/wrapper, so the image itself can't be dragged */
 }
 .sa-close {
   position: absolute; z-index: 1; top: -14px; right: -14px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
@@ -13,4 +21,14 @@
 }
 .sa-close:hover { transform: scale(1.08) rotate(90deg); }
 .sa-close:focus-visible { outline: 3px solid rgba(47, 123, 255, .8); outline-offset: 2px; }
-@media (max-width: 520px) { .sa-close { top: -12px; right: -6px; } }
+
+/* phones: a compact, centred popup with breathing room on every side, never edge to edge */
+@media (max-width: 520px) {
+  .modal-overlay:has(.sa-modal) {
+    padding: max(28px, env(safe-area-inset-top)) max(28px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left));
+    place-items: center; overflow: hidden; touch-action: none;
+  }
+  .modal.sa-modal { width: 100%; display: flex; justify-content: center; }
+  .sa-wrap img { max-width: 100%; max-height: 66vh; max-height: 66dvh; border-radius: 16px; }
+  .sa-close { top: -12px; right: -10px; width: 34px; height: 34px; font-size: 22px; }
+}
