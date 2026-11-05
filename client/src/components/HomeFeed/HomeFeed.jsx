@@ -11,7 +11,7 @@ export default function HomeFeed() {
       <Reveal as="section">
         <div className="section-head">
           <h2 className="section-title" id="chat">Community Chat</h2>
-          <Link to="/community">View All</Link>
+          <Link to="/community">View All <span aria-hidden="true">→</span></Link>
         </div>
         <ChatPanel />
       </Reveal>

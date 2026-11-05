@@ -54,7 +54,7 @@ export default function RankingRow() {
     <section>
       <div className="section-head">
         <h2 className="section-title" id="vote">{title}</h2>
-        <Link to={pollId ? `/polls/${pollId}` : '/polls'}>View All</Link>
+        <Link to={pollId ? `/polls/${pollId}` : '/polls'}>View All <span aria-hidden="true">→</span></Link>
       </div>
 
       <div className="podium">
