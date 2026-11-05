@@ -13,6 +13,7 @@ import './Navbar.css';
 
 // Routes (see App.jsx). Links use react-router, so pages change without reloading.
 const DAILY_PROMPT_KEY = 'juancast_daily_prompt';
+let dailyAutoShown = false; // in memory: resets on refresh so the check-in pops once per page load
 
 const LINKS = {
   home: '/',
@@ -180,7 +181,9 @@ export default function Navbar() {
     if (!loggedIn) return;
     let flagged = false;
     try { flagged = sessionStorage.getItem(DAILY_PROMPT_KEY) === '1'; sessionStorage.removeItem(DAILY_PROMPT_KEY); } catch { /* ignore */ }
-    if (flagged && !daily.claimedToday) setDailyWanted(true);
+    // also on every fresh page load / refresh while logged in (once per load; admins skip it)
+    const onLoad = !dailyAutoShown && !isAdminUser(getUser());
+    if ((flagged || onLoad) && !daily.claimedToday) { dailyAutoShown = true; setDailyWanted(true); }
   }, [loggedIn, pathname]);
 
   // the startup popup ad goes first: on the home page the check-in waits until that popup is closed
