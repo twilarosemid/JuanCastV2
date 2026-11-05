@@ -37,7 +37,6 @@
   /* top bar: the nav no longer animates a transform, so the fixed tab bar inside it stays pinned to the screen */
   nav.site-nav {
     padding: calc(10px + env(safe-area-inset-top)) 5vw 12px; flex-wrap: nowrap; row-gap: 0; pointer-events: none;
-    background: linear-gradient(to bottom, rgba(6, 34, 96, .78), rgba(6, 34, 96, 0));
     animation: navFadeIn .5s ease backwards;
   }
   @keyframes navFadeIn { from { opacity: 0; } }
