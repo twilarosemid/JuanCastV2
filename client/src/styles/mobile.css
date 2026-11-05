@@ -250,12 +250,12 @@
    Chika / Content: the content scrolls below the tabs. Anything scrolling toward the tabs or the tab bar fades away. */
 @media (max-width: 760px) {
   .community-page {
-    display: flex; flex-direction: column; gap: 10px; padding-bottom: 0; overflow: hidden;
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
     height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
   }
-  .community-page .cm-sidebar { position: static; flex: none; padding: 0; }
+  .community-page .cm-sidebar { position: static; flex: none; }
   .community-page .cm-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-right: 0; }
-  .community-page .cm-title { flex: none; margin: 0 0 10px; }
+  .community-page .cm-title { flex: none; }
   .community-page .cm-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 
   /* chat: composer fixed, posts scroll underneath it and fade out at the edges */
@@ -274,4 +274,22 @@
             mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
   }
   .community-page .cm-section.cm-scroll::-webkit-scrollbar { display: none; }
+}
+
+/* ================= POLLS (phones): same idea as Community ================= */
+/* The search + filters stay put on top; only the polls scroll below them and fade away before reaching the filters / the tab bar. */
+@media (max-width: 760px) {
+  .polls-page {
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  .polls-page .polls-sidebar { position: static; flex: none; margin-left: 0; padding: 0 5vw 0 0; background: none; }
+  .polls-page .polls-sidebar::before { display: none; }
+  .polls-page .polls-main {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    padding: 12px 0 34px; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .polls-page .polls-main::-webkit-scrollbar { display: none; }
 }
