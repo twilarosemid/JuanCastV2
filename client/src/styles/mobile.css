@@ -87,7 +87,7 @@
   /* ================= HOME ================= */
   .hero { padding-top: var(--top); touch-action: pan-y; }
   .sheet { padding: 0 5vw 16px; margin-top: 20px; }
-  .spacer { height: 4vh; }
+  .spacer { height: 0; }
 
   /* podium: #2 | #1 | #3 in one compact row (same shape as desktop, scaled down) */
   .podium { display: flex; flex-direction: row; align-items: flex-end; justify-content: center; gap: 10px; padding-top: 6px; }
