@@ -128,6 +128,24 @@ function Field({ field, value, onChange, fileKey, currentImage, form = {} }) {
   );
 }
 
+// Staged (not yet saved) items per resource, kept here so switching admin tabs doesn't lose them
+const stackStore = {};
+
+function QueueThumb({ file, label = '' }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!(file instanceof File)) { setUrl(''); return undefined; }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return (
+    <span className="ad-thumb" aria-hidden="true">
+      {url ? <img src={url} alt="" /> : <b>{(label || '?').trim().charAt(0).toUpperCase()}</b>}
+    </span>
+  );
+}
+
 /* One create/edit form + searchable list, driven by a config object (used by Polls, Groups, Artists, Chika, Contents) */
 function ResourceTab({ cfg, items, loading, ctx, children }) {
   const { reload, notify, fail, askConfirm } = ctx;
@@ -151,8 +169,114 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  /* ---- stack several items, then save them all at once (enabled per resource with cfg.stack) ---- */
+  const stackable = Boolean(cfg.stack) && !editing;
+  const [queue, setQueue] = useState(() => stackStore[cfg.endpoint] || []);
+  const [progress, setProgress] = useState(null);
+  useEffect(() => { stackStore[cfg.endpoint] = queue; }, [queue, cfg.endpoint]);
+  useEffect(() => {
+    if (!queue.length) return undefined;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [queue.length]);
+
+  const buildBody = (values) => {
+    const body = new FormData();
+    cfg.fields.forEach((f) => {
+      const v = values[f.name];
+      if (f.type === 'file') { if (v) body.append(f.name, v); }
+      else if (v !== undefined && v !== null) body.append(f.name, v);
+    });
+    return body;
+  };
+
+  // returns an error message, or '' when this entry can be added
+  const checkEntry = (values, others = queue) => {
+    const missing = cfg.fields.find((f) => f.required && !String(values[f.name] ?? '').trim());
+    if (missing) return `${missing.label} is required.`;
+    const problem = cfg.validate?.(values);
+    if (problem) return problem;
+    const key = cfg.stack.key(values);
+    if (others.some((q) => cfg.stack.key(q.values) === key) || items.some((it) => cfg.stack.key(cfg.toForm(it)) === key)) {
+      return `“${String(values.name).trim()}” is already in this group and category.`;
+    }
+    return '';
+  };
+
+  // something typed in the form that hasn't been added to the list yet
+  const hasDraft = () => cfg.fields.some((f) => f.required && String(form[f.name] ?? '').trim());
+
+  const addToQueue = () => {
+    const problem = checkEntry(form);
+    if (problem) { notify(problem, 'err'); return; }
+    setQueue((q) => [...q, { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, values: { ...form } }]);
+    // keep the fields that usually repeat (group, category); clear the rest for the next one
+    setForm({ ...cfg.empty, ...Object.fromEntries(cfg.stack.keep.map((k) => [k, form[k]])) });
+    setFileKey((k) => k + 1);
+  };
+
+  const popFromQueue = (entry) => {
+    setQueue((q) => q.filter((x) => x.id !== entry.id));
+    setForm({ ...cfg.empty, ...entry.values });
+    setFileKey((k) => k + 1);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const saveBatch = async () => {
+    const batch = [...queue];
+    if (hasDraft()) {
+      const problem = checkEntry(form);
+      if (problem) { notify(problem, 'err'); return; }
+      batch.push({ id: `draft-${Date.now()}`, values: { ...form } });
+    }
+    if (!batch.length) return;
+
+    setSaving(true);
+    setProgress({ done: 0, total: batch.length });
+    const saved = new Set();
+    const failedNames = [];
+    let stopped = false;
+    // one at a time, in order, so ranks and "oldest first" ordering stay the way you typed them
+    for (let i = 0; i < batch.length; i += 1) {
+      const entry = batch[i];
+      try {
+        await adminFetch(`/api/${cfg.endpoint}`, { method: 'POST', body: buildBody(entry.values) });
+        saved.add(entry.id);
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) { fail(err); stopped = true; break; }
+        failedNames.push(String(entry.values.name || 'item'));
+      }
+      setProgress({ done: i + 1, total: batch.length });
+    }
+
+    // whatever wasn't saved stays in the list (including a half-typed draft) so nothing is lost
+    setQueue(batch.filter((x) => !saved.has(x.id)));
+    if (saved.size) {
+      setForm({ ...cfg.empty });
+      setFileKey((k) => k + 1);
+    }
+    if (!stopped) {
+      const noun = cfg.noun.toLowerCase();
+      if (failedNames.length) {
+        notify(`Added ${saved.size}, but ${failedNames.length} failed (${failedNames.join(', ')}). They are still in the list, so you can try again.`, 'err');
+      } else {
+        notify(`${saved.size} ${noun}${saved.size === 1 ? '' : 's'} added.`);
+      }
+    }
+    setSaving(false);
+    setProgress(null);
+    if (saved.size) await reload();
+  };
+
   const submit = async (e) => {
     e.preventDefault();
+    if (stackable) {
+      // Enter in a field triggers the first submit button ("Add to list"), so typing + Enter stacks quickly
+      const action = e.nativeEvent?.submitter?.dataset?.action;
+      if (action === 'add') { addToQueue(); return; }
+      if (queue.length) { await saveBatch(); return; }
+    }
     const missing = cfg.fields.find((f) => f.required && !String(form[f.name] ?? '').trim());
     if (missing) { notify(`${missing.label} is required.`, 'err'); return; }
     const problem = cfg.validate?.(form);
@@ -233,9 +357,39 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     <div className="ad-split">
       <form className="ad-card ad-form" onSubmit={submit} ref={formRef}>
         <h2>{editing ? `Edit ${cfg.noun.toLowerCase()}` : `Add ${cfg.noun.toLowerCase()}`}</h2>
+        {stackable && <p className="ad-note">Fill one in and press <b>Add to list</b> (or Enter). {cfg.stack.keep.length ? 'Group and category stay filled for the next one. ' : ''}Save them all together when you’re done.</p>}
         {halfGrid(cfg.fields)}
+        {stackable && queue.length > 0 && (
+          <div className="ad-inline">
+            <div className="ad-list-head">
+              <h3>Ready to save <span className="ad-count">{queue.length}</span></h3>
+              <button type="button" className="ad-link" onClick={() => setQueue([])} disabled={saving}>Clear list</button>
+            </div>
+            {queue.map((q) => (
+              <div className="ad-item" key={q.id}>
+                <QueueThumb file={q.values.image} label={q.values.name} />
+                <div className="ad-item-body">
+                  <div className="ad-item-title">{q.values.name}</div>
+                  <div className="ad-item-sub">{[q.values.group, q.values.category].filter(Boolean).join(' · ') || 'No group'}</div>
+                </div>
+                <div className="ad-item-actions">
+                  <button type="button" className="ad-btn" onClick={() => popFromQueue(q)} disabled={saving}>Edit</button>
+                  <button type="button" className="ad-btn danger" onClick={() => setQueue((list) => list.filter((x) => x.id !== q.id))} disabled={saving} aria-label={`Remove ${q.values.name}`}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="ad-actions">
-          <button type="submit" className="btn-solid" disabled={saving}>{saving ? 'Saving…' : editing ? `Update ${cfg.noun.toLowerCase()}` : `Save ${cfg.noun.toLowerCase()}`}</button>
+          {stackable && <button type="submit" data-action="add" className="btn-ghost" disabled={saving}>＋ Add to list</button>}
+          <button type="submit" data-action="save" className="btn-solid" disabled={saving}>
+            {saving
+              ? (progress ? `Saving ${progress.done}/${progress.total}…` : 'Saving…')
+              : editing ? `Update ${cfg.noun.toLowerCase()}`
+              : stackable && queue.length + (hasDraft() ? 1 : 0) > 1
+                ? `Save ${queue.length + (hasDraft() ? 1 : 0)} ${cfg.noun.toLowerCase()}s`
+                : `Save ${cfg.noun.toLowerCase()}`}
+          </button>
           {editing && <button type="button" className="btn-ghost" onClick={reset}>Cancel</button>}
         </div>
       </form>
@@ -895,6 +1049,10 @@ function Dashboard({ user }) {
 
     artists: {
       endpoint: 'rankings', noun: 'Artist', listTitle: 'Saved artists', empty_text: 'No artists yet.',
+      stack: {
+        keep: ['group', 'category'],
+        key: (v) => [v.name, v.group, v.category].map((x) => String(x || '').trim().toLowerCase()).join('|')
+      },
       empty: { name: '', group: '', category: '', position: '1', youtubeUrl: '', youtubeStartTime: '', image: null },
       fields: [
         { name: 'name', label: 'Artist name', required: true },
