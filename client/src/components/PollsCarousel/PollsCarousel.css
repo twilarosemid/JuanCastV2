@@ -1,5 +1,6 @@
 /* break out of the padded page so the row spans the whole screen */
-body { overflow-x: hidden; }
+/* NOTE: no overflow-x on body here. It breaks position: sticky (the Polls filters and the Community/Market tabs) in Safari/iOS.
+   The full-width row is clipped by .page instead (App.css), and clip does not create a scroll container. */
 .carousel { position: relative; width: 100vw; margin-left: calc(50% - 50vw); }
 /* outer cards are clipped by the screen edges */
 .stage { position: relative; height: 380px; overflow: hidden; }
