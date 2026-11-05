@@ -294,3 +294,22 @@
   }
   .polls-page .polls-main::-webkit-scrollbar { display: none; }
 }
+
+/* ================= MARKET (phones): same idea as Community + Polls ================= */
+/* The tabs stay put on top; the heading and the shop / spin / powerups scroll below them and fade away before reaching the tabs or the tab bar. */
+@media (max-width: 760px) {
+  .market-page {
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  .market-page .mk-sidebar { position: static; flex: none; align-self: stretch; }
+  .market-page .mk-ad { display: none; }
+  .market-page .mk-main, .market-page.has-ad .mk-main {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    margin-right: -5vw; padding: 12px 5vw 34px 0; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .market-page .mk-main::-webkit-scrollbar { display: none; }
+}
+
