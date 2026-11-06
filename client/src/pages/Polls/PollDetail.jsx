@@ -142,7 +142,11 @@ export default function PollDetail() {
         />
       </div>
 
-      <ServerClock text={formatLiveTime(now)} live={!isPollEnded} />
+      <ServerClock
+        text={formatLiveTime(now)}
+        shortText={now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        live={!isPollEnded}
+      />
 
       <section className="poll-info rise" style={{ '--d': '140ms' }}>
         <h1>{poll.title}{isPollEnded ? ' (ENDED)' : ''}</h1>

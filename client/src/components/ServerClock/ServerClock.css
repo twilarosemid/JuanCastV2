@@ -1,23 +1,25 @@
-/* server time: same width as the poll details card, sticks under the top bar, shrinks to a centred pill once stuck */
+/* server time: as wide as the poll details card; scrolls up to the top bar's row (level with the logo and nav), sticks there
+   and shrinks to a small centred pill showing just the time. Same height in both states so the page never jumps. */
 .server-clock {
-  position: sticky; top: 92px; z-index: 9; align-self: center; box-sizing: border-box;
-  width: 100%; max-width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 14px 24px; border-radius: 22px; white-space: nowrap; overflow: hidden;
-  font-size: 14px; font-weight: 700; letter-spacing: .03em; font-variant-numeric: tabular-nums; color: var(--text);
+  position: sticky; top: 29px; z-index: 9; align-self: center; box-sizing: border-box;
+  width: 100%; max-width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 0 20px; border-radius: 999px; white-space: nowrap; overflow: hidden;
+  font-size: 13px; font-weight: 700; letter-spacing: .03em; font-variant-numeric: tabular-nums; color: var(--text);
   background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .09);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  transition: width .4s cubic-bezier(.2, .7, .2, 1), border-radius .4s ease, padding .4s ease,
-              background .3s ease, border-color .3s ease, box-shadow .3s ease;
+  transition: width .4s cubic-bezier(.2, .7, .2, 1), background .3s ease, border-color .3s ease, box-shadow .3s ease;
 }
 .server-clock.stuck {
-  width: 340px; padding: 9px 18px; border-radius: 999px;
-  background: rgba(8, 40, 112, .72); border-color: rgba(255, 255, 255, .22); box-shadow: 0 10px 28px rgba(4, 22, 70, .4);
+  width: 156px; background: rgba(8, 40, 112, .72); border-color: rgba(255, 255, 255, .22); box-shadow: 0 10px 28px rgba(4, 22, 70, .4);
 }
 .server-clock .sc-label { color: var(--gold); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 .server-clock .live-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #5fd38d; animation: pulseDot 1.6s ease-out infinite; }
+.server-clock .sc-short { display: none; }
+.server-clock.stuck .sc-short { display: inline; }
+.server-clock.stuck .sc-label, .server-clock.stuck .sc-full { display: none; }
 
 @media (max-width: 760px) {
-  .server-clock { top: calc(var(--top, 82px) - 6px); font-size: 12px; gap: 8px; padding: 12px 14px; }
-  .server-clock.stuck { width: 300px; padding: 8px 14px; }
+  .server-clock { top: calc(12px + env(safe-area-inset-top)); height: 36px; font-size: 12px; gap: 8px; padding: 0 14px; }
+  .server-clock.stuck { width: 132px; }
 }
 @media (prefers-reduced-motion: reduce) { .server-clock { transition: none; } }
