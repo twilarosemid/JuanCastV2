@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getJSON, img, getUser } from '../../api';
 import Modal from '../../components/Modal/Modal';
@@ -23,7 +23,6 @@ export default function PollDetail() {
 
   const [voteModalOpen, setVoteModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
-  const infoRef = useRef(null); // the details container: the server time floats once this has scrolled past
   const [flashId, setFlashId] = useState(null); // artist that was just voted for
   const [feedback, setFeedback] = useState({ isOpen: false, message: '', type: 'success' });
 
@@ -143,9 +142,9 @@ export default function PollDetail() {
         />
       </div>
 
-      <ServerClock text={formatLiveTime(now)} live={!isPollEnded} watchRef={infoRef} />
+      <ServerClock text={formatLiveTime(now)} live={!isPollEnded} />
 
-      <section className="poll-info rise" style={{ '--d': '140ms' }} ref={infoRef}>
+      <section className="poll-info rise" style={{ '--d': '140ms' }}>
         <h1>{poll.title}{isPollEnded ? ' (ENDED)' : ''}</h1>
         <div className="poll-dates">{formatPollDates(poll.fromDate, poll.toDate)}</div>
         <div className="poll-type">{poll.type}</div>

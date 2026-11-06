@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import './ServerClock.css';
 
-// The server time in its own pill. It sits above the poll details; once the details have scrolled
-// out of view the same pill floats at the top of the screen so the time stays visible.
-export default function ServerClock({ text, live = true, watchRef }) {
-  const [floating, setFloating] = useState(false);
+// The server time in its own container. It is as wide as the poll details card and sticks under the top bar
+// while you scroll; the moment it is stuck it shrinks to a centred pill the size of its content.
+export default function ServerClock({ text, live = true }) {
+  const ref = useRef(null);
+  const [stuck, setStuck] = useState(false);
 
   useEffect(() => {
     const check = () => {
-      const el = watchRef?.current;
+      const el = ref.current;
       if (!el) return;
-      setFloating(el.getBoundingClientRect().bottom < 90);
+      const top = parseFloat(getComputedStyle(el).top) || 0; // where it sticks (set in the CSS)
+      setStuck(el.getBoundingClientRect().top <= top + 1);
     };
     check();
     window.addEventListener('scroll', check, { passive: true });
@@ -20,21 +21,13 @@ export default function ServerClock({ text, live = true, watchRef }) {
       window.removeEventListener('scroll', check);
       window.removeEventListener('resize', check);
     };
-  }, [watchRef]);
+  }, []);
 
-  const pill = (
-    <div className="server-clock" role="timer" aria-label="Server time">
+  return (
+    <div ref={ref} className={`server-clock${stuck ? ' stuck' : ''}`} role="timer" aria-label="Server time">
       {live && <span className="live-dot" aria-hidden="true" />}
       <span className="sc-label">Server time</span>
       <time className="sc-time">{text}</time>
     </div>
-  );
-
-  return (
-    <>
-      {/* in-flow copy keeps its space (hidden while the floating one is showing) so the page never jumps */}
-      <div className={`server-clock-slot${floating ? ' away' : ''}`}>{pill}</div>
-      {floating && createPortal(<div className="server-clock-float">{pill}</div>, document.body)}
-    </>
   );
 }
