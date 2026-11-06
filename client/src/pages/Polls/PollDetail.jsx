@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getJSON, img, getUser, saveUser, castVote } from '../../api';
+import { getJSON, img, getUser } from '../../api';
 import Modal from '../../components/Modal/Modal';
+import VoteModal from '../../components/VoteModal/VoteModal';
+import ServerClock from '../../components/ServerClock/ServerClock';
 import Reveal from '../../components/Reveal/Reveal';
 import CountUp from '../../components/CountUp/CountUp';
 // reuse the Home podium styles so this page looks like the rest of the system
@@ -21,8 +23,7 @@ export default function PollDetail() {
 
   const [voteModalOpen, setVoteModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [voteAmount, setVoteAmount] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
+  const infoRef = useRef(null); // the details container: the server time floats once this has scrolled past
   const [flashId, setFlashId] = useState(null); // artist that was just voted for
   const [feedback, setFeedback] = useState({ isOpen: false, message: '', type: 'success' });
 
@@ -72,42 +73,26 @@ export default function PollDetail() {
       return;
     }
     setSelected(artist);
-    setVoteAmount(1);
     setVoteModalOpen(true);
   };
 
-  const confirmVote = async () => {
-    if (!selected || voteAmount <= 0 || submitting) return;
-    setSubmitting(true);
+  // the VoteModal casts the vote itself; this just refreshes the page once it went through
+  const handleVoted = async ({ artist, amount, result }) => {
+    setVoteModalOpen(false);
+    const votedId = artist._id || artist.id;
     try {
-      const user = getUser();
-      const votedId = selected._id || selected.id;
-      const result = await castVote(votedId, user, voteAmount);
-
       const fresh = await getJSON('/api/rankings');
       setArtists(pickArtists(fresh, poll));
-
-      // keep the saved user's balance in sync (the navbar listens for this)
-      saveUser({
-        ...user,
-        stars: result.remainingStars,
-        ...(result.remainingSuns !== undefined ? { suns: result.remainingSuns } : {})
-      });
-
-      setFlashId(votedId);
-      setTimeout(() => setFlashId(null), 1600);
-
-      setFeedback({
-        isOpen: true,
-        message: `Successfully voted with ${voteAmount} Star(s)!\nRemaining: ${result.remainingStars}`,
-        type: 'success'
-      });
-      setVoteModalOpen(false);
     } catch (error) {
-      setFeedback({ isOpen: true, message: error.message || 'Error casting vote.', type: 'error' });
-    } finally {
-      setSubmitting(false);
+      console.error('Error refreshing rankings:', error);
     }
+    setFlashId(votedId);
+    setTimeout(() => setFlashId(null), 1600);
+    setFeedback({
+      isOpen: true,
+      message: `You cast ${amount.toLocaleString('en-US')} Star(s) for ${artist.name}!\nRemaining: ${Number(result.remainingStars).toLocaleString('en-US')}`,
+      type: 'success'
+    });
   };
 
   const closeFeedback = () => setFeedback((f) => ({ ...f, isOpen: false }));
@@ -143,7 +128,7 @@ export default function PollDetail() {
       disabled={isPollEnded}
       title={isPollEnded ? 'Poll has ended' : 'Cast vote'}
     >
-      Vote
+      Cast Vote
     </button>
   );
 
@@ -158,11 +143,9 @@ export default function PollDetail() {
         />
       </div>
 
-      <section className="poll-info rise" style={{ '--d': '140ms' }}>
-        <div className="poll-timer">
-          {!isPollEnded && <span className="live-dot" aria-hidden="true" />}
-          {formatLiveTime(now)}
-        </div>
+      <ServerClock text={formatLiveTime(now)} live={!isPollEnded} watchRef={infoRef} />
+
+      <section className="poll-info rise" style={{ '--d': '140ms' }} ref={infoRef}>
         <h1>{poll.title}{isPollEnded ? ' (ENDED)' : ''}</h1>
         <div className="poll-dates">{formatPollDates(poll.fromDate, poll.toDate)}</div>
         <div className="poll-type">{poll.type}</div>
@@ -220,28 +203,13 @@ export default function PollDetail() {
         )}
       </section>
 
-      <Modal open={voteModalOpen} onClose={() => setVoteModalOpen(false)} label="Cast your vote">
-        <h3>Cast Your Vote</h3>
-        <p>Voting for: <strong>{selected?.name}</strong></p>
-        <label htmlFor="vote-amount">Number of Stars to use</label>
-        <div className="stepper">
-          <button type="button" aria-label="Fewer stars" onClick={() => setVoteAmount((v) => Math.max(1, v - 1))}>−</button>
-          <input
-            id="vote-amount"
-            type="number"
-            min="1"
-            value={voteAmount}
-            onChange={(e) => setVoteAmount(Number(e.target.value))}
-          />
-          <button type="button" aria-label="More stars" onClick={() => setVoteAmount((v) => v + 1)}>+</button>
-        </div>
-        <div className="modal-actions">
-          <button className="btn-ghost" onClick={() => setVoteModalOpen(false)}>Cancel</button>
-          <button className="btn-solid" onClick={confirmVote} disabled={submitting}>
-            {submitting ? 'Voting…' : 'Confirm Vote'}
-          </button>
-        </div>
-      </Modal>
+      <VoteModal
+        open={voteModalOpen}
+        artist={selected}
+        pollTitle={poll.title}
+        onClose={() => setVoteModalOpen(false)}
+        onVoted={handleVoted}
+      />
 
       <Modal open={feedback.isOpen} onClose={closeFeedback} role="alertdialog" label={feedback.type === 'success' ? 'Success' : 'Error'}>
         <div className="center">

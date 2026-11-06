@@ -1,0 +1,21 @@
+.server-clock-slot { margin: 0 0 14px; transition: opacity .2s; }
+.server-clock-slot.away { visibility: hidden; }
+.server-clock {
+  display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 999px; white-space: nowrap;
+  font-size: 13px; font-weight: 700; letter-spacing: .03em; font-variant-numeric: tabular-nums; color: var(--text);
+  background: rgba(8, 40, 112, .55); border: 1px solid rgba(255, 255, 255, .22);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: 0 10px 28px rgba(4, 22, 70, .35);
+}
+.server-clock .sc-label { color: var(--gold); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.server-clock .live-dot { width: 9px; height: 9px; border-radius: 50%; background: #5fd38d; animation: pulseDot 1.6s ease-out infinite; }
+
+/* floating version: pinned under the top bar, centred */
+.server-clock-float {
+  position: fixed; z-index: 9; left: 0; right: 0; top: 92px; display: flex; justify-content: center; pointer-events: none;
+  animation: clockDrop .35s cubic-bezier(.2, .7, .2, 1) both;
+}
+@keyframes clockDrop { from { opacity: 0; transform: translateY(-10px) scale(.96); } }
+@media (max-width: 760px) {
+  .server-clock-float { top: calc(var(--top, 82px) - 6px); }
+  .server-clock { font-size: 12px; padding: 8px 14px; gap: 8px; }
+}

@@ -68,7 +68,7 @@ export default function RankingRow() {
                 <h3>{item.name}</h3>
                 <small><CountUp value={item.voteCount} /> votes</small>
               </div>
-              <button className="vote" onClick={openPoll}>Vote</button>
+              <button className="vote" onClick={openPoll}>Cast Vote</button>
             </div>
           </Reveal>
         ))}

@@ -25,7 +25,7 @@
 
 .vote {
   border: 0; border-radius: 999px; padding: 9px 20px; cursor: pointer;
-  background: #fff; color: #0b1220; font-weight: 700; font-size: 14px;
+  background: #fff; color: #0b1220; font-weight: 700; font-size: 14px; white-space: nowrap;
 }
 
 .others { list-style: none; margin: 32px 0 0; padding: 0; }
