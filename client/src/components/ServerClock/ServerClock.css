@@ -1,5 +1,5 @@
 /* server time: as wide as the poll details card; scrolls up to the top bar's row (level with the logo and nav), sticks there
-   and shrinks to a small centred pill showing just the time. Same height in both states so the page never jumps. */
+   and shrinks to a centred pill. Same height in both states so the page never jumps. All content stays in the pill. */
 .server-clock {
   position: sticky; top: 29px; z-index: 9; align-self: center; box-sizing: border-box;
   width: 100%; max-width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -10,16 +10,20 @@
   transition: width .4s cubic-bezier(.2, .7, .2, 1), background .3s ease, border-color .3s ease, box-shadow .3s ease;
 }
 .server-clock.stuck {
-  width: 156px; background: rgba(8, 40, 112, .72); border-color: rgba(255, 255, 255, .22); box-shadow: 0 10px 28px rgba(4, 22, 70, .4);
+  width: 380px; min-width: max-content; background: rgba(8, 40, 112, .72); border-color: rgba(255, 255, 255, .22); box-shadow: 0 10px 28px rgba(4, 22, 70, .4);
 }
+.server-clock .sc-head { display: flex; align-items: center; gap: 10px; }
 .server-clock .sc-label { color: var(--gold); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 .server-clock .live-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #5fd38d; animation: pulseDot 1.6s ease-out infinite; }
-.server-clock .sc-short { display: none; }
-.server-clock.stuck .sc-short { display: inline; }
-.server-clock.stuck .sc-label, .server-clock.stuck .sc-full { display: none; }
 
+/* phones: the top bar only has room for a narrow pill between the logo and the buttons, so stuck = two lines */
 @media (max-width: 760px) {
   .server-clock { top: calc(12px + env(safe-area-inset-top)); height: 36px; font-size: 12px; gap: 8px; padding: 0 14px; }
-  .server-clock.stuck { width: 132px; }
+  .server-clock.stuck {
+    width: 170px; flex-direction: column; gap: 1px; padding: 0 10px; font-size: 10px; line-height: 1.1; letter-spacing: .02em;
+  }
+  .server-clock.stuck .sc-head { gap: 6px; }
+  .server-clock.stuck .sc-label { font-size: 8.5px; letter-spacing: .12em; }
+  .server-clock.stuck .live-dot { width: 7px; height: 7px; }
 }
 @media (prefers-reduced-motion: reduce) { .server-clock { transition: none; } }
