@@ -3,15 +3,17 @@
 /* ---------- header card ---------- */
 .pf-hero { overflow: hidden; border-radius: 26px; background: rgba(8, 40, 112, .45); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(16px); }
 .pf-head { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap; padding: 28px 28px 26px; background: linear-gradient(135deg, rgba(47, 123, 255, .16), transparent 60%); }
-.pf-ident { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 0 0 auto; }
+.pf-ident { position: relative; flex: 0 0 auto; }
+/* small round QR badge on the avatar's corner; tap to expand */
 .pf-qr {
-  display: block; width: 112px; height: 112px; padding: 0; overflow: hidden; cursor: pointer; border: 0; border-radius: 16px; background: #fff;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .35); transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s;
+  position: absolute; z-index: 2; right: -6px; bottom: -6px; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; overflow: hidden; cursor: pointer;
+  border: 3px solid #fff; border-radius: 50%; background: #fff; box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s;
 }
-.pf-qr:hover { transform: translateY(-3px) scale(1.03); box-shadow: 0 16px 34px rgba(0, 0, 0, .45); }
-.pf-qr:active { transform: scale(.97); }
+.pf-qr:hover { transform: scale(1.18); box-shadow: 0 10px 22px rgba(0, 0, 0, .55); }
+.pf-qr:active { transform: scale(.94); }
 .pf-qr:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.pf-qr svg { display: block; width: 100%; height: 100%; }
+.pf-qr svg { display: block; width: 74%; height: 74%; }
 .pf-avatar-box {
   display: grid; place-items: center; flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: rgba(255, 255, 255, .1); color: var(--muted);
 }
@@ -116,7 +118,7 @@ button.pf-stat:hover svg { transform: translateX(2px); color: var(--text); }
 @media (max-width: 560px) {
   .pf-head { padding: 22px 16px 20px; }
   .pf-avatar.pf-avatar-box { width: 96px; height: 96px; }
-  .pf-qr { width: 96px; height: 96px; border-radius: 14px; }
+  .pf-qr { width: 40px; height: 40px; right: -4px; bottom: -4px; }
   .pf-actions { width: 100%; }
   .pf-card { padding: 16px; }
 }

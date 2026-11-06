@@ -352,10 +352,10 @@ export default function Profile() {
       <section className="pf-hero rise">
         <div className="pf-head">
           <div className="pf-ident">
-            <button type="button" className="pf-qr" onClick={() => setQrOpen(true)} aria-label="Show profile QR code">
+            <Avatar src={profile.avatar} className="pf-avatar" />
+            <button type="button" className="pf-qr" onClick={() => setQrOpen(true)} aria-label="Show profile QR code" title="Profile QR">
               <QRCode value={profileUrl} label={`QR code for @${profile.username}`} />
             </button>
-            <Avatar src={profile.avatar} className="pf-avatar" />
           </div>
           <div className="pf-id">
             <h1>{profile.name}</h1>
