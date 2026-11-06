@@ -14,19 +14,61 @@ const app = express();
 const uploadDir = path.join(__dirname, 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_, file, cb) => {
-    const safeName = `${Date.now()}-${Math.random().toString(16).slice(2)}${path.extname(file.originalname || '.png')}`;
-    cb(null, safeName);
-  }
-});
+// Uploaded images live in MongoDB, not on the server's disk: Render wipes the disk on every restart / deploy / rollback,
+// which is what caused "Cannot GET /uploads/...". The URL stays /uploads/<filename>, so nothing else in the app changes.
+const UploadFile = mongoose.model('UploadFile', new mongoose.Schema({
+  filename: { type: String, required: true, unique: true },
+  contentType: { type: String, default: 'application/octet-stream' },
+  data: { type: Buffer, required: true },
+  createdAt: { type: Date, default: Date.now }
+}));
 
-const upload = multer({ storage });
+const dbStorage = {
+  _handleFile(req, file, cb) {
+    const chunks = [];
+    file.stream.on('data', (chunk) => chunks.push(chunk));
+    file.stream.on('error', cb);
+    file.stream.on('end', async () => {
+      try {
+        const filename = `${Date.now()}-${Math.random().toString(16).slice(2)}${path.extname(file.originalname || '.png')}`;
+        const data = Buffer.concat(chunks);
+        await UploadFile.create({ filename, contentType: file.mimetype, data });
+        // `path` is kept (it no longer exists on disk) so the existing cleanup calls keep working through unlinkUpload()
+        cb(null, { filename, path: path.join(uploadDir, filename), size: data.length });
+      } catch (err) {
+        cb(err);
+      }
+    });
+  },
+  _removeFile(req, file, cb) {
+    UploadFile.deleteOne({ filename: file.filename }).then(() => cb(null), cb);
+  }
+};
+
+// removes an upload from MongoDB (and from disk, if an old copy is lying around)
+const unlinkUpload = (filePath, cb = () => {}) => {
+  const filename = path.basename(String(filePath || ''));
+  UploadFile.deleteOne({ filename }).catch(() => {});
+  fs.unlink(filePath, (err) => cb(err && err.code === 'ENOENT' ? null : err)); // a missing disk copy is expected now
+};
+
+// 15 MB cap: MongoDB documents max out at 16 MB
+const upload = multer({ storage: dbStorage, limits: { fileSize: 15 * 1024 * 1024 } });
 
 app.use(express.json({ limit: '500mb' })); 
 app.use(cors());
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', express.static(uploadDir)); // files that exist on disk (local dev)
+app.get('/uploads/:filename', async (req, res, next) => {
+  try {
+    const doc = await UploadFile.findOne({ filename: path.basename(req.params.filename) });
+    if (!doc) return next();
+    res.set('Content-Type', doc.contentType || 'application/octet-stream');
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(doc.data);
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // 1. Connect to MongoDB and auto-synchronize ranking positions on boot
 mongoose.connect(process.env.MONGO_URI)
@@ -1734,7 +1776,7 @@ app.post('/api/banners', requireAdmin, (req, res) => {
     } catch (error) {
       console.error('Error saving banner:', error);
 
-      fs.unlink(req.file.path, (cleanupError) => {
+      unlinkUpload(req.file.path, (cleanupError) => {
         if (cleanupError) {
           console.error('Error removing unsaved image:', cleanupError);
         }
@@ -1798,7 +1840,7 @@ const imageOnly = (req, res, next) => {
       return res.status(400).json({ message: 'Failed to upload image.' });
     }
     if (req.file && !/^image\//.test(req.file.mimetype || '')) {
-      fs.unlink(req.file.path, () => {});
+      unlinkUpload(req.file.path, () => {});
       return res.status(400).json({ message: 'Only image files can be used as ads.' });
     }
     next();
@@ -1815,7 +1857,7 @@ const removeUploadedFile = async (imageUrl = '') => {
   if (!imageUrl.startsWith('/uploads/')) return;
   const stillUsed = await Ad.exists({ imageUrl });
   if (stillUsed) return;
-  fs.unlink(path.join(uploadDir, path.basename(imageUrl)), () => {});
+  unlinkUpload(path.join(uploadDir, path.basename(imageUrl)));
 };
 
 // GET (public): active ads for a placement, oldest first so the rotation order matches upload order
@@ -1855,7 +1897,7 @@ app.post('/api/ads', requireAdmin, imageOnly, async (req, res) => {
     return res.status(201).json(serializeImage(ad.toObject()));
   } catch (error) {
     console.error('Error saving ad:', error);
-    fs.unlink(req.file.path, () => {});
+    unlinkUpload(req.file.path, () => {});
     return res.status(500).json({ message: 'Failed to save ad.' });
   }
 });
@@ -1864,12 +1906,12 @@ app.post('/api/ads', requireAdmin, imageOnly, async (req, res) => {
 app.put('/api/ads/:id', requireAdmin, imageOnly, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
-      if (req.file) fs.unlink(req.file.path, () => {});
+      if (req.file) unlinkUpload(req.file.path, () => {});
       return res.status(400).json({ message: 'Invalid ad ID.' });
     }
     const ad = await Ad.findById(req.params.id);
     if (!ad) {
-      if (req.file) fs.unlink(req.file.path, () => {});
+      if (req.file) unlinkUpload(req.file.path, () => {});
       return res.status(404).json({ message: 'Ad not found.' });
     }
 
@@ -1884,7 +1926,7 @@ app.put('/api/ads/:id', requireAdmin, imageOnly, async (req, res) => {
     return res.status(200).json(serializeImage(ad.toObject()));
   } catch (error) {
     console.error('Error updating ad:', error);
-    if (req.file) fs.unlink(req.file.path, () => {});
+    if (req.file) unlinkUpload(req.file.path, () => {});
     return res.status(500).json({ message: 'Failed to update ad.' });
   }
 });
