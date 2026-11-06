@@ -4,6 +4,8 @@ import { getJSON, img, getUser } from '../../api';
 import Modal from '../../components/Modal/Modal';
 import VoteModal from '../../components/VoteModal/VoteModal';
 import ServerClock from '../../components/ServerClock/ServerClock';
+import PollStatus from '../../components/PollStatus/PollStatus';
+import { formatDateTime } from '../../utils/pollTime';
 import Reveal from '../../components/Reveal/Reveal';
 import CountUp from '../../components/CountUp/CountUp';
 // reuse the Home podium styles so this page looks like the rest of the system
@@ -96,14 +98,6 @@ export default function PollDetail() {
 
   const closeFeedback = () => setFeedback((f) => ({ ...f, isOpen: false }));
 
-  const formatPollDates = (start, end) => {
-    const opts = { month: 'long', day: 'numeric', year: 'numeric' };
-    const s = new Date(start).toLocaleDateString('en-US', opts);
-    const e = new Date(end).toLocaleDateString('en-US', opts);
-    const t = new Date(end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    return `${s} – ${e} at ${t}`;
-  };
-
   if (loading) {
     return (
       <div className="poll-detail" aria-busy="true">
@@ -145,8 +139,15 @@ export default function PollDetail() {
       <ServerClock text={formatLiveTime(now)} live={!isPollEnded} />
 
       <section className="poll-info rise" style={{ '--d': '140ms' }}>
-        <h1>{poll.title}{isPollEnded ? ' (ENDED)' : ''}</h1>
-        <div className="poll-dates">{formatPollDates(poll.fromDate, poll.toDate)}</div>
+        <h1>{poll.title.replace(/\s*\(ended\)\s*$/i, '')}</h1>
+        <div className="poll-status-row">
+          <PollStatus poll={poll} now={now} inline />
+          <PollStatus poll={poll} now={now} show="left" />
+        </div>
+        <div className="poll-when">
+          <span><b>Start</b>{formatDateTime(poll.fromDate)}</span>
+          <span><b>End</b>{formatDateTime(poll.toDate)}</span>
+        </div>
         <div className="poll-type">{poll.type}</div>
         <p>{poll.description || 'Show your support and cast your votes!'}</p>
       </section>

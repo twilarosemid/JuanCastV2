@@ -1,3 +1,5 @@
+import PollStatus from '../../components/PollStatus/PollStatus';
+import { formatDateTime } from '../../utils/pollTime';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getJSON, img } from '../../api';
@@ -12,16 +14,6 @@ const SearchIcon = () => (
     <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
   </svg>
 );
-
-// Live / Ended / Soon, worked out from the poll dates
-const statusOf = (poll) => {
-  const now = new Date();
-  if (poll.fromDate && new Date(poll.fromDate) > now) return 'soon';
-  if (poll.toDate && new Date(poll.toDate) < now) return 'ended';
-  return 'live';
-};
-const STATUS_LABEL = { live: 'Live', ended: 'Ended', soon: 'Soon' };
-
 
 const Chevron = ({ dir }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -122,13 +114,6 @@ export default function AllPolls() {
     .map((name) => ({ name, polls: filteredPolls.filter((p) => (p.group || 'PPMA') === name) }))
     .filter((g) => g.polls.length > 0);
 
-  const formatDate = (value) => {
-    if (!value) return 'TBA';
-    const date = new Date(value);
-    if (isNaN(date.getTime())) return 'TBA';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
   return (
     <div className="polls-page">
       <aside className="polls-sidebar rise">
@@ -223,7 +208,6 @@ export default function AllPolls() {
               <ScrollRow single={single} count={group.polls.length}>
                 <div className={`polls-grid ${single ? 'expanded' : 'collapsed'}`}>
                   {group.polls.map((poll, i) => {
-                    const status = statusOf(poll);
                     return (
                       <article
                         key={poll._id || poll.id}
@@ -238,13 +222,15 @@ export default function AllPolls() {
                             className="poll-card-image"
                             style={{ backgroundImage: poll.imageUrl ? `url("${img(poll.imageUrl)}")` : 'none' }}
                           />
-                          <span className={`status-chip ${status}`}>
-                            <i />{STATUS_LABEL[status]}
-                          </span>
+                          <PollStatus poll={poll} />
                         </div>
                         <div className="poll-card-info">
                           <h3>{poll.title || 'Untitled Poll'}</h3>
-                          <p>{formatDate(poll.fromDate)} – {formatDate(poll.toDate)}</p>
+                          <div className="poll-when">
+                            <span><b>Start</b>{formatDateTime(poll.fromDate)}</span>
+                            <span><b>End</b>{formatDateTime(poll.toDate)}</span>
+                          </div>
+                          <PollStatus poll={poll} show="left" />
                           <div className="poll-card-tags">
                             <span>{group.name}</span>
                             <span>{poll.type || 'Minor'}</span>

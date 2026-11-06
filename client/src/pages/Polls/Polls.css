@@ -100,9 +100,25 @@
   background: rgba(0, 0, 0, .45); backdrop-filter: blur(8px);
 }
 .status-chip i { width: 7px; height: 7px; border-radius: 50%; background: #8b97b3; }
-.status-chip.live i { background: #5fd38d; animation: pulseDot 1.6s ease-out infinite; }
+.status-chip.ongoing i { background: #5fd38d; animation: pulseDot 1.6s ease-out infinite; }
+.status-chip.ending { color: #ffd9a8; }
+.status-chip.ending i { background: #ff9f43; animation: pulseDotWarm 1s ease-out infinite; }
 .status-chip.soon i { background: #ffc15e; }
 .status-chip.ended { color: var(--muted); }
+.status-chip.inline { position: static; background: rgba(255, 255, 255, .1); }
+@keyframes pulseDotWarm { 0% { box-shadow: 0 0 0 0 rgba(255, 159, 67, .65); } 80%, 100% { box-shadow: 0 0 0 8px rgba(255, 159, 67, 0); } }
+
+/* start / end dates + how long is left */
+.poll-when { display: grid; gap: 3px; margin: 0 0 8px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.poll-when span { display: flex; align-items: baseline; gap: 10px; }
+.poll-when b { flex: none; width: 38px; color: var(--gold); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+.time-left { display: inline-block; margin: 0 0 10px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.time-left.ongoing { color: #7fe3a8; }
+.time-left.ending { color: #ffb86b; }
+.time-left.soon { color: #ffc15e; }
+.time-left.ended { color: var(--muted); }
+.poll-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 12px; }
+.poll-status-row .time-left { margin: 0; font-size: 15px; }
 
 .view-all-pill {
   display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border: 0; border-radius: 999px; cursor: pointer;
