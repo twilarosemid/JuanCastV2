@@ -4,6 +4,7 @@ import { API, getJSON, img, mergeUser, normalizeHandle, saveUser } from '../../a
 import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
 import Feedback from '../../components/Feedback/Feedback';
+import QRCode from '../../components/QRCode/QRCode';
 import RewardsCenter from '../../components/RewardsCenter/RewardsCenter';
 import DailyRewards, { dailyState } from '../../components/DailyRewards/DailyRewards';
 import StarCurr from '../../assets/StarCurr.png';
@@ -33,8 +34,7 @@ const toProfile = (data) => ({
   username: data.username || '',
   joined: formatJoined(data.createdAt || data.joinDate),
   avatar: data.avatar || '',
-  coverPhoto: data.coverPhoto || '',
-  coverPosition: data.coverPosition || { x: 50, y: 50 },
+  totalVotes: Math.max(0, Number(data.totalVotes) || 0),
   followers: Array.isArray(data.followers) ? data.followers : [],
   following: Array.isArray(data.following) ? data.following : []
 });
@@ -68,6 +68,27 @@ const ReplyIcon = () => (
   </svg>
 );
 
+const CloseIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+);
+const SearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+  </svg>
+);
+const ChevronIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+const PeopleIcon = () => (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="9" cy="8" r="3.5" /><path d="M2.5 20v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1" /><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4A5 5 0 0 1 21.5 19v1" />
+  </svg>
+);
+
 export default function Profile() {
   const { username: routeUsername } = useParams();
   const navigate = useNavigate();
@@ -91,13 +112,16 @@ export default function Profile() {
   const [rewardsOpen, setRewardsOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [peopleList, setPeopleList] = useState(null); // 'followers' | 'following' | null
+  const [peopleQuery, setPeopleQuery] = useState('');
+  const [qrOpen, setQrOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [people, setPeople] = useState({});            // handle -> { avatar, name } (filled in lazily)
   const [feedback, setFeedback] = useState({ open: false, type: 'error', message: '' });
 
-  // when a followers/following list opens, look up each person's avatar and name (first 40)
+  // when a followers/following list opens, look up each person's avatar and name (first 60)
   useEffect(() => {
     if (!peopleList || !profile) return undefined;
-    const handles = (peopleList === 'followers' ? profile.followers : profile.following).slice(0, 40);
+    const handles = (peopleList === 'followers' ? profile.followers : profile.following).slice(0, 60);
     let cancelled = false;
     handles.forEach((h) => {
       const key = normalizeHandle(h);
@@ -108,6 +132,8 @@ export default function Profile() {
     });
     return () => { cancelled = true; };
   }, [peopleList, profile?.followers, profile?.following]);
+
+  useEffect(() => { if (!peopleList) setPeopleQuery(''); }, [peopleList]);
 
   const say = (type, message) => setFeedback({ open: true, type, message });
   const goLogin = () => navigate('/login', { state: { from: location.pathname } });
@@ -299,27 +325,38 @@ export default function Profile() {
   }
 
   const daily = dailyState(viewer);
-  const comments = posts.reduce((sum, p) => sum + (p.replies?.length || 0), 0);
-  const reactions = posts.reduce((sum, p) => sum + (Array.isArray(p.likes) ? p.likes.length : 0), 0);
-  const stats = [
-    ['Total Posts', posts.length],
-    ['Comments', comments],
-    ['Reactions', reactions],
-    ['Followers', followersCount, 'followers'],
-    ['Following', profile.following.length, 'following']
-  ];
   const listHandles = peopleList === 'followers' ? profile.followers : peopleList === 'following' ? profile.following : [];
+  const peopleTitle = peopleList === 'following' ? 'Following' : 'Followers';
+  const query = peopleQuery.trim().replace(/^@/, '').toLowerCase();
+  const visibleHandles = query
+    ? listHandles.filter((h) => {
+        const key = normalizeHandle(h);
+        return key.includes(query) || (people[key]?.name || '').toLowerCase().includes(query);
+      })
+    : listHandles;
+
+  // every profile gets its own QR: scanning it opens that profile
+  const profileUrl = `${window.location.origin}/profile/${encodeURIComponent(normalizeHandle(profile.username))}`;
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1800);
+    } catch {
+      say('error', 'Could not copy the link. Please copy it manually.');
+    }
+  };
 
   return (
     <main className="pf-page">
       <section className="pf-hero rise">
-        <div className="pf-cover">
-          {profile.coverPhoto && (
-            <img src={img(profile.coverPhoto)} alt="" style={{ objectPosition: `${profile.coverPosition?.x ?? 50}% ${profile.coverPosition?.y ?? 50}%` }} />
-          )}
-        </div>
         <div className="pf-head">
-          <Avatar src={profile.avatar} className="pf-avatar" />
+          <div className="pf-ident">
+            <button type="button" className="pf-qr" onClick={() => setQrOpen(true)} aria-label="Show profile QR code">
+              <QRCode value={profileUrl} label={`QR code for @${profile.username}`} />
+            </button>
+            <Avatar src={profile.avatar} className="pf-avatar" />
+          </div>
           <div className="pf-id">
             <h1>{profile.name}</h1>
             <p className="pf-handle">@{profile.username}</p>
@@ -346,23 +383,23 @@ export default function Profile() {
       <div className="pf-cols">
         <aside className="pf-side">
           <div className="pf-card rise" style={{ '--d': '80ms' }}>
-            <h2>Activity Overview</h2>
-            <dl className="pf-stats">
-              {stats.map(([label, value, list]) => (
-                list ? (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>
-                      <button type="button" className="pf-stat-btn" onClick={() => setPeopleList(list)} aria-label={`View ${label.toLowerCase()}`}>
-                        {value} <span aria-hidden="true">›</span>
-                      </button>
-                    </dd>
-                  </div>
-                ) : (
-                  <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-                )
-              ))}
-            </dl>
+            <h2>Statistics</h2>
+            <div className="pf-statgrid">
+              <div className="pf-stat pf-stat-wide">
+                <span className="pf-stat-label">Total Lifetime Votes</span>
+                <strong>{profile.totalVotes.toLocaleString()}</strong>
+              </div>
+              <button type="button" className="pf-stat" onClick={() => setPeopleList('followers')} aria-label="View followers">
+                <span className="pf-stat-label">Followers</span>
+                <strong>{followersCount.toLocaleString()}</strong>
+                <ChevronIcon />
+              </button>
+              <button type="button" className="pf-stat" onClick={() => setPeopleList('following')} aria-label="View following">
+                <span className="pf-stat-label">Following</span>
+                <strong>{profile.following.length.toLocaleString()}</strong>
+                <ChevronIcon />
+              </button>
+            </div>
           </div>
 
           {isOwn && (
@@ -466,28 +503,68 @@ export default function Profile() {
         </section>
       </div>
 
-      <Modal open={Boolean(peopleList)} onClose={() => setPeopleList(null)} label={peopleList === 'following' ? 'Following' : 'Followers'}>
-        <h3>{peopleList === 'following' ? 'Following' : 'Followers'}</h3>
+      <Modal open={Boolean(peopleList)} onClose={() => setPeopleList(null)} label={peopleTitle} className="pf-people-modal">
+        <header className="pf-pm-head">
+          <h3>{peopleTitle}<span className="pf-pm-count">{listHandles.length}</span></h3>
+          <button type="button" className="pf-pm-x" onClick={() => setPeopleList(null)} aria-label="Close"><CloseIcon /></button>
+        </header>
+
+        {listHandles.length > 5 && (
+          <label className="pf-pm-search">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Search people"
+              value={peopleQuery}
+              onChange={(e) => setPeopleQuery(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </label>
+        )}
+
         {listHandles.length === 0 ? (
-          <p>{peopleList === 'following' ? 'Not following anyone yet.' : 'No followers yet.'}</p>
+          <div className="pf-pm-empty">
+            <PeopleIcon />
+            <strong>{peopleList === 'following' ? 'Not following anyone yet' : 'No followers yet'}</strong>
+            <span>{peopleList === 'following' ? 'Accounts followed will show up here.' : 'When people follow this profile, they will show up here.'}</span>
+          </div>
+        ) : visibleHandles.length === 0 ? (
+          <div className="pf-pm-empty"><SearchIcon /><strong>No matches</strong><span>Try a different name or @username.</span></div>
         ) : (
           <ul className="pf-people">
-            {listHandles.map((h) => {
+            {visibleHandles.map((h) => {
               const key = normalizeHandle(h);
               const info = people[key];
               return (
                 <li key={key}>
                   <Link to={`/profile/${encodeURIComponent(key)}`} onClick={() => setPeopleList(null)}>
-                    <Avatar src={info?.avatar} className="pf-mini" />
-                    <span><strong>@{key}</strong>{info?.name && <em>{info.name}</em>}</span>
+                    <Avatar src={info?.avatar} className="pf-pm-avatar" />
+                    <span className="pf-pm-text">
+                      {info ? <strong>{info.name || `@${key}`}</strong> : <i className="pf-pm-skel" aria-hidden="true" />}
+                      <em>@{key}</em>
+                    </span>
+                    <ChevronIcon />
                   </Link>
                 </li>
               );
             })}
           </ul>
         )}
+      </Modal>
+
+      <Modal open={qrOpen} onClose={() => setQrOpen(false)} label="Profile QR code" className="pf-qr-modal">
+        <header className="pf-pm-head">
+          <h3>Profile QR</h3>
+          <button type="button" className="pf-pm-x" onClick={() => setQrOpen(false)} aria-label="Close"><CloseIcon /></button>
+        </header>
+        <div className="pf-qr-big"><QRCode value={profileUrl} label={`QR code for @${profile.username}`} /></div>
+        <p className="pf-qr-name"><strong>{profile.name}</strong><span>@{profile.username}</span></p>
+        <p className="pf-qr-hint">Scan this code to open this profile on JuanCast.</p>
         <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={() => setPeopleList(null)}>Close</button>
+          <button type="button" className="btn-ghost" onClick={copyLink}>{linkCopied ? 'Link copied!' : 'Copy link'}</button>
+          <button type="button" className="btn-solid" onClick={() => setQrOpen(false)}>Done</button>
         </div>
       </Modal>
 

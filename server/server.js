@@ -237,11 +237,6 @@ const profileSchema = new mongoose.Schema({
   birthdate: { type: String, required: true },
   gender: { type: String },
   avatar: { type: String, default: "" },
-  coverPhoto: { type: String, default: "" },
-  coverPosition: {
-    x: { type: Number, default: 50 },
-    y: { type: Number, default: 50 }
-  },
   followers: { type: [String], default: [] },
   following: { type: [String], default: [] },
   stars: { type: Number, default: 100 }, 
@@ -257,9 +252,18 @@ const profileSchema = new mongoose.Schema({
   swerteSpinDate: { type: String, default: null },
   transactions: { type: [transactionSchema], default: [] },
   lastNameChange: { type: Date },
-  lastUsernameChange: { type: Date }
+  lastUsernameChange: { type: Date },
+  totalVotes: { type: Number } // lifetime votes cast; accounts created before this field are backfilled from their vote history
 }, { timestamps: true });
 const Profile = mongoose.model('Profile', profileSchema);
+
+// Lifetime votes for a profile: the stored counter, or (for older accounts) the sum of their recorded vote transactions
+const lifetimeVotes = (profile) => {
+  if (typeof profile.totalVotes === 'number') return profile.totalVotes;
+  return (profile.transactions || [])
+    .filter((t) => t.category === 'voting')
+    .reduce((sum, t) => sum + (t.changes || []).reduce((s, c) => s + (Number(c.amount) || 0), 0), 0);
+};
 
 // 2c. Define Content Schemas
 const chikaSchema = new mongoose.Schema({
@@ -381,6 +385,7 @@ app.get('/api/users/me', async (req, res) => {
 
     res.status(200).json({
       ...profile.toObject(),
+      totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
     });
   } catch (error) {
@@ -397,6 +402,7 @@ app.get('/api/users/profile/:username', async (req, res) => {
 
     res.status(200).json({
       ...profile.toObject(),
+      totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
     });
   } catch (error) {
@@ -451,21 +457,20 @@ const publicUser = (profile) => ({
   username: profile.username,
   fullName: profile.fullName,
   avatar: profile.avatar || '',
-  coverPhoto: profile.coverPhoto || '',
-  coverPosition: profile.coverPosition || { x: 50, y: 50 },
   followers: profile.followers || [],
   following: profile.following || [],
   stars: profile.stars,
   suns: profile.suns,
   dailyStreak: profile.dailyStreak || 0,
   lastClaimDate: profile.lastClaimDate || null,
+  totalVotes: lifetimeVotes(profile),
   createdAt: profile.createdAt || profile._id.getTimestamp()
 });
 
-// Edit profile: name (7-day cooldown), @username (30-day cooldown), avatar, cover photo
+// Edit profile: name (7-day cooldown), @username (30-day cooldown), avatar
 app.put('/api/users/update-profile', async (req, res) => {
   try {
-    const { email, fullName, username, avatar, coverPhoto, coverPosition } = req.body;
+    const { email, fullName, username, avatar } = req.body;
     if (!email) return res.status(400).json({ message: 'Email is required.' });
 
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
@@ -506,11 +511,6 @@ app.put('/api/users/update-profile', async (req, res) => {
     }
 
     if (typeof avatar === 'string') profile.avatar = avatar;
-    if (typeof coverPhoto === 'string') profile.coverPhoto = coverPhoto;
-    if (coverPosition && Number.isFinite(coverPosition.x) && Number.isFinite(coverPosition.y)) {
-      const clamp = (n) => Math.max(0, Math.min(100, n));
-      profile.coverPosition = { x: clamp(coverPosition.x), y: clamp(coverPosition.y) };
-    }
 
     await profile.save();
 
@@ -1352,6 +1352,9 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
       return res.status(400).json({ message: "Not enough suns to vote!" });
     }
 
+    // lifetime vote counter (older accounts are backfilled from their history BEFORE this vote's transaction is added)
+    profile.totalVotes = lifetimeVotes(profile) + Number(cost);
+
     if (currencyType === 'stars') {
       profile.stars -= cost;
     } else {
@@ -1570,8 +1573,7 @@ app.post('/api/verify-otp', async (req, res) => {
       fullName,
       username,
       birthdate,
-      gender,
-      coverPhoto: ''
+      gender
     });
     await newProfile.save();
 
@@ -1618,7 +1620,6 @@ res.status(200).json({
           username: profile ? profile.username : normalizedUserEmail,
           fullName: profile ? profile.fullName : "User",
           avatar: profile ? profile.avatar : "",
-          coverPhoto: profile?.coverPhoto || '',
           stars: profile?.stars ?? 100, 
           suns: profile?.suns ?? 100,
           dailyStreak: profile?.dailyStreak ?? 0,

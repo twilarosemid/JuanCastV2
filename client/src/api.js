@@ -23,14 +23,14 @@ export const saveUser = (user) => {
   try {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   } catch {
-    // storage full (big avatar/cover images): keep everything except the cover photo
-    try { localStorage.setItem(USER_KEY, JSON.stringify({ ...user, coverPhoto: '' })); } catch { /* give up quietly */ }
+    // storage full (big avatar image): keep everything except the avatar
+    try { localStorage.setItem(USER_KEY, JSON.stringify({ ...user, avatar: '' })); } catch { /* give up quietly */ }
   }
   window.dispatchEvent(new Event('juancast-user-updated'));
 };
 
 // Only these fields are copied from a server response into the saved user
-const USER_FIELDS = ['email', 'username', 'fullName', 'avatar', 'coverPhoto', 'coverPosition', 'followers', 'following', 'stars', 'suns', 'dailyStreak', 'lastClaimDate', 'createdAt'];
+const USER_FIELDS = ['email', 'username', 'fullName', 'avatar', 'followers', 'following', 'stars', 'suns', 'dailyStreak', 'lastClaimDate', 'totalVotes', 'createdAt'];
 export const mergeUser = (base, fresh) => {
   const out = { ...base };
   USER_FIELDS.forEach((key) => { if (fresh?.[key] !== undefined) out[key] = fresh[key]; });

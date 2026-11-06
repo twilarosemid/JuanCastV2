@@ -27,12 +27,8 @@ const UserSvg = () => (
   </svg>
 );
 
-// Crop box on screen (stageW = width of the drag area) and the size of the saved image
-const cropSpec = (type, stageW) => {
-  if (type === 'avatar') return { boxW: 240, boxH: 240, outW: 320, outH: 320 };
-  const boxW = Math.max(200, Math.min(stageW - 32, 560));
-  return { boxW, boxH: Math.round(boxW * (500 / 1200)), outW: 1200, outH: 500 };
-};
+// Crop box on screen and the size of the saved image (profile photos are square)
+const cropSpec = () => ({ boxW: 240, boxH: 240, outW: 320, outH: 320 });
 
 const clampOffset = (c, boxW, boxH, zoom, tx, ty) => {
   const scale = Math.max(boxW / c.nw, boxH / c.nh) * zoom;
@@ -48,17 +44,14 @@ export default function EditProfile() {
   viewerRef.current = viewer;
 
   const avatarInput = useRef(null);
-  const coverInput = useRef(null);
-  const stageRef = useRef(null);
   const drag = useRef(null);
 
-  const [form, setForm] = useState({ fullName: '', username: '', avatar: '', coverPhoto: '' });
+  const [form, setForm] = useState({ fullName: '', username: '', avatar: '' });
   const [initial, setInitial] = useState(null);
   const [joined, setJoined] = useState('Joined recently');
   const [locks, setLocks] = useState({ name: 0, username: 0 });
   const [saving, setSaving] = useState(false);
   const [cropper, setCropper] = useState(null);
-  const [stageW, setStageW] = useState(600);
   const [feedback, setFeedback] = useState({ open: false, type: 'error', message: '' });
 
   // fill the form from the saved user, then refresh it from the server
@@ -71,8 +64,7 @@ export default function EditProfile() {
       const next = {
         fullName: data.fullName || '',
         username: data.username || '',
-        avatar: data.avatar || '',
-        coverPhoto: data.coverPhoto || ''
+        avatar: data.avatar || ''
       };
       setForm(next);
       setInitial(next);
@@ -95,42 +87,33 @@ export default function EditProfile() {
 
   const hasChanges = initial !== null && Object.keys(form).some((key) => form[key] !== initial[key]);
 
-  // measure the crop area so the cover box fits small screens
-  useEffect(() => {
-    if (!cropper) return undefined;
-    const measure = () => { if (stageRef.current) setStageW(stageRef.current.clientWidth); };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [cropper?.type, Boolean(cropper)]);
-
-  const spec = useMemo(() => (cropper ? cropSpec(cropper.type, stageW) : null), [cropper?.type, stageW, Boolean(cropper)]);
+  const spec = useMemo(() => (cropper ? cropSpec() : null), [Boolean(cropper)]);
 
   if (!viewer?.email) return <Navigate to="/login" replace state={{ from: '/profile/edit' }} />;
 
   const say = (type, message) => setFeedback({ open: true, type, message });
 
-  const openCropper = (file, type) => {
+  const openCropper = (file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { say('error', 'Please choose an image file.'); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const probe = new Image();
-      probe.onload = () => setCropper({ type, src: reader.result, nw: probe.naturalWidth, nh: probe.naturalHeight, zoom: 1, tx: 0, ty: 0 });
+      probe.onload = () => setCropper({ src: reader.result, nw: probe.naturalWidth, nh: probe.naturalHeight, zoom: 1, tx: 0, ty: 0 });
       probe.onerror = () => say('error', 'That image could not be opened.');
       probe.src = reader.result;
     };
     reader.readAsDataURL(file);
   };
 
-  const pickFile = (type) => (event) => {
-    openCropper(event.target.files?.[0], type);
+  const pickFile = (event) => {
+    openCropper(event.target.files?.[0]);
     event.target.value = '';
   };
 
   const setZoom = (zoom) => {
     setCropper((c) => {
-      const s = cropSpec(c.type, stageW);
+      const s = cropSpec();
       const { tx, ty } = clampOffset(c, s.boxW, s.boxH, zoom, c.tx, c.ty);
       return { ...c, zoom, tx, ty };
     });
@@ -144,7 +127,7 @@ export default function EditProfile() {
     if (!drag.current) return;
     const d = drag.current;
     setCropper((c) => {
-      const s = cropSpec(c.type, stageW);
+      const s = cropSpec();
       const { tx, ty } = clampOffset(c, s.boxW, s.boxH, c.zoom, d.tx + e.clientX - d.x, d.ty + e.clientY - d.y);
       return { ...c, tx, ty };
     });
@@ -154,7 +137,7 @@ export default function EditProfile() {
   const applyCrop = () => {
     const image = new Image();
     image.onload = () => {
-      const { boxW, boxH, outW, outH } = cropSpec(cropper.type, stageW);
+      const { boxW, boxH, outW, outH } = cropSpec();
       const { scale } = clampOffset(cropper, boxW, boxH, cropper.zoom, cropper.tx, cropper.ty);
       const sw = boxW / scale;
       const sh = boxH / scale;
@@ -167,7 +150,7 @@ export default function EditProfile() {
       canvas.getContext('2d').drawImage(image, sx, sy, sw, sh, 0, 0, outW, outH);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.86);
 
-      setForm((f) => (cropper.type === 'avatar' ? { ...f, avatar: dataUrl } : { ...f, coverPhoto: dataUrl }));
+      setForm((f) => ({ ...f, avatar: dataUrl }));
       setCropper(null);
     };
     image.src = cropper.src;
@@ -185,9 +168,7 @@ export default function EditProfile() {
           email: viewer.email,
           fullName: form.fullName,
           username: form.username,
-          avatar: form.avatar,
-          coverPhoto: form.coverPhoto,
-          coverPosition: { x: 50, y: 50 }
+          avatar: form.avatar
         })
       });
       const data = await res.json().catch(() => ({}));
@@ -213,11 +194,6 @@ export default function EditProfile() {
   return (
     <main className="ep-page">
       <section className="ep-card rise">
-        <div className="ep-cover">
-          {form.coverPhoto && <img src={img(form.coverPhoto)} alt="Cover preview" />}
-          <button type="button" className="ep-cover-btn" onClick={() => coverInput.current?.click()}>Change Cover Photo</button>
-        </div>
-
         <div className="ep-head">
           <button type="button" className="ep-avatar" onClick={() => avatarInput.current?.click()} aria-label="Change profile photo">
             {form.avatar ? <img src={img(form.avatar)} alt="" /> : <UserSvg />}
@@ -271,8 +247,7 @@ export default function EditProfile() {
             <button type="submit" className="btn-solid" disabled={!hasChanges || saving}>{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
 
-          <input type="file" accept="image/*" ref={avatarInput} onChange={pickFile('avatar')} hidden />
-          <input type="file" accept="image/*" ref={coverInput} onChange={pickFile('cover')} hidden />
+          <input type="file" accept="image/*" ref={avatarInput} onChange={pickFile} hidden />
         </form>
       </section>
 
@@ -282,13 +257,12 @@ export default function EditProfile() {
           return (
             <>
               <header className="ep-crop-head">
-                <h3>{cropper.type === 'avatar' ? 'Crop Profile Photo' : 'Crop Cover Photo'}</h3>
+                <h3>Crop Profile Photo</h3>
                 <button type="button" className="ep-crop-x" onClick={() => setCropper(null)} aria-label="Close">×</button>
               </header>
 
               <div
                 className="ep-stage"
-                ref={stageRef}
                 style={{ height: STAGE_H }}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -307,7 +281,7 @@ export default function EditProfile() {
                   }}
                 />
                 <div
-                  className={`ep-box${cropper.type === 'avatar' ? ' round' : ''}`}
+                  className="ep-box round"
                   style={{ width: spec.boxW, height: spec.boxH }}
                 />
               </div>
