@@ -16,7 +16,10 @@ export default function PollStatus({ poll, show = 'chip', now: nowProp, inline =
   }, [interval]);
 
   const status = pollStatus(poll, now);
-  if (show === 'left') return <span className={`time-left ${status}`}>{timeLeftText(poll, now)}</span>;
+  if (show === 'left') {
+    if (status === 'ended') return null; // the chip already says "Ended"
+    return <span className={`time-left ${status}`}>{timeLeftText(poll, now)}</span>;
+  }
   return (
     <span className={`status-chip ${status}${inline ? ' inline' : ''}`}>
       <i />{STATUS_LABEL[status]}
