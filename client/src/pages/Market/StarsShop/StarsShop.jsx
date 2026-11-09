@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Modal from '../../../components/Modal/Modal';
-import { getUser } from '../../../api';
 import STAR1 from '../../../assets/STAR1.png';
 import STAR2 from '../../../assets/STAR2.png';
 import STAR3 from '../../../assets/STAR3.png';
@@ -19,25 +18,15 @@ const starPackages = [
   { amount: 500000, price: 2999, image: STAR6 }
 ];
 
-// Set VITE_PAYMENT_URL in client/.env to the payment page the "I Understand" button redirects to.
-const PAYMENT_URL = import.meta.env.VITE_PAYMENT_URL || '';
+// Packages are listed in order, so the 1st is star_1 ... the 6th is star_6
+const paymentUrl = (item) => `https://juancast.ph/purchase_star.php/?starProductIndex=star_${starPackages.indexOf(item) + 1}`;
 
 export default function StarsShop() {
   const [selected, setSelected] = useState(null); // the star package being purchased
-  const [unavailable, setUnavailable] = useState(false);
 
-  const choose = (item) => { setUnavailable(false); setSelected(item); };
+  const choose = (item) => setSelected(item);
   const close = () => setSelected(null);
-
-  const proceed = () => {
-    if (!PAYMENT_URL) { setUnavailable(true); return; }
-    const url = new URL(PAYMENT_URL, window.location.origin);
-    url.searchParams.set('stars', selected.amount);
-    url.searchParams.set('price', selected.price);
-    const user = getUser();
-    if (user?.username) url.searchParams.set('username', user.username);
-    window.location.assign(url.toString());
-  };
+  const proceed = () => { if (selected) window.location.assign(paymentUrl(selected)); };
 
   return (
     <>
@@ -60,7 +49,6 @@ export default function StarsShop() {
           </article>
         ))}
       </div>
-      {!PAYMENT_URL && <p className="mk-note">Online checkout is not set up yet.</p>}
 
       <Modal open={Boolean(selected)} onClose={close} label="Payment Pending" className="pay-modal">
         <h3>Payment Pending</h3>
@@ -75,7 +63,6 @@ export default function StarsShop() {
           <strong>Note:</strong> Once payment is finished please click the “Redirect to Merchant” button. If the tab is closed before the button is clicked, please wait up to 5 minutes for the transaction to be reflected. In the case where the transaction has not yet reflected during the 5 minute period, please contact our team by navigating to the <Link to="/settings/report" onClick={close}>“Report an Issue”</Link> page.
         </div>
         <p className="pay-confirm">Click “I Understand” to be redirected to the payment page.</p>
-        {unavailable && <p className="pay-unavailable" role="alert">Online checkout is not set up yet.</p>}
         <div className="modal-actions">
           <button type="button" className="btn-ghost" onClick={close}>Cancel</button>
           <button type="button" className="btn-solid" onClick={proceed}>I Understand</button>

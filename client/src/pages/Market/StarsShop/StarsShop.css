@@ -36,4 +36,3 @@
 .pay-note strong { color: #ffc65c; }
 .pay-note a { color: #ffd98a; font-weight: 700; text-underline-offset: 3px; }
 .modal .pay-confirm { margin-bottom: 0; color: var(--text); font-weight: 600; }
-.modal .pay-unavailable { margin: 12px 0 0; color: #ff8a96; font-size: 14px; font-weight: 600; }
