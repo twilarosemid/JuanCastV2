@@ -418,10 +418,12 @@ export default function Profile() {
           <div className="pf-card rise" style={{ '--d': '80ms' }}>
             <h2>Statistics</h2>
             <div className="pf-statgrid">
-              <div className="pf-stat pf-stat-wide">
-                <span className="pf-stat-label">Total Lifetime Votes</span>
-                <strong>{profile.totalVotes.toLocaleString()}</strong>
-              </div>
+              {!isArtist && ( // artists don't have a vote count
+                <div className="pf-stat pf-stat-wide">
+                  <span className="pf-stat-label">Total Lifetime Votes</span>
+                  <strong>{profile.totalVotes.toLocaleString()}</strong>
+                </div>
+              )}
               <button type="button" className="pf-stat" onClick={() => setPeopleList('followers')} aria-label="View followers">
                 <span className="pf-stat-label">Followers</span>
                 <strong>{followersCount.toLocaleString()}</strong>
