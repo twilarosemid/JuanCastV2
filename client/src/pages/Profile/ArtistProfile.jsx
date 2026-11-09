@@ -430,6 +430,7 @@ export function ArtistFeed({ profile, ownView, viewer, say, goLogin }) {
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
           />
+          <p className="ap-fb-note">Your post will also appear on your linked Fanbase board.</p>
           {preview && (
             <div className="ap-attach">
               <img src={preview} alt="Attached" />

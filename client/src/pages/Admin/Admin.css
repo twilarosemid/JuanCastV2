@@ -266,3 +266,18 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
 .ad-item.pickable { cursor: pointer; }
 .ad-item.picked { background: rgba(74, 168, 255, .16); box-shadow: inset 0 0 0 1px rgba(74, 168, 255, .45); }
 .ad-chip.gone { background: rgba(224, 51, 74, .2); color: #ff9aa6; }
+
+/* ---------- fanbase artist members + social accounts ---------- */
+.ad-fanbase-members { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 8px; max-height: 260px; overflow-y: auto; padding: 2px; }
+.ad-fanbase-member { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 10px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; background: rgba(255, 255, 255, .05); cursor: pointer; }
+.ad-fanbase-member.selected { border-color: rgba(245, 197, 66, .55); background: rgba(245, 197, 66, .12); }
+.ad-fanbase-member input { width: 18px; height: 18px; flex: none; accent-color: var(--gold); }
+.ad-fanbase-member .ad-thumb { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; }
+.ad-fanbase-member > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.ad-fanbase-member strong, .ad-fanbase-member small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-fanbase-member strong { font-size: 13px; }
+.ad-fanbase-member small { color: var(--muted); font-size: 11px; }
+.ad-fanbase-socials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ad-fanbase-socials label { display: grid; gap: 5px; }
+.ad-fanbase-socials label > span { color: var(--muted); font-size: 12px; font-weight: 700; }
+@media (max-width: 520px) { .ad-fanbase-socials { grid-template-columns: 1fr; } }

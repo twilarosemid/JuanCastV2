@@ -71,9 +71,14 @@ app.get('/uploads/:filename', async (req, res, next) => {
 });
 
 // 1. Connect to MongoDB and auto-synchronize ranking positions on boot
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 8000 })
   .then(async () => {
     console.log("Connected to MongoDB Atlas!");
+    // start the auto-syncs only once the database is reachable
+    youtubeSync.start();
+    instagramSync.start();
+    facebookSync.start();
+    xSync.start();
 
     // Phone is now optional: drop the old plain unique index (it treats every missing phone as a duplicate)
     try {
@@ -1863,18 +1868,61 @@ const videoSchema = new mongoose.Schema({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
   group: { type: String, default: '' },
-  platform: { type: String, enum: ['YouTube', 'Facebook', 'X', 'TikTok'], default: 'YouTube' },
+  platform: { type: String, enum: ['YouTube', 'Facebook', 'Instagram', 'X', 'TikTok'], default: 'YouTube' },
   imageUrl: { type: String, default: '' },
   youtubeUrl: { type: String, default: '' },
+  sourceKey: { type: String, default: undefined },
   createdAt: { type: Date, default: Date.now }
 });
+videoSchema.index({ sourceKey: 1 }, { unique: true, sparse: true });
 const Video = mongoose.model('Video', videoSchema);
+
+// auto-fetch the channel's latest uploads into the Community video tab (set YOUTUBE_CHANNEL_ID in .env to change the channel, or to 'off' to stop)
+const { createYouTubeSync } = require('./youtubeSync');
+const YT_CHANNEL_ID = (process.env.YOUTUBE_CHANNEL_ID || 'UCdaZ-doFvqishXEdUl36LXg').trim();
+const youtubeSync = createYouTubeSync({
+  mongoose, Video,
+  channelId: YT_CHANNEL_ID.toLowerCase() === 'off' ? '' : YT_CHANNEL_ID,
+  intervalMs: (Number(process.env.YOUTUBE_SYNC_MINUTES) || 30) * 60 * 1000
+});
+
+// same for Instagram posts (needs INSTAGRAM_ACCESS_TOKEN in .env; without it this does nothing)
+const { createInstagramSync } = require('./instagramSync');
+const instagramSync = createInstagramSync({
+  mongoose, Video,
+  envToken: (process.env.INSTAGRAM_ACCESS_TOKEN || '').trim(),
+  intervalMs: (Number(process.env.INSTAGRAM_SYNC_MINUTES) || 60) * 60 * 1000
+});
+
+// same for the Facebook Page (needs FACEBOOK_PAGE_ACCESS_TOKEN in .env; without it this does nothing)
+const { createFacebookSync } = require('./facebookSync');
+const facebookSync = createFacebookSync({
+  mongoose, Video,
+  token: (process.env.FACEBOOK_PAGE_ACCESS_TOKEN || '').trim(),
+  pageId: (process.env.FACEBOOK_PAGE_ID || '').trim(),
+  version: (process.env.META_GRAPH_API_VERSION || 'v26.0').trim(),
+  intervalMs: (Number(process.env.FACEBOOK_SYNC_MINUTES) || 60) * 60 * 1000
+});
+
+// same for X (needs X_BEARER_TOKEN in .env; without it this does nothing). The X API is pay-per-use, so it checks every 3 hours by default
+const { createXSync } = require('./xSync');
+const xSync = createXSync({
+  mongoose, Video,
+  bearer: (process.env.X_BEARER_TOKEN || '').trim(),
+  username: (process.env.X_USERNAME || 'NotJuanCastPH').trim().replace(/^@/, ''),
+  userId: (process.env.X_USER_ID || '').trim(),
+  intervalMs: (Number(process.env.X_SYNC_MINUTES) || 180) * 60 * 1000
+});
 
 // --- YOUTUBE VIDEO API ROUTES ---
 app.get('/api/videos', async (req, res) => {
   try {
+    youtubeSync.syncIfStale();
+    instagramSync.syncIfStale();
+    facebookSync.syncIfStale();
+    xSync.syncIfStale();
     const platform = req.query.platform || 'YouTube';
-    const allowedPlatforms = ['YouTube', 'Facebook', 'X', 'TikTok'];
+    const allowedPlatforms = ['YouTube', 'Facebook', 'Instagram', 'X', 'TikTok'];
     if (platform !== 'all' && !allowedPlatforms.includes(platform)) {
       return res.status(400).json({ error: 'Invalid video platform' });
     }
@@ -1890,6 +1938,30 @@ app.get('/api/videos', async (req, res) => {
     console.error('Error fetching videos:', error);
     res.status(500).json({ error: 'Failed to fetch videos' });
   }
+});
+
+// admin: check the YouTube channel right now (POST /api/videos/sync)
+app.post('/api/videos/sync', requireAdmin, async (req, res) => {
+  const result = await youtubeSync.sync();
+  res.status(result.error ? 502 : 200).json(result);
+});
+
+// admin: check the Instagram account right now (POST /api/videos/sync-instagram)
+app.post('/api/videos/sync-instagram', requireAdmin, async (req, res) => {
+  const result = await instagramSync.sync();
+  res.status(result.error ? 502 : 200).json(result);
+});
+
+// admin: check the Facebook Page right now (POST /api/videos/sync-facebook)
+app.post('/api/videos/sync-facebook', requireAdmin, async (req, res) => {
+  const result = await facebookSync.sync();
+  res.status(result.error ? 502 : 200).json(result);
+});
+
+// admin: check the X account right now (POST /api/videos/sync-x)
+app.post('/api/videos/sync-x', requireAdmin, async (req, res) => {
+  const result = await xSync.sync();
+  res.status(result.error ? 502 : 200).json(result);
 });
 
 app.post('/api/videos', requireAdmin, upload.single('image'), async (req, res) => {
@@ -1936,6 +2008,7 @@ app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid video ID.' });
     const deleted = await Video.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: 'Video not found.' });
+    await youtubeSync.skipSource(deleted.sourceKey); // an auto-imported video stays deleted
     res.status(200).json({ message: 'Video deleted successfully.' });
   } catch (error) {
     console.error('Error deleting video:', error);
@@ -1951,7 +2024,17 @@ const fanbaseSchema = new mongoose.Schema({
   price: { type: Number, default: 500, min: 0 },            // Php per month
   subscriberCount: { type: Number, default: 0, min: 0 },
   featured: { type: Boolean, default: false },              // its latest post is the "Featured Artist" post
-  ownerEmail: { type: String, default: '', index: true },   // the artist account that runs this fanbase
+  ownerEmail: { type: String, default: '', index: true },   // legacy single-artist owner, retained for existing fanbases
+  memberEmails: { type: [String], default: [] },             // artists in this group fanbase
+  socialLinks: {
+    instagram: { type: String, default: '' },
+    tiktok: { type: String, default: '' },
+    x: { type: String, default: '' },
+    youtube: { type: String, default: '' },
+    spotify: { type: String, default: '' },
+    appleMusic: { type: String, default: '' },
+    facebook: { type: String, default: '' }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 const Fanbase = mongoose.model('Fanbase', fanbaseSchema);
@@ -1971,6 +2054,7 @@ const FanbasePost = mongoose.model('FanbasePost', fanbasePostSchema);
 
 const fanbaseUpload = upload.fields([{ name: 'image', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
 const fanbasePostUpload = upload.fields([{ name: 'image', maxCount: 1 }, { name: 'authorAvatar', maxCount: 1 }]);
+const FANBASE_SOCIAL_KEYS = ['instagram', 'tiktok', 'x', 'youtube', 'spotify', 'appleMusic', 'facebook'];
 const uploadedUrl = (req, field) => {
   const file = req.files?.[field]?.[0];
   return file ? normalizeImageUrl(`/uploads/${file.filename}`) : null;
@@ -1981,12 +2065,47 @@ const toCount = (value, fallback = 0) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 const serializeFanbase = (doc) => {
-  const { ownerEmail, ...item } = doc.toObject ? doc.toObject() : doc;
+  const { ownerEmail, memberEmails, ...item } = doc.toObject ? doc.toObject() : doc;
   return { ...item, imageUrl: normalizeImageUrl(item.imageUrl), avatarUrl: normalizeImageUrl(item.avatarUrl), hasOwner: Boolean(ownerEmail) };
 };
 const serializeFanbasePost = (doc) => {
   const item = doc.toObject ? doc.toObject() : doc;
   return { ...item, imageUrl: normalizeImageUrl(item.imageUrl), authorAvatarUrl: normalizeImageUrl(item.authorAvatarUrl) };
+};
+const parseFanbaseMembers = async (value) => {
+  let emails;
+  try {
+    emails = typeof value === 'string' ? JSON.parse(value) : value;
+  } catch {
+    return { error: 'Choose one or more valid artist profiles.' };
+  }
+  if (!Array.isArray(emails)) return { error: 'Choose one or more valid artist profiles.' };
+  const uniqueEmails = [...new Set(emails.map(normalizeEmail).filter(Boolean))];
+  const members = await Promise.all(uniqueEmails.map(findArtistOwner));
+  if (members.some((member) => !member)) return { error: 'Every fanbase member must be an existing artist account.' };
+  return { emails: members.map(({ profile }) => normalizeEmail(profile.email)) };
+};
+const parseFanbaseSocialLinks = (value) => {
+  let submitted = value;
+  try {
+    if (typeof value === 'string') submitted = JSON.parse(value);
+  } catch {
+    return { error: 'Social links must be valid.' };
+  }
+  if (!submitted || typeof submitted !== 'object' || Array.isArray(submitted)) return { error: 'Social links must be valid.' };
+  const links = {};
+  for (const key of FANBASE_SOCIAL_KEYS) {
+    const url = String(submitted[key] || '').trim();
+    if (!url) { links[key] = ''; continue; }
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return { error: `Enter a valid ${key} link.` };
+    } catch {
+      return { error: `Enter a valid ${key} link.` };
+    }
+    links[key] = url;
+  }
+  return { links };
 };
 const dropOtherFeatured = (keepId) => Fanbase.updateMany({ _id: { $ne: keepId }, featured: true }, { $set: { featured: false } });
 
@@ -2001,15 +2120,117 @@ app.get('/api/fanbases', async (req, res) => {
   }
 });
 
+app.get('/api/admin/fanbases', requireAdmin, async (req, res) => {
+  try {
+    const [fanbases, artistUsers] = await Promise.all([
+      Fanbase.find().sort({ createdAt: 1 }),
+      User.find({ role: 'artist' }).select('email role isAdmin').sort({ email: 1 })
+    ]);
+    const artists = artistUsers.filter((artist) => resolveRole(artist) === 'artist');
+    const artistEmails = new Set(artists.map((artist) => normalizeEmail(artist.email)));
+    const profiles = await Promise.all(artists.map((artist) => findProfileByEmail(artist.email)));
+    res.status(200).json({
+      fanbases: fanbases.map((fanbase) => {
+        const memberEmails = [...new Set([...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])]
+          .map(normalizeEmail).filter((email) => artistEmails.has(email)))];
+        return {
+          ...serializeFanbase(fanbase),
+          ownerEmail: fanbase.ownerEmail || '',
+          memberEmails,
+          hasOwner: memberEmails.length > 0
+        };
+      }),
+      artists: profiles.filter(Boolean).map((profile) => ({
+        email: normalizeEmail(profile.email),
+        name: profile.fullName || profile.username,
+        username: profile.username,
+        avatar: normalizeImageUrl(profile.avatar || ''),
+        bio: profile.bio || ''
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching admin fanbases:', error);
+    res.status(500).json({ message: 'Failed to load fanbase management data.' });
+  }
+});
+
+app.post('/api/fanbases', requireAdmin, fanbaseUpload, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const price = Number(req.body.price ?? 500);
+    if (!name || name.length > 60) return res.status(400).json({ message: 'Fanbase names must be between 1 and 60 characters.' });
+    if (!Number.isFinite(price) || price < 0 || price > 100000) return res.status(400).json({ message: 'Enter a monthly price between 0 and 100,000.' });
+    const membership = await parseFanbaseMembers(req.body.memberEmails);
+    if (membership.error) return res.status(400).json({ message: membership.error });
+    const socialLinks = parseFanbaseSocialLinks(req.body.socialLinks);
+    if (socialLinks.error) return res.status(400).json({ message: socialLinks.error });
+
+    const fanbase = await Fanbase.create({
+      name,
+      price: Math.round(price),
+      memberEmails: membership.emails,
+      socialLinks: socialLinks.links,
+      imageUrl: uploadedUrl(req, 'image') || '',
+      avatarUrl: uploadedUrl(req, 'avatar') || ''
+    });
+    res.status(201).json(serializeFanbase(fanbase));
+  } catch (error) {
+    console.error('Error creating fanbase:', error);
+    res.status(500).json({ message: 'Failed to create fanbase.' });
+  }
+});
+
+app.put('/api/fanbases/:id', requireAdmin, fanbaseUpload, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
+    const fanbase = await Fanbase.findById(req.params.id);
+    if (!fanbase) return res.status(404).json({ message: 'Fanbase not found.' });
+
+    const name = String(req.body.name ?? fanbase.name).trim();
+    const price = Number(req.body.price ?? fanbase.price);
+    if (!name || name.length > 60) return res.status(400).json({ message: 'Fanbase names must be between 1 and 60 characters.' });
+    if (!Number.isFinite(price) || price < 0 || price > 100000) return res.status(400).json({ message: 'Enter a monthly price between 0 and 100,000.' });
+    const membership = await parseFanbaseMembers(req.body.memberEmails === undefined
+      ? [...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])]
+      : req.body.memberEmails);
+    if (membership.error) return res.status(400).json({ message: membership.error });
+    const socialLinks = parseFanbaseSocialLinks(req.body.socialLinks === undefined ? fanbase.socialLinks : req.body.socialLinks);
+    if (socialLinks.error) return res.status(400).json({ message: socialLinks.error });
+
+    fanbase.name = name;
+    fanbase.price = Math.round(price);
+    fanbase.memberEmails = membership.emails;
+    fanbase.ownerEmail = '';
+    fanbase.socialLinks = socialLinks.links;
+    const imageUrl = uploadedUrl(req, 'image');
+    const avatarUrl = uploadedUrl(req, 'avatar');
+    if (imageUrl) {
+      if (fanbase.imageUrl) removeStoredImage(fanbase.imageUrl);
+      fanbase.imageUrl = imageUrl;
+    }
+    if (avatarUrl) {
+      if (fanbase.avatarUrl) removeStoredImage(fanbase.avatarUrl);
+      fanbase.avatarUrl = avatarUrl;
+    }
+    await fanbase.save();
+    res.status(200).json(serializeFanbase(fanbase));
+  } catch (error) {
+    console.error('Error updating fanbase:', error);
+    res.status(500).json({ message: 'Failed to update fanbase.' });
+  }
+});
+
 // the "Featured Artist" post: latest post of the featured fanbase (or the latest post anywhere)
 app.get('/api/fanbases/featured', async (req, res) => {
   try {
     const featured = await Fanbase.findOne({ featured: true });
-    let post = featured ? await FanbasePost.findOne({ fanbaseId: String(featured._id) }).sort({ postedAt: -1 }) : null;
-    if (!post) post = await FanbasePost.findOne().sort({ postedAt: -1 });
+    const allFanbases = await Fanbase.find().sort({ createdAt: 1 });
+    const posts = (await Promise.all(allFanbases.map(getFanbaseBoardPosts))).flat()
+      .sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt));
+    const post = (featured && posts.find((item) => item.fanbaseId === String(featured._id))) || posts[0];
     if (!post) return res.status(200).json({ post: null, fanbase: null });
-    const fanbase = await Fanbase.findById(post.fanbaseId);
-    res.status(200).json({ post: serializeFanbasePost(post), fanbase: fanbase ? serializeFanbase(fanbase) : null });
+    const fanbase = allFanbases.find((item) => String(item._id) === post.fanbaseId);
+    res.status(200).json({ post, fanbase: fanbase ? serializeFanbase(fanbase) : null });
   } catch (error) {
     console.error('Error fetching featured fanbase post:', error);
     res.status(500).json({ message: 'Failed to load the featured post.' });
@@ -2027,13 +2248,14 @@ app.get('/api/fanbases/:id/board', async (req, res) => {
     const profile = email ? await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } }) : null;
     const unlocked = Boolean(profile) && (resolveAdminStatus(profile) || (profile.fanbaseSubscriptions || []).includes(String(fanbase._id)));
 
-    const posts = await FanbasePost.find({ fanbaseId: String(fanbase._id) }).sort({ postedAt: -1 });
+    const [posts, members] = await Promise.all([getFanbaseBoardPosts(fanbase), getFanbaseMemberProfiles(fanbase)]);
     const shown = unlocked ? posts : posts.slice(0, 1);
     res.status(200).json({
       fanbase: serializeFanbase(fanbase),
       locked: !unlocked,
       total: posts.length,
-      posts: shown.map(serializeFanbasePost)
+      posts: shown,
+      members
     });
   } catch (error) {
     console.error('Error loading fanbase board:', error);
@@ -2078,8 +2300,6 @@ app.put('/api/users/fanbases', async (req, res) => {
 });
 
 // ---- fanbases belong to their artist ----
-// Admins can no longer create or edit fanbases or their posts (artists do that from their own profile).
-// Admins keep two moderation tools: choose the featured artist, and remove a fanbase or post.
 app.put('/api/fanbases/:id/featured', requireAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
@@ -2112,8 +2332,10 @@ app.delete('/api/fanbases/:id', requireAdmin, async (req, res) => {
 // ---- admin: board posts ----
 app.get('/api/fanbase-posts', requireAdmin, async (req, res) => {
   try {
-    const posts = await FanbasePost.find().sort({ postedAt: -1 });
-    res.status(200).json(posts.map(serializeFanbasePost));
+    const fanbases = await Fanbase.find();
+    const posts = (await Promise.all(fanbases.map(getFanbaseBoardPosts))).flat()
+      .sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt));
+    res.status(200).json(posts);
   } catch (error) {
     console.error('Error fetching fanbase posts:', error);
     res.status(500).json({ message: 'Failed to load posts.' });
@@ -2122,9 +2344,18 @@ app.get('/api/fanbase-posts', requireAdmin, async (req, res) => {
 
 app.delete('/api/fanbase-posts/:id', requireAdmin, async (req, res) => {
   try {
+    const source = String(req.query.source || 'fanbase');
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
-    const deleted = await FanbasePost.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Post not found.' });
+    if (source === 'artist') {
+      const deleted = await ArtistPost.findByIdAndDelete(req.params.id);
+      if (!deleted) return res.status(404).json({ message: 'Post not found.' });
+      if (deleted.imageUrl) removeStoredImage(deleted.imageUrl);
+    } else if (source === 'fanbase') {
+      const deleted = await FanbasePost.findByIdAndDelete(req.params.id);
+      if (!deleted) return res.status(404).json({ message: 'Post not found.' });
+    } else {
+      return res.status(400).json({ message: 'Invalid post source.' });
+    }
     res.status(200).json({ message: 'Post deleted.' });
   } catch (error) {
     console.error('Error deleting fanbase post:', error);
@@ -2161,6 +2392,12 @@ const artistPostSchema = new mongoose.Schema({
 const ArtistPost = mongoose.model('ArtistPost', artistPostSchema);
 
 const findProfileByEmail = (email) => Profile.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(email))}$`, $options: 'i' } });
+const findArtistOwner = async (email) => {
+  const user = await User.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(email))}$`, $options: 'i' } });
+  if (!user || resolveRole(user) !== 'artist') return null;
+  const profile = await findProfileByEmail(user.email);
+  return profile ? { user, profile } : null;
+};
 const removeStoredImage = (url) => {
   const name = path.basename(String(url || ''));
   if (name) unlinkUpload(path.join(uploadDir, name));
@@ -2178,6 +2415,51 @@ const serializeArtistPost = (doc, artist) => {
     replies: item.replies || [],
     createdAt: item.createdAt
   };
+};
+
+const getFanbaseBoardPosts = async (fanbase) => {
+  const fanbaseId = String(fanbase._id);
+  const [boardPosts, artists] = await Promise.all([
+    FanbasePost.find({ fanbaseId }).sort({ postedAt: -1 }),
+    getFanbaseMemberProfiles(fanbase)
+  ]);
+  const authoredPosts = await ArtistPost.find({
+    artistEmail: { $in: artists.map((artist) => normalizeEmail(artist.email)) }
+  }).sort({ createdAt: -1 });
+  const artistByEmail = new Map(artists.map((artist) => [normalizeEmail(artist.email), artist]));
+  return [
+    ...boardPosts.map((post) => ({ ...serializeFanbasePost(post), source: 'fanbase' })),
+    ...authoredPosts.map((post) => {
+      const item = post.toObject();
+      const artist = artistByEmail.get(normalizeEmail(item.artistEmail));
+      return {
+        _id: `artist-${item._id}`,
+        source: 'artist',
+        sourceId: String(item._id),
+        fanbaseId,
+        authorName: artistDisplayName(artist),
+        authorAvatarUrl: normalizeImageUrl(artist.avatar || ''),
+        verified: true,
+        text: item.text || '',
+        imageUrl: normalizeImageUrl(item.imageUrl || ''),
+        likes: (item.likes || []).length,
+        comments: (item.replies || []).length,
+        postedAt: item.createdAt
+      };
+    })
+  ].sort((a, b) => new Date(b.postedAt) - new Date(a.postedAt));
+};
+
+const getFanbaseMemberProfiles = async (fanbase) => {
+  const emails = [...new Set([...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])].map(normalizeEmail))];
+  const members = await Promise.all(emails.map(findArtistOwner));
+  return members.filter(Boolean).map(({ profile }) => ({
+    email: normalizeEmail(profile.email),
+    username: profile.username,
+    name: profile.fullName || profile.username,
+    avatar: normalizeImageUrl(profile.avatar || ''),
+    bio: profile.bio || ''
+  }));
 };
 
 // every post by one artist, newest first (public)
@@ -2262,7 +2544,11 @@ const ensureArtistFanbase = async (profile) => {
   let fanbase = await Fanbase.findOne({ ownerEmail: email });
   if (fanbase) return fanbase;
   const name = artistDisplayName(profile);
-  fanbase = await Fanbase.findOne({ ownerEmail: '', name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' } });
+  fanbase = await Fanbase.findOne({
+    ownerEmail: '',
+    name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' },
+    $or: [{ memberEmails: { $exists: false } }, { memberEmails: { $size: 0 } }]
+  });
   if (fanbase) {
     fanbase.ownerEmail = email;
     await fanbase.save();
@@ -2818,4 +3104,4 @@ app.put('/api/settings', requireAdmin, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });

@@ -142,8 +142,10 @@ export default function Navbar() {
   // a tapped powerup tooltip (phones have no hover) closes itself after a few seconds
   useEffect(() => {
     if (!tipKey) return undefined;
-    const id = setTimeout(() => setTipKey(null), 4000);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => setTipKey(null), 8000);
+    const away = (e) => { if (!e.target.closest?.('.pu-btn')) setTipKey(null); };
+    document.addEventListener('pointerdown', away);
+    return () => { clearTimeout(id); document.removeEventListener('pointerdown', away); };
   }, [tipKey]);
 
   // lets any page open the popup: window.dispatchEvent(new Event('juancast-open-notifications'))
@@ -186,6 +188,13 @@ export default function Navbar() {
       window.removeEventListener('resize', check);
     };
   }, [pathname]);
+
+  // phones: the balance + buffs get their own row under the top bar, so pages need to clear a taller bar (see styles/mobile.css)
+  useEffect(() => {
+    const root = document.documentElement;
+    if (loggedIn) root.dataset.navStatus = 'on'; else delete root.dataset.navStatus;
+    return () => { delete root.dataset.navStatus; };
+  }, [loggedIn]);
 
   const daily = dailyState(user);
 
@@ -366,6 +375,17 @@ export default function Navbar() {
           </div>
         )}
       </div>
+
+      {/* phones only: the balance on a row of its own (the desktop pill above hides it on phones); the powerup icon sits in the top row beside the bell */}
+      {loggedIn && (
+        <div className="nav-status">
+          <span className="ns-chip ns-balance" aria-label="Your balance">
+            <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+            <i aria-hidden="true" />
+            <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+          </span>
+        </div>
+      )}
     </nav>
     {loggedIn && (
       <DailyRewards

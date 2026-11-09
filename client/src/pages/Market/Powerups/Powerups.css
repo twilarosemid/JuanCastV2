@@ -35,3 +35,9 @@
 @media (prefers-reduced-motion: reduce) {
   .powerup-card.is-active::before, .powerup-duration.is-live i { animation: none; }
 }
+
+/* another powerup is already running: these cards are dimmed and can't be bought or activated */
+.powerup-card.is-locked { opacity: .55; filter: grayscale(.5); cursor: not-allowed; }
+.powerup-card.is-locked:hover { transform: none; box-shadow: none; }
+.powerup-card.is-locked:hover .powerup-icon { transform: none; }
+.powerup-lock { margin-top: 10px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .1); color: var(--muted); font-size: 11px; font-weight: 700; }

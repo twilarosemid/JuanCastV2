@@ -26,4 +26,9 @@
   .server-clock.stuck .sc-label { font-size: 8.5px; letter-spacing: .12em; }
   .server-clock.stuck .live-dot { width: 7px; height: 7px; }
 }
+/* phones, logged in: the balance sits on its own row under the top bar, so the stuck server time goes just below it, right-aligned with the balance */
+@media (max-width: 760px) {
+  :root[data-nav-status="on"] .server-clock { top: calc(112px + env(safe-area-inset-top)); }
+  :root[data-nav-status="on"] .server-clock.stuck { align-self: flex-end; }
+}
 @media (prefers-reduced-motion: reduce) { .server-clock { transition: none; } }

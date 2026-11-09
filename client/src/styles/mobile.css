@@ -26,6 +26,8 @@
 }
 
 @media (max-width: 760px) {
+  /* logged in: the balance / buffs row under the top bar makes it taller */
+  :root[data-nav-status="on"] { --top: calc(126px + env(safe-area-inset-top)); }
   body { padding-bottom: var(--dock); }
   /* 16px inputs stop iOS from zooming the page when a field is focused */
   input, textarea, select { font-size: 16px !important; }
@@ -36,7 +38,7 @@
   /* ================= NAVIGATION ================= */
   /* top bar: the nav no longer animates a transform, so the fixed tab bar inside it stays pinned to the screen */
   nav.site-nav {
-    padding: calc(10px + env(safe-area-inset-top)) 5vw 12px; flex-wrap: nowrap; row-gap: 0; pointer-events: none;
+    padding: calc(10px + env(safe-area-inset-top)) 5vw 12px; flex-wrap: wrap; row-gap: 8px; pointer-events: none;
     animation: navFadeIn .5s ease backwards;
   }
   @keyframes navFadeIn { from { opacity: 0; } }

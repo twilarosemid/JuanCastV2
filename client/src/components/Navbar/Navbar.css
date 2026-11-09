@@ -157,24 +157,53 @@ nav.site-nav {
 .pu-count { position: absolute; top: 0; right: 0; z-index: 1; display: none; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 99px; font-style: normal; font-size: 10px; font-weight: 800; color: #06307f; background: var(--gold); }
 .pu-extra { display: none; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, .16); }
 
-/* phones: the top bar only has room for a compact, stacked balance */
+/* the phone-only status row (balance + running buffs) is hidden on desktop, where the pill above shows them */
+.nav-status { display: none; }
+
+/* phones: the top bar is just [logo] [bell] [avatar]; balance and buffs sit on their own row underneath */
 @media (max-width: 760px) {
-  .nav-balance { margin: 0; padding: 0 12px; height: 42px; font-size: 13px; background: rgba(8, 40, 112, .6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-color: rgba(255, 255, 255, .16); }
-  .pu-btn { width: 42px; height: 42px; }
-  .pu-btn .pu-pie { inset: 3px; }
-}
-@media (max-width: 480px) {
-  .nav-balance { flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; padding: 0 10px; border-radius: 16px; font-size: 11px; line-height: 1.2; }
-  .nav-balance i { display: none; }
-  .nav-balance img { width: 14px; height: 14px; }
-  nav.site-nav .pill { gap: 6px; }
-  .pu-btn { width: 38px; height: 38px; }
-  .nav-balance { padding: 0 9px; }
-  /* only one powerup icon fits: it gets a +N badge and its tooltip lists them all */
-  .pu-secondary { display: none; }
-  .pu-count { display: grid; }
-  .pu-extra { display: flex; }
+  nav.site-nav { flex-wrap: wrap; row-gap: 8px; }
+  nav.site-nav .pill > .nav-balance { display: none; }
+
+  /* the running powerup floats just above the top-right corner of the bottom tab bar (Home / Vote / Community / Market): tap it for the timer.
+     The tab bar is min(440px, 100% - 24px) wide and centred, so the right edge is worked out the same way. */
+  nav.site-nav .pu-btn {
+    position: fixed; z-index: 31; flex: none; width: 46px; height: 46px;
+    right: max(18px, calc((100vw - 440px) / 2 + 6px));
+    bottom: calc(12px + 66px + 12px + env(safe-area-inset-bottom));
+    background: rgba(12, 18, 34, .82); border: 1px solid rgba(255, 198, 92, .55);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+    animation: dockIn .6s cubic-bezier(.2, .7, .2, 1) .3s backwards;
+  }
+  nav.site-nav .pu-btn.pu-secondary { display: none; }
+  nav.site-nav .pu-count { display: grid; }
+  nav.site-nav .pu-extra { display: flex; }
+  nav.site-nav .pu-btn:hover .pu-img { transform: none; }
+  /* the details open upward, right-aligned with the icon; only a tap opens them on a phone */
+  nav.site-nav .pu-tip, nav.site-nav .pu-btn:hover .pu-tip, nav.site-nav .pu-btn:focus-visible .pu-tip {
+    top: auto; bottom: calc(100% + 10px); left: auto; right: 0;
+    transform: translate(0, 6px) scale(.96); transform-origin: bottom right; opacity: 0; visibility: hidden;
+  }
+  nav.site-nav .pu-btn[data-open="true"] .pu-tip { opacity: 1; visibility: visible; transform: none; }
+
+  /* one row that never grows: with several buffs running it swipes sideways instead of pushing the page down */
+  .nav-status { display: flex; flex: 0 0 100%; flex-wrap: nowrap; align-items: center; gap: 8px; order: 3; min-width: 0; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
+  .nav-status::-webkit-scrollbar { display: none; }
+  .nav-status > * { flex: none; }
+  /* right-aligned under the bell + avatar; the auto margin gives way (so nothing is cut off) when buffs overflow and the row scrolls */
+  .nav-status::before { content: ''; order: -1; flex: none; margin-left: auto; }
+  /* balance first, then buffs, so the balance is always in view even when the buffs overflow */
+  .ns-chip {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 999px;
+    background: rgba(8, 40, 112, .6); border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text);
+  }
+  .ns-balance > span { display: inline-flex; align-items: center; gap: 6px; }
+  .ns-balance img { width: 18px; height: 18px; object-fit: contain; }
+  .ns-balance i { width: 1px; height: 16px; background: rgba(255, 255, 255, .22); }
 }
 @media (max-width: 380px) {
   nav.site-nav .logo img { height: 25px; }
+  .ns-chip { padding: 0 10px; font-size: 12px; }
 }

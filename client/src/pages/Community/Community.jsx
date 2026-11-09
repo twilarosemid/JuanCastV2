@@ -14,7 +14,7 @@ const SECTIONS = [
   { id: 'chika', label: 'Chika' },
   { id: 'contents', label: 'Content' }
 ];
-const PLATFORMS = ['YouTube', 'Facebook', 'X', 'TikTok'];
+const PLATFORMS = ['YouTube', 'Facebook', 'Instagram', 'X', 'TikTok'];
 
 const embedUrl = (url) => {
   const match = (url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/|.*embed\/))([^&?]*)/);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { API, getJSON, getUser, img } from '../../api';
 import Modal from '../Modal/Modal';
 import './FanbasePanel.css';
@@ -31,6 +31,20 @@ const Verified = () => (
 const LockIcon = () => (
   <svg viewBox="0 0 64 80" aria-hidden="true"><path d="M16 34V24a16 16 0 0 1 32 0v10" fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" /><rect x="6" y="32" width="52" height="42" rx="9" fill="#fff" /><circle cx="32" cy="50" r="5.500" fill="#9a9a9a" /><rect x="29.500" y="52" width="5" height="12" rx="2.500" fill="#9a9a9a" /></svg>
 );
+const FANBASE_SOCIALS = [
+  ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['youtube', 'YouTube'],
+  ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook']
+];
+
+function FanbaseSocialIcon({ platform }) {
+  if (platform === 'instagram') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.8" r="1" fill="currentColor" stroke="none" /></svg>;
+  if (platform === 'tiktok') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v11.2a4 4 0 1 1-3.5-4v3a1.2 1.2 0 1 0 .5 1V3h3c.4 2.4 1.8 3.8 4 4.2v3.1A8 8 0 0 1 14 8.5" /></svg>;
+  if (platform === 'x') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h4.5l11.5 18h-4.5L4 3Zm0 18 7-8m2-2 7-8" /></svg>;
+  if (platform === 'youtube') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4" /><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" /></svg>;
+  if (platform === 'spotify') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M6.5 9.5c4.4-1.3 8.7-.8 11.6 1M7.5 12.5c3.4-1 6.8-.6 9.3.8M8.5 15.4c2.6-.7 5-.4 6.9.7" /></svg>;
+  if (platform === 'appleMusic') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.8 4.5v12.1a2.8 2.8 0 1 1-1.8-2.6V8.1l-6.1 1.3v8.4a2.8 2.8 0 1 1-1.8-2.6V7.9l9.7-2.1Z" /></svg>;
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.2V10H7.7v3h2.7v8z" fill="currentColor" stroke="none" /></svg>;
+}
 
 function PostCard({ post, onClick }) {
   return (
@@ -108,14 +122,14 @@ function Board({ id, onBack }) {
     return (
       <div className="fb-board">
         <button type="button" className="fb-back" onClick={onBack}>← Fanbase</button>
-        <div className="feed-empty">{state.error || 'Artist not found.'}</div>
+        <div className="feed-empty">{state.error || 'Fanbase not found.'}</div>
       </div>
     );
   }
 
-  const { fanbase, locked, total, posts } = state.data;
+  const { fanbase, locked, total, posts, members = [] } = state.data;
   const photos = posts.filter((p) => p.imageUrl);
-  const TABS = [['board', 'Board'], ['media', 'Media'], ['artist', 'Artist'], ['calendar', 'Calendar']];
+  const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar']];
 
   return (
     <div className="fb-board">
@@ -129,7 +143,7 @@ function Board({ id, onBack }) {
       </header>
 
       <div className="fb-bar">
-        <nav className="fb-tabs" aria-label="Artist sections">
+        <nav className="fb-tabs" aria-label="Fanbase sections">
           {TABS.map(([key, label]) => (
             <button key={key} type="button" className={tab === key ? 'on' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{label}</button>
           ))}
@@ -161,7 +175,40 @@ function Board({ id, onBack }) {
         ) : <div className="feed-empty">No photos yet.</div>
       )}
 
-      {(tab === 'artist' || tab === 'calendar') && <div className="feed-empty">Coming soon.</div>}
+      {tab === 'about' && (
+        <div className="fb-about">
+          <section className="fb-about-section">
+            <h3>About the group</h3>
+            {members.length ? (
+              <div className="fb-member-grid">
+                {members.map((member) => (
+                  <Link className="fb-member" key={member.email} to={`/profile/${encodeURIComponent(member.username)}`}>
+                    <span className="fb-member-avatar" style={bg(member.avatar)} />
+                    <span className="fb-member-info">
+                      <strong>{member.name}</strong>
+                      <small>@{member.username}</small>
+                      {member.bio && <span className="fb-member-bio">{member.bio}</span>}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : <p className="fb-about-empty">Artist profiles will appear here when the group members are selected.</p>}
+          </section>
+          <section className="fb-about-section">
+            <h3>Follow elsewhere</h3>
+            <div className="fb-social-links">
+              {FANBASE_SOCIALS.filter(([key]) => fanbase.socialLinks?.[key]).map(([key, label]) => (
+                <a key={key} href={fanbase.socialLinks[key]} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
+                  <FanbaseSocialIcon platform={key} />
+                </a>
+              ))}
+              {!FANBASE_SOCIALS.some(([key]) => fanbase.socialLinks?.[key]) && <p className="fb-about-empty">Social links coming soon.</p>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
 
       <Modal open={soon} onClose={() => setSoon(false)} label="Subscribe" role="alertdialog">
         <div className="center">

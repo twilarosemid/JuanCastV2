@@ -1,0 +1,209 @@
+nav.site-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 5vw;
+  animation: navIn .7s cubic-bezier(.2, .7, .2, 1) backwards;
+}
+@keyframes navIn { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+.logo { font-weight: 800; font-size: 22px; color: var(--text); text-decoration: none; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), letter-spacing .3s; }
+.logo:hover { transform: scale(1.06); letter-spacing: .02em; }
+
+/* one pill on the right: links | bell | account button (opens the menu) */
+.pill {
+  position: relative; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 999px;
+  background: rgba(8, 40, 112,.45); backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,.12);
+}
+.links { position: relative; display: flex; align-items: center; gap: 4px; }
+.links a {
+  position: relative; z-index: 1; padding: 11px 20px; border-radius: 999px; color: var(--text);
+  text-decoration: none; font-size: 14px; font-weight: 600; transition: color .3s ease, background .3s ease;
+}
+.links a:not(.on):hover { background: rgba(255,255,255,.12); }
+.links a.on { color: #0b1220; }
+/* the white bubble that slides to the clicked link */
+.bubble {
+  position: absolute; top: 0; bottom: 0; left: 0; z-index: 0; border-radius: 999px; background: #fff;
+  transition: transform .4s cubic-bezier(.4, 0, .2, 1), width .4s cubic-bezier(.4, 0, .2, 1);
+}
+.divider { width: 1px; height: 24px; margin: 0 8px; background: rgba(255,255,255,.2); }
+
+.icon-btn, .avatar {
+  position: relative; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 50%; padding: 0;
+  color: var(--text); text-decoration: none; font: inherit; font-weight: 700;
+  background: transparent; border: 0; cursor: pointer;
+}
+.avatar { overflow: hidden; background: rgba(255,255,255,.12); }
+.avatar.open { background: #fff; color: #0b1220; }
+.icon-btn, .avatar { transition: background .25s, color .25s, transform .2s; }
+.icon-btn:hover, .avatar:hover { background: rgba(255,255,255,.2); }
+.icon-btn:active, .avatar:active { transform: scale(.9); }
+.bell { display: grid; transform-origin: 50% 0; }
+.icon-btn:hover .bell { animation: ring .7s ease; }
+@keyframes ring { 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 75% { transform: rotate(3deg); } }
+.avatar.open:hover { background: #fff; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.badge {
+  position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 99px; background: #e0334a; color: #fff; font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+  animation: badgePop .5s cubic-bezier(.34, 1.56, .64, 1) .6s backwards;
+}
+.badge::after { content: ''; position: absolute; inset: 0; border-radius: inherit; border: 2px solid #e0334a; animation: badgePing 2s ease-out infinite; }
+@keyframes badgePop { from { transform: scale(0); } }
+@keyframes badgePing { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.9); opacity: 0; } }
+
+/* dropdown under the pill */
+.menu {
+  position: absolute; top: calc(100% + 8px); right: 0; width: 280px; padding: 8px;
+  border-radius: 18px; background: rgba(7, 36, 102,.94); backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,.12); box-shadow: 0 18px 40px rgba(0,0,0,.4);
+  transform-origin: top right; opacity: 0; transform: translateY(-10px) scale(.95);
+  transition: opacity .2s ease, transform .3s cubic-bezier(.34, 1.4, .5, 1);
+}
+.menu.show { opacity: 1; transform: none; }
+/* items cascade in */
+.menu.show > * { animation: menuItem .35s cubic-bezier(.2, .7, .2, 1) backwards; }
+.menu.show > :nth-child(2) { animation-delay: .04s; }
+.menu.show > :nth-child(3) { animation-delay: .08s; }
+.menu.show > :nth-child(4) { animation-delay: .12s; }
+.menu.show > :nth-child(5) { animation-delay: .16s; }
+.menu.show > :nth-child(6) { animation-delay: .2s; }
+.menu.show > :nth-child(7) { animation-delay: .24s; }
+.menu.show > :nth-child(8) { animation-delay: .28s; }
+.menu .daily-dot { width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: #ff4d6d; box-shadow: 0 0 0 3px rgba(255, 77, 109, .25); }
+@keyframes menuItem { from { opacity: 0; transform: translateX(10px); } }
+.menu a, .menu button {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--text);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer;
+}
+.menu a, .menu button { transition: background .2s, transform .2s; }
+.menu a:hover, .menu button:hover { background: rgba(255,255,255,.1); transform: translateX(3px); }
+.menu-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
+.menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sep { height: 1px; margin: 6px 8px; background: rgba(255,255,255,.12); }
+.count {
+  margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 99px;
+  background: #e0334a; color: #fff; font-size: 12px; font-weight: 700; text-align: center;
+}
+
+@media (max-width: 760px) {
+  nav.site-nav { flex-wrap: wrap; row-gap: 12px; }
+  .pill { flex-wrap: wrap; justify-content: center; }
+  .menu { width: min(280px, 90vw); }
+}
+
+/* tab-bar icons only show on phones (see styles/mobile.css) */
+.nav-ico { display: none; }
+
+/* web view, scrolled past the banner: Home / Vote / Community / Market slide away,
+   leaving logo + bell + avatar. Hover (or keyboard focus - not mouse-click focus, which would leave it stuck open) on the pill brings them back. */
+@media (min-width: 761px) {
+  nav.site-nav .links, nav.site-nav .divider {
+    transition: max-width .5s cubic-bezier(.4, 0, .2, 1), opacity .35s ease, margin .5s cubic-bezier(.4, 0, .2, 1);
+  }
+  nav.site-nav .links { max-width: 640px; overflow: hidden; }
+  nav.site-nav.condensed .pill:not(:hover):not(:has(:focus-visible)) .links { max-width: 0; opacity: 0; pointer-events: none; }
+  nav.site-nav.condensed .pill:not(:hover):not(:has(:focus-visible)) .divider { opacity: 0; margin: 0; }
+}
+
+/* ---------- JuanCast brand bar ---------- */
+.logo { display: inline-flex; align-items: center; position: relative; z-index: 1; }
+.logo img { display: block; height: 38px; width: auto; filter: drop-shadow(0 2px 6px rgba(0, 0, 40, .35)); }
+.logo:hover { letter-spacing: 0; }
+.pill { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .28); }
+.badge, .count { background: var(--gold); color: #06307f; }
+.badge::after { border-color: var(--gold); }
+@media (max-width: 760px) { .logo img { height: 30px; } }
+
+/* web view, scrolled past the banner: the logo dims along with the minimized navbar (hover / keyboard focus brings it back) */
+@media (min-width: 761px) {
+  nav.site-nav .logo { transition: opacity .5s cubic-bezier(.4, 0, .2, 1), transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+  nav.site-nav.condensed .logo:not(:hover):not(:focus-visible) { opacity: .35; }
+}
+
+/* ---------- balance (Suns / Stars) beside the bell ---------- */
+.nav-balance { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin: 0 4px 0 2px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nav-balance span { display: inline-flex; align-items: center; gap: 6px; }
+.nav-balance img { width: 18px; height: 18px; object-fit: contain; }
+.nav-balance i { color: var(--muted); font-style: normal; }
+
+/* ---------- running powerups: icon on a glowing pie that drains as time runs out; hover for the time left ---------- */
+@property --pct { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
+.pu-btn, .pu-btn:hover { background: transparent; }
+.pu-btn { width: 44px; height: 44px; }
+.pu-pie {
+  position: absolute; inset: 4px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(255, 198, 92, .95) var(--pct), rgba(255, 255, 255, .13) 0);
+  box-shadow: 0 0 14px rgba(255, 176, 32, .65), 0 0 28px rgba(255, 176, 32, .35);
+  transition: --pct 1s linear; animation: puPulse 2.4s ease-in-out infinite;
+}
+.pu-img { position: relative; width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.pu-bolt { display: grid; place-items: center; color: #3a2600; filter: none; }
+.pu-btn:hover .pu-img { transform: scale(1.12); }
+.pu-tip {
+  position: absolute; z-index: 5; top: calc(100% + 12px); left: 50%; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 120px; max-width: 70vw; padding: 9px 14px;
+  border-radius: 14px; white-space: nowrap; pointer-events: none; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted);
+  background: rgba(7, 36, 102, .96); border: 1px solid rgba(255, 198, 92, .45); box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
+  opacity: 0; visibility: hidden; transform: translate(-50%, -6px) scale(.96); transition: opacity .2s, transform .25s cubic-bezier(.34, 1.4, .5, 1), visibility .2s;
+}
+.pu-tip b { color: #ffe2a8; font-size: 13px; }
+.pu-tip span { color: #fff; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pu-btn:hover .pu-tip, .pu-btn:focus-visible .pu-tip, .pu-btn[data-open="true"] .pu-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0) scale(1); }
+@keyframes puPulse { 0%, 100% { box-shadow: 0 0 10px rgba(255, 176, 32, .5), 0 0 20px rgba(255, 176, 32, .25); } 50% { box-shadow: 0 0 18px rgba(255, 176, 32, .85), 0 0 36px rgba(255, 176, 32, .5); } }
+@media (prefers-reduced-motion: reduce) { .pu-pie { animation: none; transition: none; } }
+.pu-count { position: absolute; top: 0; right: 0; z-index: 1; display: none; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 99px; font-style: normal; font-size: 10px; font-weight: 800; color: #06307f; background: var(--gold); }
+.pu-extra { display: none; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, .16); }
+
+/* the phone-only status row (balance + running buffs) is hidden on desktop, where the pill above shows them */
+.nav-status { display: none; }
+
+/* phones: the top bar is just [logo] [bell] [avatar]; balance and buffs sit on their own row underneath */
+@media (max-width: 760px) {
+  nav.site-nav { flex-wrap: wrap; row-gap: 8px; }
+  nav.site-nav .pill > .nav-balance { display: none; }
+
+  /* the running powerup floats just above the top-right corner of the bottom tab bar (Home / Vote / Community / Market): tap it for the timer.
+     The tab bar is min(440px, 100% - 24px) wide and centred, so the right edge is worked out the same way. */
+  nav.site-nav .pu-btn {
+    position: fixed; z-index: 31; flex: none; width: 46px; height: 46px;
+    right: max(18px, calc((100vw - 440px) / 2 + 6px));
+    bottom: calc(12px + 66px + 12px + env(safe-area-inset-bottom));
+    background: rgba(12, 18, 34, .82); border: 1px solid rgba(255, 198, 92, .55);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+    animation: dockIn .6s cubic-bezier(.2, .7, .2, 1) .3s backwards;
+  }
+  nav.site-nav .pu-btn.pu-secondary { display: none; }
+  nav.site-nav .pu-count { display: grid; }
+  nav.site-nav .pu-extra { display: flex; }
+  nav.site-nav .pu-btn:hover .pu-img { transform: none; }
+  /* the details open upward, right-aligned with the icon; only a tap opens them on a phone */
+  nav.site-nav .pu-tip, nav.site-nav .pu-btn:hover .pu-tip, nav.site-nav .pu-btn:focus-visible .pu-tip {
+    top: auto; bottom: calc(100% + 10px); left: auto; right: 0;
+    transform: translate(0, 6px) scale(.96); transform-origin: bottom right; opacity: 0; visibility: hidden;
+  }
+  nav.site-nav .pu-btn[data-open="true"] .pu-tip { opacity: 1; visibility: visible; transform: none; }
+
+  /* one row that never grows: with several buffs running it swipes sideways instead of pushing the page down */
+  .nav-status { display: flex; flex: 0 0 100%; flex-wrap: nowrap; align-items: center; gap: 8px; order: 3; min-width: 0; overflow-x: auto; scrollbar-width: none; pointer-events: auto; }
+  .nav-status::-webkit-scrollbar { display: none; }
+  .nav-status > * { flex: none; }
+  /* right-aligned under the bell + avatar; the auto margin gives way (so nothing is cut off) when buffs overflow and the row scrolls */
+  .nav-status::before { content: ''; order: -1; flex: none; margin-left: auto; }
+  /* balance first, then buffs, so the balance is always in view even when the buffs overflow */
+  .ns-chip {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 999px;
+    background: rgba(8, 40, 112, .6); border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text);
+  }
+  .ns-balance > span { display: inline-flex; align-items: center; gap: 6px; }
+  .ns-balance img { width: 18px; height: 18px; object-fit: contain; }
+  .ns-balance i { width: 1px; height: 16px; background: rgba(255, 255, 255, .22); }
+}
+@media (max-width: 380px) {
+  nav.site-nav .logo img { height: 25px; }
+  .ns-chip { padding: 0 10px; font-size: 12px; }
+}

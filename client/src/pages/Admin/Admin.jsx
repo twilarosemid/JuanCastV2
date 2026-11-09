@@ -31,12 +31,12 @@ const NAV = [
     { key: 'groups', label: 'Poll groups', desc: 'Groups become the filter chips on the Polls page.' },
     { key: 'artists', label: 'Artists', desc: 'The artists who receive votes, and the homepage ranking.' },
     { key: 'chika', label: 'Chika', desc: 'News and updates shown in the Chika section.' },
-    { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' }
+    { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' },
   ] },
   { group: 'Community', items: [
     { key: 'accounts', label: 'Accounts', desc: 'Decide who is a user, an artist or an admin.' },
-    { key: 'fanbases', label: 'Fanbases', desc: 'Artists run their own fanbase. You can feature one or remove it.' },
-    { key: 'fanposts', label: 'Board posts', desc: 'Posts artists wrote on their boards. Remove ones that break the rules.' },
+    { key: 'fanbases', label: 'Fanbases', desc: 'Create and manage artist fanbase pages.' },
+    { key: 'fanposts', label: 'Board posts', desc: 'Review posts shown on artist fanbase pages.' },
     { key: 'reports', label: 'Reports', desc: 'Problems sent in by users. Reply or mark them resolved.' }
   ] },
   { group: 'Site', items: [
@@ -1034,10 +1034,89 @@ function ReportsTab({ reports, loading, ctx }) {
   );
 }
 
-/* ------------------------------------------------------------------ fanbases (artists run them; admins only moderate) */
-function FanbaseModTab({ fanbases, loading, ctx }) {
+/* ------------------------------------------------------------------ fanbases */
+function FanbaseModTab({ fanbases, artists, loading, ctx }) {
   const { reload, notify, fail, askConfirm } = ctx;
   const [busyId, setBusyId] = useState('');
+  const [form, setForm] = useState(null);
+  const [editingId, setEditingId] = useState('');
+  const [banner, setBanner] = useState(null);
+  const [avatar, setAvatar] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [bannerPreview, setBannerPreview] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const socialFields = [
+    ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['youtube', 'YouTube'],
+    ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook']
+  ];
+
+  useEffect(() => {
+    if (!banner) { setBannerPreview(''); return undefined; }
+    const url = URL.createObjectURL(banner);
+    setBannerPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [banner]);
+
+  useEffect(() => {
+    if (!avatar) { setAvatarPreview(''); return undefined; }
+    const url = URL.createObjectURL(avatar);
+    setAvatarPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [avatar]);
+
+  const closeEditor = () => {
+    if (saving) return;
+    setForm(null);
+    setEditingId('');
+    setBanner(null);
+    setAvatar(null);
+  };
+  const create = () => {
+    setEditingId('');
+    setBanner(null);
+    setAvatar(null);
+    setForm({ name: '', price: '500', memberEmails: [], socialLinks: {}, imageUrl: '', avatarUrl: '' });
+  };
+  const edit = (fb) => {
+    setEditingId(idOf(fb));
+    setBanner(null);
+    setAvatar(null);
+    setForm({
+      name: fb.name || '',
+      price: String(fb.price ?? 500),
+      memberEmails: fb.memberEmails || (fb.ownerEmail ? [fb.ownerEmail] : []),
+      socialLinks: fb.socialLinks || {},
+      imageUrl: fb.imageUrl || '',
+      avatarUrl: fb.avatarUrl || ''
+    });
+  };
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    const body = new FormData();
+    body.append('name', form.name.trim());
+    body.append('price', form.price);
+    body.append('memberEmails', JSON.stringify(form.memberEmails));
+    body.append('socialLinks', JSON.stringify(form.socialLinks));
+    if (banner) body.append('image', banner);
+    if (avatar) body.append('avatar', avatar);
+    try {
+      await adminFetch(editingId ? `/api/fanbases/${editingId}` : '/api/fanbases', {
+        method: editingId ? 'PUT' : 'POST',
+        body
+      });
+      notify(editingId ? 'Fanbase updated.' : 'Fanbase created.');
+      setForm(null);
+      setEditingId('');
+      setBanner(null);
+      setAvatar(null);
+      await reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const feature = async (fb) => {
     setBusyId(idOf(fb));
@@ -1058,7 +1137,7 @@ function FanbaseModTab({ fanbases, loading, ctx }) {
 
   const remove = (fb) => askConfirm({
     title: 'Delete this fanbase?',
-    body: `“${fb.name}” and all of its board posts will be removed, and subscribers lose access. This can’t be undone.`,
+    body: `“${fb.name}” and its fanbase board posts will be removed, and subscribers lose access. Artist profile posts remain on the artist’s profile. This can’t be undone.`,
     confirmLabel: 'Delete',
     run: async () => {
       await adminFetch(`/api/fanbases/${idOf(fb)}`, { method: 'DELETE' });
@@ -1066,26 +1145,113 @@ function FanbaseModTab({ fanbases, loading, ctx }) {
       await reload();
     }
   });
+  const memberLabel = (fb) => {
+    const emails = new Set((fb.memberEmails || []).map((email) => email.toLowerCase()));
+    const names = artists.filter((artist) => emails.has(artist.email.toLowerCase())).map((artist) => artist.name);
+    if (names.length) return names.join(', ');
+    const count = (fb.memberEmails || []).length || (fb.hasOwner ? 1 : 0);
+    return `${count} artist${count === 1 ? '' : 's'}`;
+  };
 
   return (
     <div className="ad-card">
       <div className="ad-list-head">
         <h2>Fanbases <span className="ad-count">{fanbases.length}</span></h2>
+        <button type="button" className="btn-solid ad-add" onClick={create}>Add fanbase</button>
       </div>
-      <p className="ad-item-sub">Each artist creates and edits their own fanbase from their profile. Here you can feature one on the Fanbase page or remove one that breaks the rules.</p>
-      {loading ? <p className="ad-empty">Loading…</p> : fanbases.length === 0 ? <p className="ad-empty">No fanbases yet. They appear when an artist opens their fanbase tools.</p> : fanbases.map((fb) => (
+      <p className="ad-item-sub">Manage group fanbases, choose their artist members and social links, and feature a group on the Fanbase page.</p>
+      {loading ? <p className="ad-empty">Loading…</p> : fanbases.length === 0 ? <p className="ad-empty">No fanbases yet. Create one here and select its artist members.</p> : fanbases.map((fb) => (
         <div className="ad-item" key={idOf(fb)}>
           <Thumb url={fb.avatarUrl || fb.imageUrl} label={fb.name} />
           <div className="ad-item-body">
-            <div className="ad-item-title">{fb.name}{fb.featured && <span className="ad-chip live">Featured</span>}{!fb.hasOwner && <span className="ad-chip soon">No artist linked</span>}</div>
-            <div className="ad-item-sub">{`Php ${Number(fb.price || 0).toLocaleString('en-US')}/month · ${Number(fb.subscriberCount || 0).toLocaleString('en-US')} subscribers`}</div>
+            <div className="ad-item-title">{fb.name}{fb.featured && <span className="ad-chip live">Featured</span>}{!(fb.memberEmails || []).length && !fb.hasOwner && <span className="ad-chip soon">No artists selected</span>}</div>
+            <div className="ad-item-sub">{[
+              memberLabel(fb),
+              `Php ${Number(fb.price || 0).toLocaleString('en-US')}/month`,
+              `${Number(fb.subscriberCount || 0).toLocaleString('en-US')} subscribers`
+            ].filter(Boolean).join(' · ')}</div>
           </div>
           <div className="ad-item-actions">
+            <button type="button" className="ad-btn" onClick={() => edit(fb)}>Edit</button>
             <button type="button" className="ad-btn" disabled={busyId === idOf(fb)} onClick={() => feature(fb)}>{fb.featured ? 'Unfeature' : 'Feature'}</button>
             <button type="button" className="ad-btn danger" onClick={() => remove(fb)}>Delete</button>
           </div>
         </div>
       ))}
+      <Modal open={Boolean(form)} onClose={closeEditor} label={editingId ? 'Edit fanbase' : 'Create fanbase'} className="ad-form-modal">
+        {form && (
+          <form className="ad-form" onSubmit={save}>
+            <h3>{editingId ? 'Edit fanbase' : 'Create fanbase'}</h3>
+            <label className="ad-field">
+              <span>Fanbase name</span>
+              <input className="ad-input" required maxLength={60} value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} />
+            </label>
+            <div className="ad-field">
+              <span>Artists in this group</span>
+              <div className="ad-fanbase-members">
+                {artists.map((artist) => {
+                  const selected = form.memberEmails.includes(artist.email);
+                  return (
+                    <label className={`ad-fanbase-member${selected ? ' selected' : ''}`} key={artist.email}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => setForm((current) => ({
+                          ...current,
+                          memberEmails: selected
+                            ? current.memberEmails.filter((email) => email !== artist.email)
+                            : [...current.memberEmails, artist.email]
+                        }))}
+                      />
+                      <Thumb url={artist.avatar} label={artist.name} />
+                      <span><strong>{artist.name}</strong><small>@{artist.username}</small></span>
+                    </label>
+                  );
+                })}
+                {artists.length === 0 && <small>Assign artist roles in Accounts before adding group members.</small>}
+              </div>
+            </div>
+            <label className="ad-field">
+              <span>Subscription price (Php/month)</span>
+              <input className="ad-input" type="number" min="0" max="100000" required value={form.price} onChange={(e) => setForm((current) => ({ ...current, price: e.target.value }))} />
+            </label>
+            <label className="ad-field">
+              <span>Banner image</span>
+              {(bannerPreview || form.imageUrl) && <img className="ad-file-preview" src={bannerPreview || img(form.imageUrl)} alt="" />}
+              <input className="ad-input" type="file" accept="image/*" onChange={(e) => setBanner(e.target.files?.[0] || null)} />
+            </label>
+            <label className="ad-field">
+              <span>Artist avatar</span>
+              {(avatarPreview || form.avatarUrl) && <img className="ad-file-preview" src={avatarPreview || img(form.avatarUrl)} alt="" />}
+              <input className="ad-input" type="file" accept="image/*" onChange={(e) => setAvatar(e.target.files?.[0] || null)} />
+            </label>
+            <div className="ad-field">
+              <span>Follow elsewhere</span>
+              <div className="ad-fanbase-socials">
+                {socialFields.map(([key, label]) => (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <input
+                      className="ad-input"
+                      type="url"
+                      placeholder={`https://${key === 'x' ? 'x.com' : key === 'appleMusic' ? 'music.apple.com' : `${key}.com`}/...`}
+                      value={form.socialLinks[key] || ''}
+                      onChange={(e) => setForm((current) => ({
+                        ...current,
+                        socialLinks: { ...current.socialLinks, [key]: e.target.value }
+                      }))}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="ad-actions">
+              <button type="button" className="btn-ghost" onClick={closeEditor} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn-solid" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create fanbase'}</button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -1099,7 +1265,9 @@ function FanPostsModTab({ fanbases, posts, loading, ctx }) {
     body: `This post by ${post.authorName} will be removed from the board. This can’t be undone.`,
     confirmLabel: 'Delete',
     run: async () => {
-      await adminFetch(`/api/fanbase-posts/${idOf(post)}`, { method: 'DELETE' });
+      const postId = post.source === 'artist' ? post.sourceId : idOf(post);
+      const source = post.source === 'artist' ? '?source=artist' : '';
+      await adminFetch(`/api/fanbase-posts/${postId}${source}`, { method: 'DELETE' });
       notify('Post deleted.');
       await reload();
     }
@@ -1110,7 +1278,7 @@ function FanPostsModTab({ fanbases, posts, loading, ctx }) {
       <div className="ad-list-head">
         <h2>Board posts <span className="ad-count">{posts.length}</span></h2>
       </div>
-      <p className="ad-item-sub">Artists write their own board posts. You can only remove posts here.</p>
+      <p className="ad-item-sub">This includes posts artists publish on their profiles, which also appear on their linked fanbase page.</p>
       {loading ? <p className="ad-empty">Loading…</p> : posts.length === 0 ? <p className="ad-empty">No board posts yet.</p> : posts.map((post) => (
         <div className="ad-item" key={idOf(post)}>
           <Thumb url={post.imageUrl || post.authorAvatarUrl} label={post.authorName} />
@@ -1276,7 +1444,7 @@ function Dashboard({ user }) {
   const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
   const setTab = (key) => setParams(key === 'overview' ? {} : { tab: key }, { replace: true });
 
-  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], fanbases: [], fanposts: [], banners: [], ads: [], reports: [], settings: {} });
+  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], fanbases: [], fanbaseArtists: [], fanposts: [], banners: [], ads: [], reports: [], settings: {} });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [sessionBad, setSessionBad] = useState(!user?.token);   // admins who logged in before the update have no token yet
@@ -1301,7 +1469,7 @@ function Dashboard({ user }) {
   const reload = useCallback(async () => {
     const safe = (p, fallback) => p.catch(() => fallback);
     try {
-      const [polls, groups, artists, chika, contents, banners, ads, settings, reports, fanbases, fanposts] = await Promise.all([
+      const [polls, groups, artists, chika, contents, banners, ads, settings, reports, fanbaseData, fanposts] = await Promise.all([
         getJSON('/api/polls'),
         safe(getJSON('/api/poll-groups'), []),
         getJSON('/api/rankings'),
@@ -1317,10 +1485,19 @@ function Dashboard({ user }) {
           if (err.status === 401 || err.status === 403) setSessionBad(true);
           return [];
         }),
-        safe(getJSON('/api/fanbases'), []),
+        adminFetch('/api/admin/fanbases').catch((err) => {
+          if (err.status === 401 || err.status === 403) setSessionBad(true);
+          throw err;
+        }),
         adminFetch('/api/fanbase-posts').catch(() => [])
       ]);
-      setData({ polls, groups, artists, chika, contents, fanbases: fanbases || [], fanposts: fanposts || [], banners, ads: ads || [], reports: reports || [], settings });
+      setData({
+        polls, groups, artists, chika, contents,
+        fanbases: fanbaseData?.fanbases || [],
+        fanbaseArtists: fanbaseData?.artists || [],
+        fanposts: fanposts || [],
+        banners, ads: ads || [], reports: reports || [], settings
+      });
       setLoadError('');
     } catch (err) {
       console.error(err);
@@ -1492,7 +1669,7 @@ function Dashboard({ user }) {
         { name: 'title', label: 'Title', required: true },
         { name: 'subtitle', label: 'Subtitle / event', half: true },
         { name: 'group', label: 'P-pop group', placeholder: 'e.g. BINI, SB19', half: true },
-        { name: 'platform', label: 'Platform', type: 'select', options: ['YouTube', 'Facebook', 'X', 'TikTok'] },
+        { name: 'platform', label: 'Platform', type: 'select', options: ['YouTube', 'Facebook', 'Instagram', 'X', 'TikTok'] },
         { name: 'youtubeUrl', label: 'Content link', placeholder: 'https://…' },
         { name: 'image', label: 'Thumbnail', type: 'file' }
       ],
@@ -1666,7 +1843,7 @@ function Dashboard({ user }) {
             {tab === 'artists' && <ResourceTab key="artists" cfg={configs.artists} items={data.artists} loading={loading} ctx={ctx}>{featuredCard}</ResourceTab>}
             {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
             {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
-            {tab === 'fanbases' && <FanbaseModTab key="fanbases" fanbases={data.fanbases} loading={loading} ctx={ctx} />}
+            {tab === 'fanbases' && <FanbaseModTab key="fanbases" fanbases={data.fanbases} artists={data.fanbaseArtists} loading={loading} ctx={ctx} />}
             {tab === 'fanposts' && <FanPostsModTab key="fanposts" fanbases={data.fanbases} posts={data.fanposts} loading={loading} ctx={ctx} />}
             {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
             {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}

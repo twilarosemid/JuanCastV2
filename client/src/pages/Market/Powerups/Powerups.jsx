@@ -66,9 +66,11 @@ export default function Powerups() {
         {powerups.map(({ name, detail, duration, minutes, price, image }, i) => {
           const left = (expiries[norm(name)] || 0) - now;
           const active = left > 0;
+          const locked = anyActive && !active; // one powerup at a time: can't buy or activate another until it ends
           const pct = Math.min(100, (left / (minutes * 60000)) * 100);
           return (
-            <article className={`mk-card powerup-card${active ? ' is-active' : ''}`} key={name} style={{ '--i': i }}>
+            <article className={`mk-card powerup-card${active ? ' is-active' : ''}${locked ? ' is-locked' : ''}`}
+              aria-disabled={locked || undefined} key={name} style={{ '--i': i }}>
               {active ? (
                 <>
                   <span className="powerup-badge">Active</span>
@@ -77,6 +79,7 @@ export default function Powerups() {
               ) : (
                 <span className="powerup-duration">{duration}</span>
               )}
+              {locked && <span className="powerup-lock">Unavailable while a powerup is active</span>}
               <img className="powerup-icon" src={image} alt="" />
               <h2>{name}</h2>
               <p>{detail}</p>
@@ -86,6 +89,7 @@ export default function Powerups() {
           );
         })}
       </div>
+      {anyActive && <p className="mk-note">You already have a powerup running. You can buy or activate another one once it ends.</p>}
       <p className="mk-note">Powerup checkout is not available yet.</p>
     </>
   );
