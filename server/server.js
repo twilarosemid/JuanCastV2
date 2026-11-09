@@ -1660,7 +1660,9 @@ app.post('/api/request-otp', async (req, res) => {
 
     res.status(200).json({ message: "OTP sent successfully!" });
   } catch (error) {
-    console.error(error);
+    console.error('request-otp failed:', error.code, error.message);
+    if (error.code === 11000) return res.status(400).json({ message: "That phone number or email is already registered." });
+    if (['EAUTH', 'ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'EENVELOPE'].includes(error.code)) return res.status(502).json({ message: "We couldn't send the verification email. Please try again later." });
     res.status(500).json({ error: "Failed to process request." });
   }
 });
