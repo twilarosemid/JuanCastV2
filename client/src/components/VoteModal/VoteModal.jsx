@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from '../Modal/Modal';
 import { getJSON, img, getUser, saveUser, castVote } from '../../api';
-import StarCurr from '../../assets/StarCurr.png';
+import SunCurr from '../../assets/SunCurr.png';
 import './VoteModal.css';
 
 const digitsOnly = (value) => String(value).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
@@ -37,13 +37,13 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
     setAgree(false);
     setError('');
     setSubmitting(false);
-    setBalance(Number(user?.stars) || 0);
+    setBalance(Number(user?.suns) || 0);
     setPowerups([]);
     if (user?.email) {
       getJSON(`/api/users/me?email=${encodeURIComponent(user.email)}`)
         .then((fresh) => {
           if (!alive) return;
-          if (typeof fresh.stars === 'number') setBalance(fresh.stars);
+          if (typeof fresh.suns === 'number') setBalance(fresh.suns);
           // powerups only show if the account actually has some that are still running
           const list = Array.isArray(fresh.powerups) ? fresh.powerups : [];
           setPowerups(list.filter((p) => p && (!p.expiresAt || new Date(p.expiresAt) > new Date())));
@@ -77,11 +77,11 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
     setError('');
     try {
       const user = getUser();
-      const result = await castVote(artist._id || artist.id, user, num);
+      const result = await castVote(artist._id || artist.id, user, num, 'suns');
       saveUser({
         ...user,
-        stars: result.remainingStars,
-        ...(result.remainingSuns !== undefined ? { suns: result.remainingSuns } : {})
+        suns: result.remainingSuns,
+        ...(result.remainingStars !== undefined ? { stars: result.remainingStars } : {})
       });
       onVoted?.({ artist, amount: num, result });
     } catch (err) {
@@ -113,7 +113,7 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
 
       <div className="vm-balance">
         <span>Your balance</span>
-        <b><img className="vm-star" src={StarCurr} alt="" />{fmt(max)}</b>
+        <b><img className="vm-star" src={SunCurr} alt="" />{fmt(max)}</b>
       </div>
 
       {powerups.length > 0 && (
@@ -133,9 +133,9 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
 
       {step === 'enter' ? (
         <div className="vm-body">
-          <label className="vm-label" htmlFor="vote-amount">Stars to cast</label>
+          <label className="vm-label" htmlFor="vote-amount">Suns to cast</label>
           <div className="vm-input">
-            <img className="vm-star" src={StarCurr} alt="" />
+            <img className="vm-star" src={SunCurr} alt="" />
             <input
               id="vote-amount"
               type="text"
@@ -150,8 +150,13 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
             />
             <button type="button" className="vm-max" onClick={() => setAmount(max > 0 ? String(max) : '')} disabled={max < 1}>MAX</button>
           </div>
+          <div className="vm-quick">
+            {[1, 5, 10, 50].filter((n) => n <= max).map((n) => (
+              <button key={n} type="button" className={num === n ? 'on' : ''} onClick={() => setAmount(String(n))}>+{n}</button>
+            ))}
+          </div>
           <div className="vm-hint">
-            <span>{max < 1 ? 'You have no stars to cast.' : `Up to ${fmt(max)} stars`}</span>
+            <span>{max < 1 ? 'You have no Suns to cast.' : `Up to ${fmt(max)} Suns · 1 Sun = 1 vote`}</span>
             <span>Left after: <b>{fmt(left)}</b></span>
           </div>
           <button type="button" className="btn-solid vm-cast" onClick={goVerify} disabled={num < 1}>Cast Vote</button>
@@ -161,12 +166,12 @@ export default function VoteModal({ open, artist, pollTitle = '', onClose, onVot
           <div className="vm-label">Check before you cast</div>
           <dl className="vm-review">
             <div><dt>Voting for</dt><dd>{artist?.name}</dd></div>
-            <div><dt>Stars to cast</dt><dd><img className="vm-star" src={StarCurr} alt="" />{fmt(num)}</dd></div>
-            <div><dt>Balance after</dt><dd><img className="vm-star" src={StarCurr} alt="" />{fmt(left)}</dd></div>
+            <div><dt>Suns to cast</dt><dd><img className="vm-star" src={SunCurr} alt="" />{fmt(num)}</dd></div>
+            <div><dt>Balance after</dt><dd><img className="vm-star" src={SunCurr} alt="" />{fmt(left)}</dd></div>
           </dl>
           <label className="vm-agree">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-            <span>I checked my vote. I understand stars cast can't be returned.</span>
+            <span>I checked my vote. I understand Suns cast can't be returned.</span>
           </label>
           {error && <p className="vm-error" role="alert">{error}</p>}
           <div className="vm-actions">

@@ -46,11 +46,11 @@ export const clearUser = () => {
 
 export const VOTE_COST = 1; // default stars spent per vote
 
-export const castVote = async (rankingId, user, cost = VOTE_COST) => {
+export const castVote = async (rankingId, user, cost = VOTE_COST, currencyType = 'stars') => {
   const res = await fetch(`${API}/api/rankings/${rankingId}/vote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: user.email, currencyType: 'stars', cost })
+    body: JSON.stringify({ email: user.email, currencyType, cost })
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Vote failed');

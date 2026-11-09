@@ -8,7 +8,6 @@ import PollStatus from '../../components/PollStatus/PollStatus';
 import { formatDateTime } from '../../utils/pollTime';
 import Reveal from '../../components/Reveal/Reveal';
 import CountUp from '../../components/CountUp/CountUp';
-import SunCurr from '../../assets/SunCurr.png';
 // reuse the Home podium styles so this page looks like the rest of the system
 import '../../components/RankingRow/RankingRow.css';
 import './Polls.css';
@@ -103,7 +102,7 @@ export default function PollDetail() {
     setTimeout(() => setFlashId(null), 1600);
     setFeedback({
       isOpen: true,
-      message: `You cast ${amount.toLocaleString('en-US')} Star(s) for ${artist.name}!\nRemaining: ${Number(result.remainingStars).toLocaleString('en-US')}`,
+      message: `You cast ${amount.toLocaleString('en-US')} Sun(s) for ${artist.name}!\nRemaining: ${Number(result.remainingSuns).toLocaleString('en-US')}`,
       type: 'success'
     });
   };
@@ -158,9 +157,11 @@ export default function PollDetail() {
             aria-valuemax={goal}
             aria-valuenow={Math.min(total, goal)}
           >
+            <div className="goal-head">
+              <span className="goal-label">Suns collected</span>
+              <span className="goal-count"><CountUp value={total} /> / {goal.toLocaleString('en-US')}</span>
+            </div>
             <div className="goal-bar"><div className="goal-fill" style={{ width: `${barPct}%` }} /></div>
-            <img className="goal-sun" src={SunCurr} alt="" style={{ '--p': `${barPct}%` }} />
-            <span className="goal-text"><CountUp value={total} /> / {goal.toLocaleString('en-US')}</span>
           </div>
           <p className="goal-note">
             {goalReached ? 'Goal reached! Thank you for the support.' : `${(goal - total).toLocaleString('en-US')} more to reach the goal`}

@@ -1333,7 +1333,14 @@ app.post('/api/rankings', requireAdmin, upload.single('image'), async (req, res)
 // CURRENCY-BASED VOTING ROUTE
 app.post('/api/rankings/:id/vote', async (req, res) => {
   try {
-    const { email, currencyType = 'stars', cost = 1 } = req.body;
+    const { email, currencyType = 'stars' } = req.body;
+    const cost = Number(req.body.cost ?? 1);
+    if (!Number.isSafeInteger(cost) || cost < 1) {
+      return res.status(400).json({ message: 'Enter a whole number of at least 1.' });
+    }
+    if (currencyType !== 'stars' && currencyType !== 'suns') {
+      return res.status(400).json({ message: 'Invalid currency.' });
+    }
     if (!email) {
       return res.status(400).json({ message: "Login required to vote." });
     }

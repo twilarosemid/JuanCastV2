@@ -78,3 +78,11 @@
 .vote-modal .vm-disclaimer strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
 .vote-modal .vm-disclaimer ul { margin: 0; padding-left: 18px; }
 .vote-modal .vm-disclaimer li + li { margin-top: 3px; }
+
+.vote-modal .vm-quick { display: flex; gap: 8px; margin: 10px 0 2px; }
+.vote-modal .vm-quick:empty { display: none; }
+.vote-modal .vm-quick button {
+  flex: 1; padding: 8px 0; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .07);
+  color: var(--text); font-weight: 800; font-size: 13px; cursor: pointer; transition: background .2s ease, border-color .2s ease;
+}
+.vote-modal .vm-quick button:hover, .vote-modal .vm-quick button.on { background: rgba(245, 197, 66, .22); border-color: var(--gold); }
