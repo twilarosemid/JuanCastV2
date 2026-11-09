@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { API, saveUser } from '../../../api';
-import Modal from '../../../components/Modal/Modal';
 import './Spin.css';
 
 const SPIN_COOLDOWN_MS = 30_000;
@@ -51,7 +50,6 @@ export default function Spin({ user }) {
   const [phases, setPhases] = useState(['idle', 'idle', 'idle']); // per reel: idle | spin | landed
   const [winSlots, setWinSlots] = useState([]);
   const [now, setNow] = useState(Date.now());
-  const [packsOpen, setPacksOpen] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState('');
 
   // ---- reel engine: each reel is a vertical strip moved by requestAnimationFrame (no re-render per frame) ----
@@ -227,9 +225,6 @@ export default function Spin({ user }) {
       <div className="mk-panel spin-panel">
         <div className="spin-toolbar">
           <p><strong>Spins Left:</strong> {email ? spinStatus.spinsRemaining : '—'}</p>
-          <button type="button" className="spin-more" onClick={() => { setPurchaseMessage(''); setPacksOpen(true); }}>
-            More Spins <span>+</span>
-          </button>
         </div>
 
         <div className={`spin-machine${spinning ? ' running' : ''}`} aria-label="Three-slot Stars game">
@@ -247,7 +242,6 @@ export default function Spin({ user }) {
               </div>
             </div>
           ))}
-          <div className="spin-payline" aria-hidden="true" />
         </div>
 
         <button className="mk-btn spin-go" type="button" onClick={spin} disabled={spinDisabled}>
@@ -255,6 +249,26 @@ export default function Spin({ user }) {
         </button>
         {message && <p className="spin-message" role="status">{message}</p>}
         {!email && <p className="spin-message">Log in to play and earn Stars.</p>}
+
+        <section className="spin-buy" aria-label="Buy more spins">
+          <h3>More Spins <span>+</span></h3>
+          <p className="spin-note"><strong>Note:</strong> Bought spins will not be retained during spin count reset at 12:00 am</p>
+          <div className="spin-packs">
+            {spinPackages.map(({ spins, price }) => (
+              <button
+                className="spin-pack"
+                type="button"
+                key={spins}
+                onClick={() => setPurchaseMessage('Spin checkout is not available yet.')}
+              >
+                <strong className="spin-pack-amount">+{spins}</strong>
+                <span className="spin-pack-label">spins</span>
+                <strong className="spin-pack-price">PHP {price}</strong>
+              </button>
+            ))}
+          </div>
+          {purchaseMessage && <p className="spin-purchase" role="status">{purchaseMessage}</p>}
+        </section>
 
         <details className="spin-details" open>
           <summary>Game Instructions</summary>
@@ -277,25 +291,6 @@ export default function Spin({ user }) {
         </details>
       </div>
 
-      <Modal open={packsOpen} onClose={() => setPacksOpen(false)} label="Buy more spins" className="spin-modal">
-        <h3>Buy More Spins</h3>
-        <p className="spin-note"><strong>Note:</strong> Bought spins will not be retained during spin count reset at 12:00 am</p>
-        <div className="spin-packs">
-          {spinPackages.map(({ spins, price }) => (
-            <button
-              className="spin-pack"
-              type="button"
-              key={spins}
-              onClick={() => setPurchaseMessage('Spin checkout is not available yet.')}
-            >
-              <strong className="spin-pack-amount">+{spins}</strong>
-              <span className="spin-pack-label">spins</span>
-              <strong className="spin-pack-price">PHP {price}</strong>
-            </button>
-          ))}
-        </div>
-        {purchaseMessage && <p className="spin-purchase" role="status">{purchaseMessage}</p>}
-      </Modal>
     </>
   );
 }

@@ -2,15 +2,8 @@
 
 .spin-toolbar { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; }
 .spin-toolbar p { margin: 0; font-size: 17px; font-weight: 600; }
-.spin-more {
-  min-height: 32px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer;
-  background: rgba(47, 123, 255, .2); color: #9cc2ff; border: 1px solid rgba(47, 123, 255, .4);
-  transition: background .2s, transform .15s;
-}
-.spin-more:hover { background: rgba(47, 123, 255, .32); }
-.spin-more:active { transform: scale(.95); }
 
-/* casino reels: each slot is a window onto a vertical strip of the numbers (moved by JS), payline across the middle */
+/* casino reels: each slot is a window onto a vertical strip of the numbers (moved by JS) */
 .spin-machine {
   position: relative; display: grid; width: min(100%, 520px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 auto 22px;
   padding: 14px; border-radius: 22px; background: rgba(8, 40, 112, .55); border: 1px solid rgba(255, 255, 255, .14);
@@ -37,10 +30,6 @@
 @keyframes slotLand { 0% { transform: translateY(-5px) scale(1.03); } 100% { transform: none; } }
 .spin-slot.win { border-color: var(--gold); animation: slotWin .7s ease-in-out infinite alternate; }
 @keyframes slotWin { from { box-shadow: 0 8px 18px rgba(0, 0, 0, .4), 0 0 8px rgba(245, 197, 66, .4); } to { box-shadow: 0 8px 18px rgba(0, 0, 0, .4), 0 0 30px rgba(245, 197, 66, .95); } }
-.spin-payline {
-  position: absolute; left: 6px; right: 6px; top: 50%; height: 3px; transform: translateY(-50%); pointer-events: none; z-index: 2; border-radius: 3px;
-  background: linear-gradient(90deg, transparent, rgba(245, 197, 66, .9) 10%, rgba(245, 197, 66, .9) 90%, transparent); box-shadow: 0 0 8px rgba(245, 197, 66, .6);
-}
 
 /* .mk-btn (inline-flex) loads after this file, so the higher specificity is what lets auto-margins centre the button */
 .spin-panel .spin-go { display: flex; width: min(100%, 240px); min-height: 52px; margin: 0 auto; font-size: 16px; }
@@ -50,8 +39,6 @@
 .spin-details summary { width: fit-content; cursor: pointer; color: var(--text); font-size: 15px; font-weight: 800; }
 .spin-details ul { margin: 6px 0 0; padding-left: 20px; line-height: 1.55; }
 
-/* buy-more-spins dialog (uses the shared animated Modal) */
-.modal.spin-modal { width: min(500px, 100%); }
 .spin-note {
   margin: 8px 0 20px !important; padding: 10px 12px; border-left: 3px solid #ff3158; border-radius: 6px;
   background: rgba(255, 255, 255, .06); font-size: 13px; line-height: 1.4;
@@ -69,7 +56,7 @@
 .spin-pack-amount { color: #7fb0ff; font-size: 27px; font-weight: 900; line-height: 1.05; }
 .spin-pack-label { margin-top: 3px; color: var(--muted); font-size: 13px; }
 .spin-pack-price { margin-top: 13px; font-size: 17px; font-weight: 800; }
-.modal .spin-purchase { margin: 16px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--text); }
+.spin-purchase { margin: 16px 0 0; text-align: center; font-size: 13px; font-weight: 700; color: var(--text); }
 
 @media (max-width: 700px) {
   .spin-machine { gap: 8px; padding: 10px; border-radius: 18px; }
@@ -83,3 +70,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .spin-machine.running, .spin-slot.win, .spin-slot.is-landed { animation: none; } .spin-slot.is-spin .spin-strip { filter: none; } }
+
+/* buy-more-spins: shown right on the page, between the reels and the instructions */
+.spin-buy { margin-top: 26px; }
+.spin-buy h3 { margin: 0; font-size: 18px; font-weight: 800; }
+.spin-buy h3 span { color: #9cc2ff; }
+.spin-buy .spin-note { margin: 10px 0 16px !important; }
