@@ -72,3 +72,7 @@
 .ap-fb-posts li > div { flex: 1; min-width: 0; }
 .ap-fb-posts p { margin: 0; font-size: 14px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ap-fb-posts small { color: var(--muted); }
+
+/* keep the name, handle and bio fully below the cover photo (a bright cover made them unreadable) */
+.ap-head .ap-id { padding-top: 70px; }
+@media (max-width: 560px) { .ap-head .ap-id { padding-top: 58px; } }
