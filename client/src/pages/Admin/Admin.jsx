@@ -28,6 +28,8 @@ const TABS = [
   { key: 'artists', label: 'Artists' },
   { key: 'chika', label: 'Chika' },
   { key: 'contents', label: 'Contents' },
+  { key: 'fanbases', label: 'Fanbases' },
+  { key: 'fanposts', label: 'Fanbase posts' },
   { key: 'banners', label: 'Banners' },
   { key: 'ads', label: 'Ads' },
   { key: 'landing', label: 'Landing' },
@@ -355,12 +357,12 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
       const f = fields[i];
       if (f.half && fields[i + 1]?.half) {
         out.push(<div className="ad-row2" key={f.name}>{[f, fields[i + 1]].map((x) => (
-          <Field key={x.name} field={x} form={form} value={form[x.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
+          <Field key={x.name} field={x} form={form} value={form[x.name]} fileKey={fileKey} currentImage={editing?.[x.imageKey || 'imageUrl']}
             onChange={(v) => change(x.name, v)} />
         ))}</div>);
         i += 1;
       } else {
-        out.push(<Field key={f.name} field={f} form={form} value={form[f.name]} fileKey={fileKey} currentImage={editing?.imageUrl}
+        out.push(<Field key={f.name} field={f} form={form} value={form[f.name]} fileKey={fileKey} currentImage={editing?.[f.imageKey || 'imageUrl']}
           onChange={(v) => change(f.name, v)} />);
       }
     }
@@ -953,7 +955,7 @@ function Dashboard({ user }) {
   const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
   const setTab = (key) => setParams(key === 'overview' ? {} : { tab: key }, { replace: true });
 
-  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], banners: [], ads: [], reports: [], settings: {} });
+  const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], fanbases: [], fanposts: [], banners: [], ads: [], reports: [], settings: {} });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [sessionBad, setSessionBad] = useState(!user?.token);   // admins who logged in before the update have no token yet
@@ -978,7 +980,7 @@ function Dashboard({ user }) {
   const reload = useCallback(async () => {
     const safe = (p, fallback) => p.catch(() => fallback);
     try {
-      const [polls, groups, artists, chika, contents, banners, ads, settings, reports] = await Promise.all([
+      const [polls, groups, artists, chika, contents, banners, ads, settings, reports, fanbases, fanposts] = await Promise.all([
         getJSON('/api/polls'),
         safe(getJSON('/api/poll-groups'), []),
         getJSON('/api/rankings'),
@@ -993,9 +995,11 @@ function Dashboard({ user }) {
         adminFetch('/api/reports').catch((err) => {
           if (err.status === 401 || err.status === 403) setSessionBad(true);
           return [];
-        })
+        }),
+        safe(getJSON('/api/fanbases'), []),
+        adminFetch('/api/fanbase-posts').catch(() => [])
       ]);
-      setData({ polls, groups, artists, chika, contents, banners, ads: ads || [], reports: reports || [], settings });
+      setData({ polls, groups, artists, chika, contents, fanbases: fanbases || [], fanposts: fanposts || [], banners, ads: ads || [], reports: reports || [], settings });
       setLoadError('');
     } catch (err) {
       console.error(err);
@@ -1159,8 +1163,49 @@ function Dashboard({ user }) {
       titleOf: (v) => v.title,
       searchText: (v) => `${v.title} ${v.subtitle} ${v.group} ${v.platform}`,
       row: (v) => ({ title: v.title, badge: { label: v.platform || 'YouTube', tone: 'soon' }, lines: [v.subtitle, v.group] })
+    },
+    fanbases: {
+      endpoint: 'fanbases', noun: 'Fanbase', listTitle: 'Saved fanbases', empty_text: 'No fanbases yet.',
+      empty: { name: '', price: '500', subscriberCount: '0', featured: 'No', image: null, avatar: null },
+      fields: [
+        { name: 'name', label: 'Artist / group name', required: true },
+        { name: 'price', label: 'Subscription (Php per month)', type: 'number', min: 0, half: true },
+        { name: 'subscriberCount', label: 'Subscribers shown', type: 'number', min: 0, half: true },
+        { name: 'featured', label: 'Featured artist', type: 'select', options: ['No', 'Yes'], hint: 'The latest post of the featured artist shows on the Fanbase page. Only one can be featured.' },
+        { name: 'image', label: 'Banner (wide photo)', type: 'file' },
+        { name: 'avatar', label: 'Circle photo', type: 'file', imageKey: 'avatarUrl', hint: 'Shown in the Your Artists / Explore circles.' }
+      ],
+      toForm: (v) => ({ name: v.name || '', price: String(v.price ?? 500), subscriberCount: String(v.subscriberCount ?? 0), featured: v.featured ? 'Yes' : 'No', image: null, avatar: null }),
+      titleOf: (v) => v.name,
+      searchText: (v) => `${v.name}`,
+      row: (v) => ({ title: v.name, badge: v.featured ? { label: 'Featured', tone: 'live' } : undefined, lines: [`Php ${Number(v.price || 0).toLocaleString('en-US')}/month`, `${Number(v.subscriberCount || 0).toLocaleString('en-US')} subscribers`] })
+    },
+
+    fanposts: {
+      endpoint: 'fanbase-posts', noun: 'Post', listTitle: 'Saved posts', empty_text: 'No posts yet.',
+      empty: { fanbaseId: '', authorName: '', verified: 'Yes', text: '', postedAt: '', likes: '0', comments: '0', image: null, authorAvatar: null },
+      fields: [
+        { name: 'fanbaseId', label: 'Artist board', type: 'select', required: true, placeholder: 'Choose an artist', options: () => data.fanbases.map((f) => ({ value: idOf(f), label: f.name })) },
+        { name: 'authorName', label: 'Posted by', required: true, placeholder: 'e.g. Alamat_Rji', half: true },
+        { name: 'verified', label: 'Verified check', type: 'select', options: ['Yes', 'No'], half: true },
+        { name: 'text', label: 'Post text', type: 'textarea', rows: 3 },
+        { name: 'postedAt', label: 'Posted on', type: 'datetime-local', hint: 'Leave empty to use right now.' },
+        { name: 'likes', label: 'Stars', type: 'number', min: 0, half: true },
+        { name: 'comments', label: 'Comments', type: 'number', min: 0, half: true },
+        { name: 'image', label: 'Photo (optional)', type: 'file' },
+        { name: 'authorAvatar', label: 'Poster photo', type: 'file', imageKey: 'authorAvatarUrl' }
+      ],
+      toForm: (v) => ({
+        fanbaseId: v.fanbaseId || '', authorName: v.authorName || '', verified: v.verified === false ? 'No' : 'Yes', text: v.text || '',
+        postedAt: v.postedAt ? new Date(new Date(v.postedAt).getTime() - new Date(v.postedAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
+        likes: String(v.likes ?? 0), comments: String(v.comments ?? 0), image: null, authorAvatar: null
+      }),
+      titleOf: (v) => `${v.authorName}: ${(v.text || 'photo').slice(0, 40)}`,
+      searchText: (v) => `${v.authorName} ${v.text} ${data.fanbases.find((f) => idOf(f) === v.fanbaseId)?.name || ''}`,
+      row: (v) => ({ title: v.authorName, lines: [data.fanbases.find((f) => idOf(f) === v.fanbaseId)?.name, (v.text || '').slice(0, 80), fmtDate(v.postedAt)] })
     }
   };
+
 
   /* ---- homepage settings (featured ranking + chika headline) ---- */
   const [featured, setFeatured] = useState({ featuredGroup: '', featuredCategory: '', featuredChikaId: '' });
@@ -1231,6 +1276,7 @@ function Dashboard({ user }) {
     { key: 'groups', label: 'Poll groups', value: data.groups.length },
     { key: 'chika', label: 'Chika articles', value: data.chika.length },
     { key: 'contents', label: 'Contents', value: data.contents.length },
+    { key: 'fanbases', label: 'Fanbases', value: data.fanbases.length, sub: `${data.fanposts.length} posts` },
     { key: 'banners', label: 'Banners', value: data.banners.length },
     { key: 'ads', label: 'Ads', value: data.ads.filter((a) => a.active).length, sub: `${data.ads.length} total` },
     { key: 'reports', label: 'Open reports', value: data.reports.length, tone: data.reports.length ? 'alert' : '' }
@@ -1316,6 +1362,8 @@ function Dashboard({ user }) {
           {tab === 'artists' && <ResourceTab key="artists" cfg={configs.artists} items={data.artists} loading={loading} ctx={ctx}>{featuredCard}</ResourceTab>}
           {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
           {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
+          {tab === 'fanbases' && <ResourceTab key="fanbases" cfg={configs.fanbases} items={data.fanbases} loading={loading} ctx={ctx} />}
+          {tab === 'fanposts' && <ResourceTab key="fanposts" cfg={configs.fanposts} items={data.fanposts} loading={loading} ctx={ctx} />}
           {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
           {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
           {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}

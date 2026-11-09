@@ -5,10 +5,12 @@ import useBubble from '../../hooks/useBubble';
 import Modal from '../../components/Modal/Modal';
 import ChatPanel from '../../components/ChatPanel/ChatPanel';
 import ChikaPanel from '../../components/ChikaPanel/ChikaPanel';
+import FanbasePanel from '../../components/FanbasePanel/FanbasePanel';
 import './Community.css';
 
 const SECTIONS = [
   { id: 'chat', label: 'Chat' },
+  { id: 'fanbase', label: 'Fanbase' },
   { id: 'chika', label: 'Chika' },
   { id: 'contents', label: 'Content' }
 ];
@@ -178,6 +180,7 @@ export default function Community() {
         <h1 className="cm-title" key={`t-${active}`}>{title}</h1>
         <div className={`cm-section${active === 'chat' ? '' : ' cm-scroll'}`} key={active}>
           {active === 'chat' && <ChatPanel />}
+          {active === 'fanbase' && <FanbasePanel />}
           {active === 'chika' && <ChikaPanel />}
           {active === 'contents' && <ContentSection />}
         </div>
