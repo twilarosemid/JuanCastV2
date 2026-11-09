@@ -1,3 +1,10 @@
+/* star prices stand out in red */
+.stars-card .mk-price {
+  align-self: center; margin-top: auto; padding: 7px 16px; border-radius: 999px; color: #fff; font-size: 17px; font-weight: 800; letter-spacing: .01em;
+  background: linear-gradient(135deg, #ff4d4d, #d91f2f); border: 1px solid rgba(255, 140, 140, .55);
+  box-shadow: 0 6px 16px rgba(230, 40, 50, .4), inset 0 1px 0 rgba(255, 255, 255, .25); text-shadow: 0 1px 2px rgba(80, 0, 0, .45);
+}
+
 .stars-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; max-width: 1050px; }
 .stars-card { min-height: 250px; }
 .stars-img { width: 100px; height: 100px; margin-bottom: 8px; object-fit: contain; transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
