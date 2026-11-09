@@ -1355,7 +1355,20 @@ app.delete('/api/polls/:id', requireAdmin, async (req, res) => {
     if (!removed) {
       return res.status(404).json({ message: 'Poll not found.' });
     }
-    res.status(200).json({ message: 'Poll deleted.' });
+
+    // Artists belong to a poll by group + poll title. Remove them with the poll,
+    // unless another poll in the same group still uses that title.
+    let artistsRemoved = 0;
+    if (removed.title) {
+      const groupMatch = removed.group ? removed.group : { $in: ['', null] };
+      const stillUsed = await Poll.exists({ title: removed.title, group: groupMatch });
+      if (!stillUsed) {
+        const result = await Ranking.deleteMany({ category: removed.title, group: groupMatch });
+        artistsRemoved = result.deletedCount || 0;
+        if (artistsRemoved) await updateRankingPositions();
+      }
+    }
+    res.status(200).json({ message: 'Poll deleted.', artistsRemoved });
   } catch (error) {
     console.error('Error deleting poll:', error);
     res.status(500).json({ error: 'Failed to delete poll' });

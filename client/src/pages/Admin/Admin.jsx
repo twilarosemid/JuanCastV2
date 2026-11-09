@@ -169,6 +169,8 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
   const [filters, setFilters] = useState({});
   const [fileKey, setFileKey] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
 
   const setFilter = (name, value) => setFilters((f) => {
     const next = { ...f, [name]: value };
@@ -336,12 +338,16 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     body: `“${cfg.titleOf(item)}” will be removed from the site for everyone. This can’t be undone.${cfg.deleteNote?.(item) ? ` ${cfg.deleteNote(item)}` : ''}`,
     confirmLabel: 'Delete',
     run: async () => {
-      await adminFetch(`/api/${cfg.endpoint}/${idOf(item)}`, { method: 'DELETE' });
-      notify(`${cfg.noun} deleted.`);
+      const result = await adminFetch(`/api/${cfg.endpoint}/${idOf(item)}`, { method: 'DELETE' });
+      const extra = result?.artistsRemoved ? ` ${result.artistsRemoved} artist${result.artistsRemoved === 1 ? '' : 's'} removed with it.` : '';
+      notify(`${cfg.noun} deleted.${extra}`);
       if (idOf(editing) === idOf(item)) reset();
       await reload();
     }
   });
+
+  const togglePick = (id) => setPicked((cur) => { const next = new Set(cur); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const stopSelecting = () => { setSelecting(false); setPicked(new Set()); };
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -360,6 +366,41 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     });
     return [...map.entries()].sort(([a], [b]) => (a === 'Uncategorized') - (b === 'Uncategorized') || a.localeCompare(b));
   }, [rows, cfg]);
+
+  const visibleIds = rows.map(idOf);
+  const pickedVisible = visibleIds.filter((id) => picked.has(id));
+  const allPicked = visibleIds.length > 0 && pickedVisible.length === visibleIds.length;
+  const toggleAll = () => setPicked(allPicked ? new Set() : new Set(visibleIds));
+
+  const bulkRemove = () => {
+    const targets = rows.filter((it) => picked.has(idOf(it)));
+    if (!targets.length) return;
+    const noun = cfg.noun.toLowerCase();
+    const names = targets.slice(0, 3).map((it) => `“${cfg.titleOf(it)}”`).join(', ');
+    askConfirm({
+      title: `Delete ${targets.length} ${noun}${targets.length === 1 ? '' : 's'}?`,
+      body: `${names}${targets.length > 3 ? ` and ${targets.length - 3} more` : ''} will be removed from the site for everyone. This can’t be undone.${cfg.bulkNote ? ` ${cfg.bulkNote}` : ''}`,
+      confirmLabel: `Delete ${targets.length}`,
+      run: async () => {
+        let done = 0;
+        let failed = 0;
+        for (const item of targets) {
+          try {
+            await adminFetch(`/api/${cfg.endpoint}/${idOf(item)}`, { method: 'DELETE' });
+            done += 1;
+            if (idOf(editing) === idOf(item)) reset();
+          } catch (err) {
+            if (err.status === 401 || err.status === 403) { await reload(); throw err; }
+            failed += 1;
+          }
+        }
+        stopSelecting();
+        if (failed) notify(`Deleted ${done}, but ${failed} could not be deleted.`, 'err');
+        else notify(`${done} ${noun}${done === 1 ? '' : 's'} deleted.`);
+        await reload();
+      }
+    });
+  };
 
   const change = (name, v) => {
     const next = { ...form, [name]: v };
@@ -413,9 +454,20 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
             {(filtersOn || query) && <button type="button" className="ad-link ad-clear" onClick={clearFilters}>Clear</button>}
           </div>
           <span className="ad-count-text">{loading ? '' : `${countLabel} ${countLabel === '1' ? cfg.noun.toLowerCase() : `${cfg.noun.toLowerCase()}s`}`}</span>
+          {rows.length > 0 && <button type="button" className={`btn-ghost ad-select-btn${selecting ? ' on' : ''}`} onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Done' : 'Select'}</button>}
           <button type="button" className="btn-solid ad-add" onClick={openNew}>+ Add {cfg.noun.toLowerCase()}{queue.length > 0 ? ` (${queue.length} waiting)` : ''}</button>
         </div>
 
+        {selecting && rows.length > 0 && (
+          <div className="ad-bulkbar" role="toolbar" aria-label="Bulk actions">
+            <label className="ad-check-all">
+              <input type="checkbox" checked={allPicked} onChange={toggleAll} />
+              <span>{allPicked ? 'Clear selection' : `Select all ${rows.length}`}</span>
+            </label>
+            <span className="ad-count-text">{pickedVisible.length} selected</span>
+            <button type="button" className="ad-btn danger" disabled={!pickedVisible.length} onClick={bulkRemove}>Delete selected</button>
+          </div>
+        )}
         {loading ? <p className="ad-empty">Loading…</p> : rows.length === 0 ? (
           <p className="ad-empty">{items.length === 0 ? cfg.empty_text : <>Nothing matches these filters. <button type="button" className="ad-link" onClick={clearFilters}>Show everything</button></>}</p>
         ) : grouped.map(([group, list]) => (
@@ -424,7 +476,12 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
             {list.map((item) => {
               const row = cfg.row(item);
               return (
-                <div className={`ad-item ${idOf(editing) === idOf(item) ? 'editing' : ''}`} key={idOf(item)}>
+                <div
+                  className={`ad-item ${idOf(editing) === idOf(item) ? 'editing' : ''}${selecting ? ' pickable' : ''}${picked.has(idOf(item)) ? ' picked' : ''}`}
+                  key={idOf(item)}
+                  onClick={selecting ? () => togglePick(idOf(item)) : undefined}
+                >
+                  {selecting && <input type="checkbox" className="ad-check" checked={picked.has(idOf(item))} onChange={() => togglePick(idOf(item))} onClick={(e) => e.stopPropagation()} aria-label={`Select ${cfg.titleOf(item)}`} />}
                   <Thumb url={item.imageUrl} label={cfg.titleOf(item)} />
                   <div className="ad-item-body">
                     <div className="ad-item-title">
@@ -433,10 +490,12 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
                     </div>
                     {row.lines.filter(Boolean).map((line, i) => <div className="ad-item-sub" key={i}>{line}</div>)}
                   </div>
-                  <div className="ad-item-actions">
-                    {cfg.toForm && <button type="button" className="ad-btn" onClick={() => startEdit(item)}>Edit</button>}
-                    <button type="button" className="ad-btn danger" onClick={() => remove(item)}>Delete</button>
-                  </div>
+                  {!selecting && (
+                    <div className="ad-item-actions">
+                      {cfg.toForm && <button type="button" className="ad-btn" onClick={() => startEdit(item)}>Edit</button>}
+                      <button type="button" className="ad-btn danger" onClick={() => remove(item)}>Delete</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1200,6 +1259,16 @@ function Dashboard({ user }) {
     data.polls.filter((p) => (p.group || '') === (group || '')).map((p) => p.title).filter(Boolean)
   )];
 
+  // an artist is shown in a poll when its group AND category match that poll
+  const sameGroup = (a, b) => (a || '') === (b || '');
+  const hasPoll = (artist) => data.polls.some((p) => p.title === artist.category && sameGroup(p.group, artist.group));
+  const orphaned = (artist) => !loading && Boolean(artist.category) && !hasPoll(artist);
+  const artistsOfPoll = (poll) => (
+    data.polls.some((p) => idOf(p) !== idOf(poll) && p.title === poll.title && sameGroup(p.group, poll.group))
+      ? []   // another poll still uses this title, so the artists stay
+      : data.artists.filter((a) => a.category === poll.title && sameGroup(a.group, poll.group))
+  );
+
   const configs = {
     polls: {
       endpoint: 'polls', noun: 'Poll', listTitle: 'Saved polls', empty_text: 'No polls yet.',
@@ -1222,6 +1291,11 @@ function Dashboard({ user }) {
       validate: (f) => (f.fromDate && f.toDate && f.toDate < f.fromDate ? 'The end date must be after the start date.' : ''),
       toForm: (p) => ({ title: p.title || '', group: p.group || '', type: p.type || 'Minor', description: p.description || '', goal: p.goal ? String(p.goal) : '', fromDate: toDateInput(p.fromDate), toDate: toDateInput(p.toDate), image: null }),
       titleOf: (p) => p.title,
+      deleteNote: (p) => {
+        const n = artistsOfPoll(p).length;
+        return n ? `The ${n} artist${n === 1 ? '' : 's'} in this poll will be deleted too.` : '';
+      },
+      bulkNote: 'Artists that only belong to these polls are deleted too.',
       searchText: (p) => `${p.title} ${p.group} ${p.type}`,
       sort: (a, b) => new Date(b.fromDate || 0) - new Date(a.fromDate || 0),
       row: (p) => {
@@ -1263,11 +1337,12 @@ function Dashboard({ user }) {
         sync: ['group', 'category'],
         fields: [
           { name: 'group', all: 'All groups', options: () => groupNames },
-          { name: 'category', all: 'All polls', options: (f) => (f.group ? titlesForGroup(f.group) : pollTitles) }
+          { name: 'category', all: 'All polls', options: (f) => (f.group ? titlesForGroup(f.group) : pollTitles) },
+          { name: 'orphan', all: 'All artists', options: () => ['Poll was deleted'] }
         ],
         // picking another group drops a poll filter that doesn't belong to it
         onChange: (next, name) => (name === 'group' && next.group && next.category && !titlesForGroup(next.group).includes(next.category) ? { ...next, category: '' } : next),
-        match: (a, f) => (!f.group || a.group === f.group) && (!f.category || a.category === f.category)
+        match: (a, f) => (!f.group || a.group === f.group) && (!f.category || a.category === f.category) && (!f.orphan || orphaned(a))
       },
       stack: {
         keep: ['group', 'category'],
@@ -1295,7 +1370,7 @@ function Dashboard({ user }) {
       searchText: (a) => `${a.name} ${a.group} ${a.category}`,
       groupBy: (a) => (a.category ? (a.group ? `${a.group} · ${a.category}` : a.category) : 'Uncategorized'),
       sort: (a, b) => Number(a.position) - Number(b.position),
-      row: (a) => ({ title: a.name, badge: { label: `#${a.position}`, tone: 'rank' }, lines: [`${nf.format(a.voteCount || 0)} votes`, a.category ? '' : a.group] })
+      row: (a) => ({ title: a.name, badge: orphaned(a) ? { label: 'Poll deleted', tone: 'gone' } : { label: `#${a.position}`, tone: 'rank' }, lines: [`${nf.format(a.voteCount || 0)} votes`, a.category ? '' : a.group] })
     },
 
     chika: {
