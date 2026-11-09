@@ -58,7 +58,8 @@ export const castVote = async (rankingId, user, cost = VOTE_COST, currencyType =
 };
 
 // ---------- admin ----------
-export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'admin');
+export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'admin' || user?.role === 'superadmin');
+export const isSuperAdminUser = (user) => user?.role === 'superadmin';
 
 // Calls an admin-only endpoint. Sends the admin token that the server hands out at login.
 // Pass a FormData body for uploads (the browser sets its own Content-Type).

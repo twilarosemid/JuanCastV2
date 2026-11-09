@@ -98,7 +98,7 @@ const userSchema = new mongoose.Schema({
   passwordResetExpiresAt: { type: Date },
   isVerified: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
-  role: { type: String, enum: ['user', 'admin'], default: 'user' }
+  role: { type: String, enum: ['user', 'artist', 'admin', 'superadmin'], default: 'user' }
 });
 const User = mongoose.model('User', userSchema);
 
@@ -146,20 +146,41 @@ const resetDailySwerteSpins = async (email) => {
   return resetProfile || Profile.findOne(emailFilter);
 };
 
+// Super admins: set SUPERADMIN_EMAIL in .env / Render (comma separated) to add more.
+// gulfericdonato6@gmail.com is always a super admin, and its role can't be changed from the Accounts tab.
+const getSuperAdminEmails = () => {
+  const configured = (process.env.SUPERADMIN_EMAIL || '')
+    .split(',')
+    .map((email) => normalizeEmail(email))
+    .filter(Boolean);
+
+  return [...new Set([...configured, 'gulfericdonato6@gmail.com'])];
+};
+
 const getAdminEmails = () => {
   const configured = (process.env.ADMIN_EMAIL || '')
     .split(',')
     .map((email) => normalizeEmail(email))
     .filter(Boolean);
 
-  return [...new Set([...configured, 'adminjuancast@gmail.com', 'gulfericdonato6@gmail.com'])];
+  return [...new Set([...configured, ...getSuperAdminEmails(), 'adminjuancast@gmail.com'])];
 };
+
+// Super admin is decided by email only, so nobody can become one by editing a database field.
+const isSuperAdmin = (user = {}) => Boolean(user) && getSuperAdminEmails().includes(normalizeEmail(user.email));
 
 const resolveAdminStatus = (user = {}) => {
   if (!user) return false;
   const normalizedEmail = normalizeEmail(user.email);
   const role = String(user.role || '').trim().toLowerCase();
-  return Boolean(user.isAdmin) || role === 'admin' || getAdminEmails().includes(normalizedEmail);
+  return Boolean(user.isAdmin) || role === 'admin' || role === 'superadmin' || getAdminEmails().includes(normalizedEmail);
+};
+
+// The one role to show for an account: superadmin | admin | artist | user
+const resolveRole = (user = {}) => {
+  if (isSuperAdmin(user)) return 'superadmin';
+  if (resolveAdminStatus(user)) return 'admin';
+  return String(user?.role || '').trim().toLowerCase() === 'artist' ? 'artist' : 'user';
 };
 
 // ---- ADMIN SESSION TOKENS ----
@@ -1616,12 +1637,13 @@ app.post('/api/login', async (req, res) => {
 
     const normalizedUserEmail = normalizeEmail(user.email);
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(normalizedUserEmail)}$`, $options: 'i' } });
-    const isAdmin = resolveAdminStatus(user);
+    const role = resolveRole(user);
+    const isAdmin = role === 'admin' || role === 'superadmin';
 
-    if (isAdmin) {
+    if (isAdmin && (!user.isAdmin || user.role !== role || user.email !== normalizedUserEmail)) {
       user.email = normalizedUserEmail;
       user.isAdmin = true;
-      user.role = 'admin';
+      user.role = role;
       await user.save();
     }
 
@@ -1640,7 +1662,7 @@ res.status(200).json({
           dailyStreak: profile?.dailyStreak ?? 0,
           lastClaimDate: profile?.lastClaimDate || null,
           isAdmin,
-          role: isAdmin ? 'admin' : (user.role || 'user'),
+          role,
           ...(isAdmin ? { token: createAdminToken(user) } : {})
         }
       });
@@ -1650,6 +1672,109 @@ res.status(200).json({
     }
 });
 // Your banner routes or app.listen should come AFTER that closing line.
+
+// ---- ADMIN: ACCOUNTS & ROLES ----
+// Roles: user, artist, admin, superadmin.
+//  - any admin can list accounts and switch someone between user and artist
+//  - only a super admin can make or remove admins
+//  - super admins / built-in admins (SUPERADMIN_EMAIL, ADMIN_EMAIL) are fixed and can't be changed here
+const ASSIGNABLE_ROLES = ['user', 'artist', 'admin'];
+const CI = { locale: 'en', strength: 2 }; // case-insensitive matching for old accounts with mixed-case emails
+
+const adminClause = () => ({
+  $or: [
+    { isAdmin: true },
+    { role: { $in: ['admin', 'superadmin'] } },
+    { email: { $in: getAdminEmails().map((e) => new RegExp(`^${escapeRegex(e)}$`, 'i')) } }
+  ]
+});
+
+const accountView = (user, profile) => ({
+  id: String(user._id),
+  email: user.email,
+  username: profile?.username || '',
+  fullName: profile?.fullName || '',
+  role: resolveRole(user),
+  locked: getAdminEmails().includes(normalizeEmail(user.email)),
+  verified: Boolean(user.isVerified),
+  createdAt: profile?.createdAt || user._id.getTimestamp()
+});
+
+app.get('/api/admin/accounts', requireAdmin, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().slice(0, 80);
+    const roleFilter = String(req.query.role || '').trim().toLowerCase();
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+    const and = [];
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      const matched = await Profile.find({ $or: [{ username: rx }, { fullName: rx }, { email: rx }] }).select('email').limit(500).lean();
+      and.push({ $or: [{ email: rx }, { email: { $in: matched.map((p) => p.email) } }] });
+    }
+    if (roleFilter === 'admin') and.push(adminClause());
+    else if (roleFilter === 'artist') and.push({ role: 'artist' }, { $nor: [adminClause()] });
+    else if (roleFilter === 'user') and.push({ $nor: [adminClause(), { role: 'artist' }] });
+    const filter = and.length ? { $and: and } : {};
+
+    const [total, users] = await Promise.all([
+      User.countDocuments(filter).collation(CI),
+      User.find(filter).collation(CI).sort({ _id: -1 }).skip((page - 1) * limit).limit(limit).select('email isAdmin role isVerified').lean()
+    ]);
+
+    const profiles = await Profile.find({ email: { $in: users.map((u) => normalizeEmail(u.email)) } })
+      .collation(CI).select('email username fullName createdAt').lean();
+    const byEmail = new Map(profiles.map((p) => [normalizeEmail(p.email), p]));
+
+    res.json({
+      accounts: users.map((u) => accountView(u, byEmail.get(normalizeEmail(u.email)))),
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      canManageAdmins: isSuperAdmin(req.adminUser),
+      you: String(req.adminUser._id)
+    });
+  } catch (error) {
+    console.error('Error loading accounts:', error);
+    res.status(500).json({ message: 'Failed to load accounts.' });
+  }
+});
+
+app.put('/api/admin/accounts/:id/role', requireAdmin, async (req, res) => {
+  try {
+    const nextRole = String(req.body?.role || '').trim().toLowerCase();
+    if (!ASSIGNABLE_ROLES.includes(nextRole)) {
+      return res.status(400).json({ message: 'Role must be user, artist or admin.' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid account.' });
+    }
+
+    const target = await User.findById(req.params.id);
+    if (!target) return res.status(404).json({ message: 'Account not found.' });
+
+    if (String(target._id) === String(req.adminUser._id)) {
+      return res.status(400).json({ message: 'You can’t change your own role.' });
+    }
+    if (getAdminEmails().includes(normalizeEmail(target.email))) {
+      return res.status(403).json({ message: 'This account’s role is set in the server settings (SUPERADMIN_EMAIL / ADMIN_EMAIL) and can’t be changed here.' });
+    }
+    if ((resolveAdminStatus(target) || nextRole === 'admin') && !isSuperAdmin(req.adminUser)) {
+      return res.status(403).json({ message: 'Only a super admin can add or remove admins.' });
+    }
+
+    target.role = nextRole;
+    target.isAdmin = nextRole === 'admin';
+    await target.save();
+
+    const profile = await Profile.findOne({ email: normalizeEmail(target.email) }).collation(CI).select('email username fullName createdAt').lean();
+    res.json({ message: `Role updated to ${nextRole}.`, account: accountView(target.toObject(), profile) });
+  } catch (error) {
+    console.error('Error updating role:', error);
+    res.status(500).json({ message: 'Failed to update the role.' });
+  }
+});
 
 // --- YOUTUBE VIDEO SCHEMA ---
 const videoSchema = new mongoose.Schema({

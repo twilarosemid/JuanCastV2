@@ -53,7 +53,7 @@ export default function Login() {
         return;
       }
 
-      const isAdmin = Boolean(data.user?.isAdmin || data.user?.role === 'admin');
+      const isAdmin = Boolean(data.user?.isAdmin || data.user?.role === 'admin' || data.user?.role === 'superadmin');
       saveUser({ ...data.user, isAdmin, role: data.user?.role || (isAdmin ? 'admin' : 'user') });
 
       // only the email is remembered, never the password

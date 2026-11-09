@@ -33,7 +33,8 @@ const TABS = [
   { key: 'banners', label: 'Banners' },
   { key: 'ads', label: 'Ads' },
   { key: 'landing', label: 'Landing' },
-  { key: 'reports', label: 'Reports' }
+  { key: 'reports', label: 'Reports' },
+  { key: 'accounts', label: 'Accounts' }
 ];
 
 /* crop helper for banners: returns a JPEG File, scaled down to a sensible size */
@@ -948,6 +949,148 @@ function ReportsTab({ reports, loading, ctx }) {
   );
 }
 
+/* ------------------------------------------------------------------ accounts & roles */
+const ROLE_LABEL = { superadmin: 'Super admin', admin: 'Admin', artist: 'Artist', user: 'User' };
+
+function AccountsTab({ ctx }) {
+  const { notify, fail, askConfirm } = ctx;
+  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
+  const [role, setRole] = useState('');
+  const [page, setPage] = useState(1);
+  const [state, setState] = useState({ accounts: [], total: 0, pages: 1, canManageAdmins: false, you: '' });
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState('');
+  const seq = useRef(0);
+
+  // wait for a pause in typing before searching
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(query.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // "not allowed" (403) is a normal answer here, not an expired session
+  const onError = useCallback((err) => (err?.status === 403 ? notify(err.message, 'err') : fail(err)), [notify, fail]);
+
+  useEffect(() => {
+    const mine = ++seq.current;
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: '25' });
+    if (search) params.set('q', search);
+    if (role) params.set('role', role);
+    adminFetch(`/api/admin/accounts?${params}`)
+      .then((data) => { if (mine === seq.current) setState(data); })
+      .catch((err) => { if (mine === seq.current) onError(err); })
+      .finally(() => { if (mine === seq.current) setLoading(false); });
+  }, [page, search, role, onError]);
+
+  const nameOf = (a) => (a.username ? `@${a.username}` : a.email);
+
+  const changeRole = async (account, nextRole) => {
+    setBusyId(account.id);
+    try {
+      const data = await adminFetch(`/api/admin/accounts/${account.id}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: nextRole })
+      });
+      setState((s) => ({ ...s, accounts: s.accounts.map((a) => (a.id === account.id ? data.account : a)) }));
+      notify(`${nameOf(account)} is now ${ROLE_LABEL[nextRole]}.`);
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const pick = (account, nextRole) => {
+    if (nextRole === account.role) return;
+    if (nextRole !== 'admin' && account.role !== 'admin') return changeRole(account, nextRole);
+    const promoting = nextRole === 'admin';
+    askConfirm({
+      title: promoting ? `Make ${nameOf(account)} an admin?` : `Remove admin from ${nameOf(account)}?`,
+      body: promoting
+        ? 'Admins can open this dashboard and edit polls, content, ads and reports.'
+        : `They lose dashboard access and become ${ROLE_LABEL[nextRole].toLowerCase()}.`,
+      confirmLabel: promoting ? 'Make admin' : 'Remove admin',
+      tone: promoting ? 'ok' : 'danger',
+      run: () => changeRole(account, nextRole)
+    });
+  };
+
+  const { accounts, total, pages, canManageAdmins, you } = state;
+  const clear = () => { setQuery(''); setSearch(''); setRole(''); setPage(1); };
+
+  return (
+    <div className="ad-card">
+      <div className="ad-list-head">
+        <h2>Accounts <span className="ad-count">{total}</span></h2>
+      </div>
+      <p className="ad-empty">
+        Set who is a user, an artist or an admin.{' '}
+        {canManageAdmins ? 'As a super admin you can also make or remove admins.' : 'Only a super admin can make or remove admins.'}
+      </p>
+      <div className="ad-filters">
+        <select className="ad-input" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }} aria-label="Filter by role">
+          <option value="">All roles</option>
+          <option value="user">Users</option>
+          <option value="artist">Artists</option>
+          <option value="admin">Admins</option>
+        </select>
+        <input className="ad-input ad-search" type="search" placeholder="Search name, @username or email…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search accounts" />
+        {(query || role) && <button type="button" className="ad-link ad-clear" onClick={clear}>Clear filters</button>}
+      </div>
+
+      {loading && accounts.length === 0 ? <p className="ad-empty">Loading…</p> : accounts.length === 0 ? (
+        <p className="ad-empty">No accounts match.</p>
+      ) : accounts.map((a) => {
+        const isYou = a.id === you;
+        const fixed = a.locked || isYou;
+        const lockedForMe = !fixed && a.role === 'admin' && !canManageAdmins;
+        return (
+          <div className="ad-item" key={a.id}>
+            <span className="ad-thumb" aria-hidden="true"><b>{(a.username || a.email || '?').charAt(0).toUpperCase()}</b></span>
+            <div className="ad-item-body">
+              <div className="ad-item-title">
+                {a.fullName || nameOf(a)}
+                <span className={`ad-chip role-${a.role}`}>{ROLE_LABEL[a.role]}</span>
+                {isYou && <span className="ad-chip">You</span>}
+              </div>
+              <div className="ad-item-sub">{[a.username && `@${a.username}`, a.email].filter(Boolean).join(' · ')}</div>
+              <div className="ad-item-sub">
+                Joined {fmtDate(a.createdAt)}
+                {a.locked && ' · Role is set in the server settings'}
+              </div>
+            </div>
+            <div className="ad-item-actions">
+              <select
+                className="ad-input ad-role-select"
+                value={a.role}
+                disabled={fixed || lockedForMe || busyId === a.id}
+                onChange={(e) => pick(a, e.target.value)}
+                aria-label={`Role for ${nameOf(a)}`}
+              >
+                {a.role === 'superadmin' && <option value="superadmin">Super admin</option>}
+                <option value="user">User</option>
+                <option value="artist">Artist</option>
+                {(canManageAdmins || a.role === 'admin') && <option value="admin" disabled={!canManageAdmins}>Admin</option>}
+              </select>
+            </div>
+          </div>
+        );
+      })}
+
+      {pages > 1 && (
+        <div className="ad-actions ad-pager">
+          <button type="button" className="btn-ghost" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading}>Previous</button>
+          <span className="ad-empty">Page {page} of {pages}</span>
+          <button type="button" className="btn-ghost" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages || loading}>Next</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ the dashboard */
 function Dashboard({ user }) {
   const navigate = useNavigate();
@@ -1368,6 +1511,7 @@ function Dashboard({ user }) {
           {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
           {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
           {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
+          {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
         </section>
       </div>
 

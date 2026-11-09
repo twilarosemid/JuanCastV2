@@ -229,3 +229,12 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
   .ad-form { max-height: none; overflow: visible; }
   .ad-form .ad-actions { position: static; margin: 4px 0 0; padding: 0; background: none; }
 }
+
+/* accounts & roles */
+.ad-chip.role-superadmin { background: rgba(245, 197, 66, .2); color: #ffd870; }
+.ad-chip.role-admin { background: rgba(74, 168, 255, .2); color: #8cc8ff; }
+.ad-chip.role-artist { background: rgba(190, 130, 255, .2); color: #d7b3ff; }
+.ad-role-select { width: auto; min-width: 130px; min-height: 40px; }
+.ad-role-select:disabled { opacity: .55; cursor: not-allowed; }
+.ad-pager { align-items: center; justify-content: center; margin-top: 14px; }
+.ad-pager .ad-empty { margin: 0; }
