@@ -119,6 +119,7 @@ export default function PollDetail() {
   }
   if (!poll) return <div className="polls-status rise">Poll not found.</div>;
 
+  const soloArtist = goal > 0 && artists.length === 1 ? artists[0] : null;
   const top = artists.slice(0, 3);
   const rest = artists.slice(3);
   const entries = top.map((artist, rank) => ({ artist, rank }));
@@ -147,28 +148,6 @@ export default function PollDetail() {
         />
       </div>
 
-      {goal > 0 && (
-        <div className={`goal rise${goalReached ? ' reached' : ''}`} style={{ '--d': '100ms' }}>
-          <div
-            className="goal-track"
-            role="progressbar"
-            aria-label="Fan project goal"
-            aria-valuemin={0}
-            aria-valuemax={goal}
-            aria-valuenow={Math.min(total, goal)}
-          >
-            <div className="goal-head">
-              <span className="goal-label">Suns collected</span>
-              <span className="goal-count"><CountUp value={total} /> / {goal.toLocaleString('en-US')}</span>
-            </div>
-            <div className="goal-bar"><div className="goal-fill" style={{ width: `${barPct}%` }} /></div>
-          </div>
-          <p className="goal-note">
-            {goalReached ? 'Goal reached! Thank you for the support.' : `${(goal - total).toLocaleString('en-US')} more to reach the goal`}
-          </p>
-        </div>
-      )}
-
       <ServerClock text={formatLiveTime(now)} live={!isPollEnded} />
 
       <section className="poll-info rise" style={{ '--d': '140ms' }}>
@@ -185,7 +164,43 @@ export default function PollDetail() {
         <p>{poll.description || 'Show your support and cast your votes!'}</p>
       </section>
 
-      <section className="artist-list">
+      {goal > 0 && (
+        <div className={`goal rise${goalReached ? ' reached' : ''}`} style={{ '--d': '100ms' }}>
+          <div
+            className="goal-track"
+            role="progressbar"
+            aria-label="Fan project goal"
+            aria-valuemin={0}
+            aria-valuemax={goal}
+            aria-valuenow={Math.min(total, goal)}
+          >
+            <div className="goal-head">
+              <span className="goal-label">Suns collected</span>
+              <span className="goal-count"><CountUp value={total} /> / {goal.toLocaleString('en-US')}</span>
+            </div>
+            <div className="goal-bar"><div className="goal-fill" style={{ width: `${barPct}%` }} /></div>
+          </div>
+          <div className="goal-foot">
+            <p className="goal-note">
+              {goalReached ? 'Goal reached! Thank you for the support.' : `${(goal - total).toLocaleString('en-US')} more to reach the goal`}
+            </p>
+            {soloArtist && (
+              <button
+                type="button"
+                className="btn-solid goal-vote"
+                onClick={() => openVoteModal(soloArtist)}
+                disabled={isPollEnded}
+                title={isPollEnded ? 'Poll has ended' : 'Cast vote'}
+              >
+                Cast Vote
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+
+      {!soloArtist && <section className="artist-list">
         {artists.length === 0 ? (
           <div className="polls-empty rise">No artists assigned to this poll yet.</div>
         ) : (
@@ -234,7 +249,7 @@ export default function PollDetail() {
             )}
           </>
         )}
-      </section>
+      </section>}
 
       <VoteModal
         open={voteModalOpen}
