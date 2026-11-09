@@ -289,12 +289,14 @@ const pollSchema = new mongoose.Schema({
   group: { type: String, default: '' },      // ADDED
   type: { type: String, default: '' },      // ADDED
   description: { type: String, default: '' },    // ADDED
+  goal: { type: Number, default: 0, min: 0 },    // fan project goal (total votes to reach); 0 = a normal poll
   imageUrl: { type: String, default: '' },
   fromDate: { type: Date, required: true },
   toDate: { type: Date, required: true },
   createdAt: { type: Date, default: Date.now }
 });
 const Poll = mongoose.model('Poll', pollSchema);
+const cleanGoal = (value) => Math.max(0, Math.floor(Number(value) || 0));
 
 const rankingSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -1206,7 +1208,7 @@ app.get('/api/polls', async (req, res) => {
 app.post('/api/polls', requireAdmin, upload.single('image'), async (req, res) => {
   try {
     // 1. Extract the new fields from req.body
-    const { title, fromDate, toDate, group, type, description } = req.body;
+    const { title, fromDate, toDate, group, type, description, goal } = req.body;
     
     if (!title || !fromDate || !toDate) {
       return res.status(400).json({ message: 'Title, fromDate, and toDate are required.' });
@@ -1218,6 +1220,7 @@ app.post('/api/polls', requireAdmin, upload.single('image'), async (req, res) =>
       group: group || '',     // Default to PPMA if left empty
       type: type || '',      // Default to Minor if left empty
       description: description || '',
+      goal: cleanGoal(goal),
       imageUrl: normalizeImageUrl(req.file ? `/uploads/${req.file.filename}` : ''),
       fromDate: new Date(fromDate),
       toDate: new Date(toDate)
@@ -1251,6 +1254,9 @@ app.put('/api/polls/:id', requireAdmin, upload.single('image'), async (req, res)
       poll.description = req.body.description;
     }
     
+    // an empty goal clears it (turns a fan project back into a normal poll)
+    if (req.body.goal !== undefined) poll.goal = cleanGoal(req.body.goal);
+
     poll.fromDate = req.body.fromDate ? new Date(req.body.fromDate) : poll.fromDate;
     poll.toDate = req.body.toDate ? new Date(req.body.toDate) : poll.toDate;
     

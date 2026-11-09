@@ -174,7 +174,7 @@
 .poll-info h1 { margin: 0 0 8px; font-size: clamp(26px, 3.4vw, 38px); font-weight: 800; }
 .poll-dates { color: var(--muted); font-size: 14px; }
 .poll-type { display: inline-block; margin: 14px 0; padding: 4px 12px; border-radius: 99px; background: rgba(255, 255, 255, .12); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.poll-info p { margin: 0; color: var(--muted); line-height: 1.6; }
+.poll-info p { margin: 0; color: var(--muted); line-height: 1.6; white-space: pre-line; } /* keeps the Note / Reward lines the admin typed */
 
 /* ranking: reuses the podium + list from RankingRow.css */
 .artist-list { margin-top: 8px; }
@@ -239,3 +239,30 @@
   font-weight: 600; font-size: 15px; opacity: .85;
 }
 .view-all-pill:hover { opacity: 1; text-decoration: none; box-shadow: none !important; }
+
+/* ---------- fan project goal: progress bar of total votes toward the goal ---------- */
+.goal { margin: 22px 0 8px; padding: 0 6px; }
+.goal-track {
+  position: relative; height: 46px; border: 4px solid #fff; border-radius: 999px; background: rgba(150, 165, 225, .85);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .28);
+}
+.goal-bar { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
+.goal-fill { height: 100%; border-radius: inherit; background: linear-gradient(180deg, #63c944, #2f8f22); transition: width 1.3s cubic-bezier(.2, .7, .2, 1); }
+.goal.reached .goal-fill { background: linear-gradient(180deg, #ffd45e, #f0a500); }
+.goal-sun {
+  position: absolute; top: 50%; left: clamp(26px, var(--p, 0%), calc(100% - 26px)); width: 58px; height: 58px; object-fit: contain; pointer-events: none;
+  transform: translate(-50%, -50%); transition: left 1.3s cubic-bezier(.2, .7, .2, 1);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .4)); animation: goalSpin 18s linear infinite;
+}
+@keyframes goalSpin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+.goal-text {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 17px; font-weight: 800;
+  letter-spacing: .02em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+}
+.goal-note { margin: 12px 0 0; text-align: center; color: var(--muted); font-size: 13px; font-weight: 600; }
+@media (max-width: 560px) {
+  .goal-track { height: 40px; }
+  .goal-sun { width: 50px; height: 50px; left: clamp(22px, var(--p, 0%), calc(100% - 22px)); }
+  .goal-text { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) { .goal-sun { animation: none; } .goal-fill, .goal-sun { transition: none; } }

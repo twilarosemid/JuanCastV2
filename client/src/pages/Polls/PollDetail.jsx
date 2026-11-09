@@ -8,6 +8,7 @@ import PollStatus from '../../components/PollStatus/PollStatus';
 import { formatDateTime } from '../../utils/pollTime';
 import Reveal from '../../components/Reveal/Reveal';
 import CountUp from '../../components/CountUp/CountUp';
+import SunCurr from '../../assets/SunCurr.png';
 // reuse the Home podium styles so this page looks like the rest of the system
 import '../../components/RankingRow/RankingRow.css';
 import './Polls.css';
@@ -62,6 +63,17 @@ export default function PollDetail() {
   }, [id]);
 
   const isPollEnded = poll ? now > new Date(poll.toDate) : false;
+
+  // fan project: a poll with a goal shows a progress bar of all votes cast so far
+  const goal = Math.max(0, Number(poll?.goal) || 0);
+  const total = artists.reduce((sum, a) => sum + (Number(a.voteCount) || 0), 0);
+  const goalPct = goal ? Math.min(100, (total / goal) * 100) : 0;
+  const goalReached = goal > 0 && total >= goal;
+  const [barPct, setBarPct] = useState(0); // starts empty so the bar fills in when the page opens
+  useEffect(() => {
+    const id = setTimeout(() => setBarPct(goalPct), 250);
+    return () => clearTimeout(id);
+  }, [goalPct]);
 
   const openVoteModal = (artist) => {
     if (isPollEnded) {
@@ -135,6 +147,26 @@ export default function PollDetail() {
           style={{ backgroundImage: poll.imageUrl ? `url("${img(poll.imageUrl)}")` : 'none' }}
         />
       </div>
+
+      {goal > 0 && (
+        <div className={`goal rise${goalReached ? ' reached' : ''}`} style={{ '--d': '100ms' }}>
+          <div
+            className="goal-track"
+            role="progressbar"
+            aria-label="Fan project goal"
+            aria-valuemin={0}
+            aria-valuemax={goal}
+            aria-valuenow={Math.min(total, goal)}
+          >
+            <div className="goal-bar"><div className="goal-fill" style={{ width: `${barPct}%` }} /></div>
+            <img className="goal-sun" src={SunCurr} alt="" style={{ '--p': `${barPct}%` }} />
+            <span className="goal-text"><CountUp value={total} /> / {goal.toLocaleString('en-US')}</span>
+          </div>
+          <p className="goal-note">
+            {goalReached ? 'Goal reached! Thank you for the support.' : `${(goal - total).toLocaleString('en-US')} more to reach the goal`}
+          </p>
+        </div>
+      )}
 
       <ServerClock text={formatLiveTime(now)} live={!isPollEnded} />
 

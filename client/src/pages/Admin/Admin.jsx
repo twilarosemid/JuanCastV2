@@ -1035,18 +1035,19 @@ function Dashboard({ user }) {
         fields: [{ name: 'group', all: 'All groups', options: () => groupNames }],
         match: (p, f) => !f.group || p.group === f.group
       },
-      empty: { title: '', group: '', type: 'Minor', description: '', fromDate: '', toDate: '', image: null },
+      empty: { title: '', group: '', type: 'Minor', description: '', goal: '', fromDate: '', toDate: '', image: null },
       fields: [
         { name: 'title', label: 'Title', required: true, placeholder: 'e.g. Ace of the Year' },
         { name: 'group', label: 'Group', type: 'select', placeholder: 'No group', options: groupNames, half: true },
         { name: 'type', label: 'Type', type: 'select', options: ['Minor', 'Major'], half: true },
         { name: 'description', label: 'Description', type: 'textarea', rows: 3 },
+        { name: 'goal', label: 'Goal (optional)', type: 'number', min: 0, placeholder: 'e.g. 8500', hint: 'Fan project: the poll page shows a progress bar of total votes toward this goal. Leave empty for a normal poll.' },
         { name: 'fromDate', label: 'Starts', type: 'date', required: true, half: true },
         { name: 'toDate', label: 'Ends', type: 'date', required: true, half: true },
         { name: 'image', label: 'Cover image', type: 'file' }
       ],
       validate: (f) => (f.fromDate && f.toDate && f.toDate < f.fromDate ? 'The end date must be after the start date.' : ''),
-      toForm: (p) => ({ title: p.title || '', group: p.group || '', type: p.type || 'Minor', description: p.description || '', fromDate: toDateInput(p.fromDate), toDate: toDateInput(p.toDate), image: null }),
+      toForm: (p) => ({ title: p.title || '', group: p.group || '', type: p.type || 'Minor', description: p.description || '', goal: p.goal ? String(p.goal) : '', fromDate: toDateInput(p.fromDate), toDate: toDateInput(p.toDate), image: null }),
       titleOf: (p) => p.title,
       searchText: (p) => `${p.title} ${p.group} ${p.type}`,
       sort: (a, b) => new Date(b.fromDate || 0) - new Date(a.fromDate || 0),
@@ -1055,7 +1056,10 @@ function Dashboard({ user }) {
         return {
           title: p.title,
           badge: { label: STATUS_LABEL[status], tone: status },
-          lines: [p.fromDate && p.toDate ? `${fmtDate(p.fromDate)} – ${fmtDate(p.toDate)}` : '', [p.group, p.type].filter(Boolean).join(' · ')]
+          lines: [
+            p.fromDate && p.toDate ? `${fmtDate(p.fromDate)} – ${fmtDate(p.toDate)}` : '',
+            [p.group, p.type, p.goal > 0 ? `Goal ${nf.format(p.goal)}` : ''].filter(Boolean).join(' · ')
+          ]
         };
       }
     },
