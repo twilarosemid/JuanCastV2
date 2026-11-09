@@ -5,6 +5,7 @@ import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
 import Feedback from '../../components/Feedback/Feedback';
 import QRCode from '../../components/QRCode/QRCode';
+import { ArtistHero, ArtistFeed } from './ArtistProfile';
 import RewardsCenter from '../../components/RewardsCenter/RewardsCenter';
 import DailyRewards, { dailyState } from '../../components/DailyRewards/DailyRewards';
 import StarCurr from '../../assets/StarCurr.png';
@@ -36,7 +37,10 @@ const toProfile = (data) => ({
   avatar: data.avatar || '',
   totalVotes: Math.max(0, Number(data.totalVotes) || 0),
   followers: Array.isArray(data.followers) ? data.followers : [],
-  following: Array.isArray(data.following) ? data.following : []
+  following: Array.isArray(data.following) ? data.following : [],
+  role: data.role || 'user',
+  coverPhoto: data.coverPhoto || '',
+  bio: data.bio || ''
 });
 
 const UserSvg = () => (
@@ -114,6 +118,7 @@ export default function Profile() {
   const [peopleList, setPeopleList] = useState(null); // 'followers' | 'following' | null
   const [peopleQuery, setPeopleQuery] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
+  const [previewFan, setPreviewFan] = useState(false); // artists: see their own page the way fans see it
   const [linkCopied, setLinkCopied] = useState(false);
   const [people, setPeople] = useState({});            // handle -> { avatar, name } (filled in lazily)
   const [feedback, setFeedback] = useState({ open: false, type: 'error', message: '' });
@@ -134,6 +139,7 @@ export default function Profile() {
   }, [peopleList, profile?.followers, profile?.following]);
 
   useEffect(() => { if (!peopleList) setPeopleQuery(''); }, [peopleList]);
+  useEffect(() => { setPreviewFan(false); }, [routeUsername]);
 
   const say = (type, message) => setFeedback({ open: true, type, message });
   const goLogin = () => navigate('/login', { state: { from: location.pathname } });
@@ -324,6 +330,16 @@ export default function Profile() {
     );
   }
 
+  const balanceChip = (
+    <div className="pf-balance" aria-label="Your balance">
+      <span><img src={SunCurr} alt="Suns" />{(viewer?.suns ?? 0).toLocaleString()}</span>
+      <i aria-hidden="true">/</i>
+      <span><img src={StarCurr} alt="Stars" />{(viewer?.stars ?? 0).toLocaleString()}</span>
+    </div>
+  );
+
+  const isArtist = profile.role === 'artist';
+  const ownView = isOwn && !(isArtist && previewFan); // your own page, unless an artist is previewing it as a fan
   const daily = dailyState(viewer);
   const listHandles = peopleList === 'followers' ? profile.followers : peopleList === 'following' ? profile.following : [];
   const peopleTitle = peopleList === 'following' ? 'Following' : 'Followers';
@@ -349,6 +365,22 @@ export default function Profile() {
 
   return (
     <main className="pf-page">
+      {isArtist ? (
+        <ArtistHero
+          profile={profile}
+          ownView={ownView}
+          isOwn={isOwn}
+          previewing={isOwn && previewFan}
+          onPreview={setPreviewFan}
+          isFollowing={isFollowing}
+          onToggleFollow={toggleFollow}
+          onOpenQR={() => setQrOpen(true)}
+          qrValue={profileUrl}
+          onProfileChange={(patch) => setProfile((p) => ({ ...p, ...patch }))}
+          say={say}
+          balance={balanceChip}
+        />
+      ) : (
       <section className="pf-hero rise">
         <div className="pf-head">
           <div className="pf-ident">
@@ -379,6 +411,7 @@ export default function Profile() {
           </div>
         </div>
       </section>
+      )}
 
       <div className="pf-cols">
         <aside className="pf-side">
@@ -402,7 +435,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {isOwn && (
+          {ownView && (
             <div className="pf-card rise" style={{ '--d': '160ms' }}>
               <h2>Platform Features</h2>
               <div className="pf-features">
@@ -424,6 +457,9 @@ export default function Profile() {
           )}
         </aside>
 
+        {isArtist ? (
+          <ArtistFeed profile={profile} ownView={ownView} viewer={viewer} say={say} goLogin={goLogin} />
+        ) : (
         <section className="pf-feed">
           {isOwn && (
             <div className="pf-card pf-composer rise" style={{ '--d': '120ms' }}>
@@ -501,6 +537,7 @@ export default function Profile() {
             );
           })}
         </section>
+        )}
       </div>
 
       <Modal open={Boolean(peopleList)} onClose={() => setPeopleList(null)} label={peopleTitle} className="pf-people-modal">

@@ -1,0 +1,56 @@
+/* ---------- artist profile: cover + header ---------- */
+.ap-hero { position: relative; }
+.ap-cover {
+  position: relative; height: clamp(150px, 26vw, 270px); background-size: cover; background-position: center; background-color: #0b2f78;
+}
+.ap-cover.empty { background-image: linear-gradient(135deg, #1d5bd6 0%, #0b2f78 55%, #071a4a 100%); }
+.ap-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 55%, rgba(6, 20, 60, .55)); pointer-events: none; }
+.ap-cover-tools { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ap-chip {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  color: #fff; background: rgba(8, 24, 70, .72); border: 1px solid rgba(255, 255, 255, .28); backdrop-filter: blur(8px);
+  transition: transform .2s, background .2s;
+}
+.ap-chip:hover:not(:disabled) { background: rgba(8, 24, 70, .9); transform: translateY(-2px); }
+.ap-chip:disabled { opacity: .6; cursor: progress; }
+.ap-chip.subtle { background: rgba(8, 24, 70, .5); }
+.ap-chip.dark { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .16); }
+
+.ap-head { align-items: flex-end; margin-top: -58px; position: relative; z-index: 1; background: none; padding-top: 0; }
+.ap-hero .ap-avatar.pf-avatar-box { width: 128px; height: 128px; border-color: #0b2f78; }
+.ap-id h1 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.ap-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 6px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .03em; color: #cfe2ff; background: rgba(47, 123, 255, .25); border: 1px solid rgba(127, 176, 255, .4); }
+.ap-badge-ico { width: 16px; height: 16px; flex: 0 0 auto; vertical-align: -3px; margin-left: 4px; }
+.ap-badge .ap-badge-ico { margin: 0; }
+.ap-bio { margin: 8px 0 2px; max-width: 60ch; font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ap-bio-empty { color: var(--muted); font-style: italic; }
+.ap-actions .ap-preview-btn { display: inline-flex; align-items: center; gap: 7px; }
+.ap-preview-banner { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; font-size: 13px; font-weight: 700; color: #cfe2ff; background: rgba(47, 123, 255, .2); border-top: 1px solid rgba(127, 176, 255, .3); }
+
+.ap-bio-input {
+  display: block; width: 100%; box-sizing: border-box; margin: 12px 0 4px; padding: 12px 14px; resize: vertical; border-radius: 14px; font: inherit; font-size: 15px; line-height: 1.5;
+  color: var(--text); background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16);
+}
+.ap-bio-input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.ap-count { margin: 0; font-size: 12px; color: var(--muted); text-align: right; }
+
+/* ---------- composer ---------- */
+.ap-composer-bar { align-items: center; gap: 12px; justify-content: flex-end; }
+.ap-composer-bar .ap-chip { margin-right: auto; }
+.ap-attach { position: relative; margin-top: 12px; width: fit-content; max-width: 100%; }
+.ap-attach img { display: block; max-width: 100%; max-height: 260px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .15); }
+.ap-attach button { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; font-size: 20px; line-height: 1; color: #fff; background: rgba(0, 0, 0, .65); cursor: pointer; }
+
+/* ---------- posts ---------- */
+.ap-post-photo { display: block; width: 100%; max-height: 520px; margin: 0 0 12px; object-fit: cover; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .1); }
+.ap-feed .pf-post header { position: relative; }
+.ap-feed .pf-post header strong { display: inline-flex; align-items: center; }
+.ap-del { margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; color: var(--muted); background: transparent; cursor: pointer; transition: background .2s, color .2s; }
+.ap-del:hover { background: rgba(255, 107, 133, .18); color: #ff6b85; }
+.ap-skel { height: 120px; border-radius: 14px; }
+
+@media (max-width: 560px) {
+  .ap-head { margin-top: -48px; }
+  .ap-hero .ap-avatar.pf-avatar-box { width: 104px; height: 104px; }
+  .ap-cover-tools { right: 10px; bottom: 10px; }
+}

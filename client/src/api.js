@@ -30,7 +30,7 @@ export const saveUser = (user) => {
 };
 
 // Only these fields are copied from a server response into the saved user
-const USER_FIELDS = ['email', 'username', 'fullName', 'avatar', 'followers', 'following', 'stars', 'suns', 'dailyStreak', 'lastClaimDate', 'totalVotes', 'createdAt'];
+const USER_FIELDS = ['email', 'username', 'fullName', 'avatar', 'followers', 'following', 'stars', 'suns', 'dailyStreak', 'lastClaimDate', 'totalVotes', 'createdAt', 'role'];
 export const mergeUser = (base, fresh) => {
   const out = { ...base };
   USER_FIELDS.forEach((key) => { if (fresh?.[key] !== undefined) out[key] = fresh[key]; });
@@ -60,6 +60,7 @@ export const castVote = async (rankingId, user, cost = VOTE_COST, currencyType =
 // ---------- admin ----------
 export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'admin' || user?.role === 'superadmin');
 export const isSuperAdminUser = (user) => user?.role === 'superadmin';
+export const isArtistUser = (user) => user?.role === 'artist';
 
 // Calls an admin-only endpoint. Sends the admin token that the server hands out at login.
 // Pass a FormData body for uploads (the browser sets its own Content-Type).

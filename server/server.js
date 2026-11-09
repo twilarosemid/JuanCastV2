@@ -183,6 +183,12 @@ const resolveRole = (user = {}) => {
   return String(user?.role || '').trim().toLowerCase() === 'artist' ? 'artist' : 'user';
 };
 
+// role of the account that owns a profile (profiles and users are linked by email)
+const roleOfProfile = async (profile) => {
+  const user = await User.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(profile.email))}$`, $options: 'i' } }).select('email isAdmin role').lean();
+  return user ? resolveRole(user) : 'user';
+};
+
 // ---- ADMIN SESSION TOKENS ----
 // Signed with HMAC (built-in crypto, no extra package). Only admins receive one at login.
 // Set ADMIN_TOKEN_SECRET in .env / Render to use your own secret; otherwise one is derived from MONGO_URI.
@@ -225,6 +231,41 @@ const requireAdmin = async (req, res, next) => {
   } catch (error) {
     console.error('Admin auth error:', error);
     res.status(401).json({ message: 'Admin login required. Please log in again.' });
+  }
+};
+
+// Put in front of any route that only artists may use (same signed token as admins; artists get one at login)
+const requireArtist = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const [body, sig] = token.split('.');
+    if (!body || !sig) return res.status(401).json({ message: 'Please log in again to use your artist tools.' });
+
+    const expected = Buffer.from(signToken(body));
+    const given = Buffer.from(sig);
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      return res.status(401).json({ message: 'Invalid session. Please log in again.' });
+    }
+
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload.exp || payload.exp < Date.now()) {
+      return res.status(401).json({ message: 'Session expired. Please log in again.' });
+    }
+
+    const user = await User.findById(payload.id);
+    if (!user || resolveRole(user) !== 'artist') {
+      return res.status(403).json({ message: 'Only artist accounts can do this.' });
+    }
+    const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(user.email))}$`, $options: 'i' } });
+    if (!profile) return res.status(404).json({ message: 'Artist profile not found.' });
+
+    req.artistUser = user;
+    req.artistProfile = profile;
+    next();
+  } catch (error) {
+    console.error('Artist auth error:', error);
+    res.status(401).json({ message: 'Please log in again to use your artist tools.' });
   }
 };
 
@@ -276,7 +317,9 @@ const profileSchema = new mongoose.Schema({
   transactions: { type: [transactionSchema], default: [] },
   lastNameChange: { type: Date },
   lastUsernameChange: { type: Date },
-  totalVotes: { type: Number } // lifetime votes cast; accounts created before this field are backfilled from their vote history
+  totalVotes: { type: Number }, // lifetime votes cast; accounts created before this field are backfilled from their vote history
+  coverPhoto: { type: String, default: '' },              // artist profile cover photo
+  bio: { type: String, default: '', maxlength: 300 }      // artist profile bio
 }, { timestamps: true });
 const Profile = mongoose.model('Profile', profileSchema);
 
@@ -410,6 +453,8 @@ app.get('/api/users/me', async (req, res) => {
 
     res.status(200).json({
       ...profile.toObject(),
+      coverPhoto: normalizeImageUrl(profile.coverPhoto || ''),
+      role: await roleOfProfile(profile),
       totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
     });
@@ -427,6 +472,8 @@ app.get('/api/users/profile/:username', async (req, res) => {
 
     res.status(200).json({
       ...profile.toObject(),
+      coverPhoto: normalizeImageUrl(profile.coverPhoto || ''),
+      role: await roleOfProfile(profile),
       totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
     });
@@ -547,6 +594,8 @@ app.put('/api/users/update-profile', async (req, res) => {
         await Post.updateMany({ user: oldHandle }, { $set: { user: newHandle } });
         await Post.updateMany({ 'replies.user': oldHandle }, { $set: { 'replies.$[r].user': newHandle } }, { arrayFilters: [{ 'r.user': oldHandle }] });
         await Post.updateMany({ likes: oldHandle }, { $set: { 'likes.$[l]': newHandle } }, { arrayFilters: [{ l: oldHandle }] });
+        await ArtistPost.updateMany({ 'replies.user': oldHandle }, { $set: { 'replies.$[r].user': newHandle } }, { arrayFilters: [{ 'r.user': oldHandle }] });
+        await ArtistPost.updateMany({ likes: oldHandle }, { $set: { 'likes.$[l]': newHandle } }, { arrayFilters: [{ l: oldHandle }] });
         await Profile.updateMany({ followers: oldHandle }, { $set: { 'followers.$[f]': newHandle } }, { arrayFilters: [{ f: oldHandle }] });
         await Profile.updateMany({ following: oldHandle }, { $set: { 'following.$[f]': newHandle } }, { arrayFilters: [{ f: oldHandle }] });
         await Notification.updateMany({ recipient: normalizeHandle(oldUsername) }, { $set: { recipient: normalizeHandle(profile.username) } });
@@ -1663,7 +1712,7 @@ res.status(200).json({
           lastClaimDate: profile?.lastClaimDate || null,
           isAdmin,
           role,
-          ...(isAdmin ? { token: createAdminToken(user) } : {})
+          ...(isAdmin || role === 'artist' ? { token: createAdminToken(user) } : {})
         }
       });
     } catch (error) {
@@ -2128,6 +2177,156 @@ app.delete('/api/fanbase-posts/:id', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error deleting fanbase post:', error);
     res.status(500).json({ message: 'Failed to delete post.' });
+  }
+});
+
+// --- ARTIST PROFILES: cover photo, bio and posts ---
+// Only accounts with the "artist" role can post or edit; everyone can read. Set the role from the admin Accounts tab.
+const imageUpload = multer({
+  storage: dbStorage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => (/^image\//.test(file.mimetype || '') ? cb(null, true) : cb(new Error('Only image files are allowed.')))
+});
+// turns a multer/image error into a normal JSON message
+const withImage = (field) => (req, res, next) => imageUpload.single(field)(req, res, (err) => {
+  if (!err) return next();
+  res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'That image is too big (max 8 MB).' : (err.message || 'Upload failed.') });
+});
+
+const artistPostSchema = new mongoose.Schema({
+  artistEmail: { type: String, required: true, index: true },   // owner (stable even if the @username changes)
+  text: { type: String, default: '', maxlength: 2000 },
+  imageUrl: { type: String, default: '' },
+  likes: { type: [String], default: [] },                       // @handles
+  replies: [{
+    user: String,
+    avatar: String,
+    text: String,
+    createdAt: { type: Date, default: Date.now }
+  }],
+  createdAt: { type: Date, default: Date.now }
+});
+const ArtistPost = mongoose.model('ArtistPost', artistPostSchema);
+
+const findProfileByEmail = (email) => Profile.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(email))}$`, $options: 'i' } });
+const removeStoredImage = (url) => {
+  const name = path.basename(String(url || ''));
+  if (name) unlinkUpload(path.join(uploadDir, name));
+};
+
+const serializeArtistPost = (doc, artist) => {
+  const item = doc.toObject ? doc.toObject() : doc;
+  return {
+    _id: item._id,
+    user: `@${artist.username}`,
+    avatar: artist.avatar || '',
+    text: item.text || '',
+    imageUrl: normalizeImageUrl(item.imageUrl || ''),
+    likes: item.likes || [],
+    replies: item.replies || [],
+    createdAt: item.createdAt
+  };
+};
+
+// every post by one artist, newest first (public)
+app.get('/api/artists/:username/posts', async (req, res) => {
+  try {
+    const artist = await Profile.findOne({ username: { $regex: `^${escapeRegex(String(req.params.username).replace(/^@/, ''))}$`, $options: 'i' } });
+    if (!artist) return res.status(404).json({ message: 'Artist not found.' });
+    const posts = await ArtistPost.find({ artistEmail: normalizeEmail(artist.email) }).sort({ createdAt: -1 });
+    res.status(200).json(posts.map((post) => serializeArtistPost(post, artist)));
+  } catch (error) {
+    console.error('Error loading artist posts:', error);
+    res.status(500).json({ message: 'Failed to load posts.' });
+  }
+});
+
+// artist: change own cover photo / bio
+app.put('/api/artist/profile', requireArtist, withImage('cover'), async (req, res) => {
+  try {
+    const profile = req.artistProfile;
+    if (req.body.bio !== undefined) {
+      const bio = String(req.body.bio).trim();
+      if (bio.length > 300) return res.status(400).json({ message: 'Bio can be up to 300 characters.' });
+      profile.bio = bio;
+    }
+    if (req.file) {
+      if (profile.coverPhoto) removeStoredImage(profile.coverPhoto);
+      profile.coverPhoto = `/uploads/${req.file.filename}`;
+    } else if (toBool(req.body.removeCover)) {
+      if (profile.coverPhoto) removeStoredImage(profile.coverPhoto);
+      profile.coverPhoto = '';
+    }
+    await profile.save();
+    res.status(200).json({ coverPhoto: normalizeImageUrl(profile.coverPhoto || ''), bio: profile.bio || '' });
+  } catch (error) {
+    console.error('Error updating artist profile:', error);
+    res.status(500).json({ message: 'Failed to update your artist profile.' });
+  }
+});
+
+// artist: publish a post (text and/or one photo)
+app.post('/api/artist/posts', requireArtist, withImage('image'), async (req, res) => {
+  try {
+    const text = String(req.body.text || '').trim();
+    if (text.length > 2000) return res.status(400).json({ message: 'Posts can be up to 2000 characters.' });
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : '';
+    if (!text && !imageUrl) return res.status(400).json({ message: 'Add some text or a photo.' });
+    const created = await ArtistPost.create({ artistEmail: normalizeEmail(req.artistProfile.email), text, imageUrl });
+    res.status(201).json(serializeArtistPost(created, req.artistProfile));
+  } catch (error) {
+    console.error('Error creating artist post:', error);
+    res.status(500).json({ message: 'Failed to publish your post.' });
+  }
+});
+
+// artist: delete one of their own posts
+app.delete('/api/artist/posts/:id', requireArtist, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
+    const post = await ArtistPost.findOne({ _id: req.params.id, artistEmail: normalizeEmail(req.artistProfile.email) });
+    if (!post) return res.status(404).json({ message: 'Post not found.' });
+    if (post.imageUrl) removeStoredImage(post.imageUrl);
+    await post.deleteOne();
+    res.status(200).json({ message: 'Post deleted.' });
+  } catch (error) {
+    console.error('Error deleting artist post:', error);
+    res.status(500).json({ message: 'Failed to delete the post.' });
+  }
+});
+
+// fans: like / reply (same trust level as the community posts: the app sends the signed-in email)
+app.put('/api/artist-posts/:id/like', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
+    const [post, fan] = await Promise.all([ArtistPost.findById(req.params.id), findProfileByEmail(req.body.email || '')]);
+    if (!post) return res.status(404).json({ message: 'Post not found.' });
+    if (!fan) return res.status(400).json({ message: 'A signed-in user is required.' });
+    const handle = `@${fan.username}`;
+    post.likes = post.likes.includes(handle) ? post.likes.filter((h) => h !== handle) : [...post.likes, handle];
+    await post.save();
+    res.status(200).json({ likes: post.likes });
+  } catch (error) {
+    console.error('Error liking artist post:', error);
+    res.status(500).json({ message: 'Failed to update your like.' });
+  }
+});
+
+app.post('/api/artist-posts/:id/reply', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
+    const text = String(req.body.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'Reply cannot be empty.' });
+    if (text.length > 500) return res.status(400).json({ message: 'Replies can be up to 500 characters.' });
+    const [post, fan] = await Promise.all([ArtistPost.findById(req.params.id), findProfileByEmail(req.body.email || '')]);
+    if (!post) return res.status(404).json({ message: 'Post not found.' });
+    if (!fan) return res.status(400).json({ message: 'A signed-in user is required.' });
+    post.replies.push({ user: `@${fan.username}`, avatar: fan.avatar || '', text });
+    await post.save();
+    res.status(200).json({ replies: post.replies });
+  } catch (error) {
+    console.error('Error replying to artist post:', error);
+    res.status(500).json({ message: 'Failed to send your reply.' });
   }
 });
 
