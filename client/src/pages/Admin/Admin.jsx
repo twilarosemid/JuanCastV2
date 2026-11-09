@@ -21,21 +21,31 @@ const pollStatus = (poll) => {
 };
 const STATUS_LABEL = { live: 'Live', ended: 'Ended', soon: 'Upcoming' };
 
-const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'polls', label: 'Polls' },
-  { key: 'groups', label: 'Poll groups' },
-  { key: 'artists', label: 'Artists' },
-  { key: 'chika', label: 'Chika' },
-  { key: 'contents', label: 'Contents' },
-  { key: 'fanbases', label: 'Fanbases' },
-  { key: 'fanposts', label: 'Fanbase posts' },
-  { key: 'banners', label: 'Banners' },
-  { key: 'ads', label: 'Ads' },
-  { key: 'landing', label: 'Landing' },
-  { key: 'reports', label: 'Reports' },
-  { key: 'accounts', label: 'Accounts' }
+// Sidebar sections, grouped by what the admin is doing
+const NAV = [
+  { group: '', items: [
+    { key: 'overview', label: 'Overview', desc: 'What is live on the site right now.' }
+  ] },
+  { group: 'Content', items: [
+    { key: 'polls', label: 'Polls', desc: 'Create and schedule the polls people vote in.' },
+    { key: 'groups', label: 'Poll groups', desc: 'Groups become the filter chips on the Polls page.' },
+    { key: 'artists', label: 'Artists', desc: 'The artists who receive votes, and the homepage ranking.' },
+    { key: 'chika', label: 'Chika', desc: 'News and updates shown in the Chika section.' },
+    { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' }
+  ] },
+  { group: 'Community', items: [
+    { key: 'accounts', label: 'Accounts', desc: 'Decide who is a user, an artist or an admin.' },
+    { key: 'fanbases', label: 'Fanbases', desc: 'Artist communities people can join.' },
+    { key: 'fanposts', label: 'Board posts', desc: 'Posts that appear on fanbase boards.' },
+    { key: 'reports', label: 'Reports', desc: 'Problems sent in by users. Reply or mark them resolved.' }
+  ] },
+  { group: 'Site', items: [
+    { key: 'banners', label: 'Banners', desc: 'The homepage carousel.' },
+    { key: 'ads', label: 'Ads', desc: 'Ads shown around the site.' },
+    { key: 'landing', label: 'Landing', desc: 'Links and buttons on the landing page.' }
+  ] }
 ];
+const TABS = NAV.flatMap((g) => g.items);
 
 /* crop helper for banners: returns a JPEG File, scaled down to a sensible size */
 const loadImage = (src) => new Promise((resolve, reject) => {
@@ -158,7 +168,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({});
   const [fileKey, setFileKey] = useState(0);
-  const formRef = useRef(null);
+  const [formOpen, setFormOpen] = useState(false);
 
   const setFilter = (name, value) => setFilters((f) => {
     const next = { ...f, [name]: value };
@@ -171,14 +181,22 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     setForm({ ...cfg.empty });
     setEditing(null);
     setFileKey((k) => k + 1);
+    setFormOpen(false);
   };
 
   const startEdit = (item) => {
     setForm({ ...cfg.empty, ...cfg.toForm(item) });
     setEditing(item);
     setFileKey((k) => k + 1);
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setFormOpen(true);
   };
+
+  // "Add" keeps anything already typed; closing an edit throws the edit away
+  const openNew = () => {
+    if (editing) { setForm({ ...cfg.empty }); setEditing(null); setFileKey((k) => k + 1); }
+    setFormOpen(true);
+  };
+  const closeForm = () => { if (saving) return; if (editing) reset(); else setFormOpen(false); };
 
   /* ---- stack several items, then save them all at once (enabled per resource with cfg.stack) ---- */
   const stackable = Boolean(cfg.stack) && !editing;
@@ -231,7 +249,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     setQueue((q) => q.filter((x) => x.id !== entry.id));
     setForm({ ...cfg.empty, ...entry.values });
     setFileKey((k) => k + 1);
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setFormOpen(true);
   };
 
   const saveBatch = async () => {
@@ -266,6 +284,7 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     if (saved.size) {
       setForm({ ...cfg.empty });
       setFileKey((k) => k + 1);
+      if (!failedNames.length && !stopped) setFormOpen(false);
     }
     if (!stopped) {
       const noun = cfg.noun.toLowerCase();
@@ -370,67 +389,33 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
     return out;
   };
 
-  return (
-    <div className="ad-split">
-      <form className="ad-card ad-form" onSubmit={submit} ref={formRef}>
-        <h2>{editing ? `Edit ${cfg.noun.toLowerCase()}` : `Add ${cfg.noun.toLowerCase()}`}</h2>
-        {stackable && <p className="ad-note">Fill one in and press <b>Add to list</b> (or Enter). {cfg.stack.keep.length ? 'Group and category stay filled for the next one. ' : ''}Save them all together when you’re done.</p>}
-        {halfGrid(cfg.fields)}
-        {stackable && queue.length > 0 && (
-          <div className="ad-inline ad-queue">
-            <div className="ad-list-head">
-              <h3>Ready to save <span className="ad-count">{queue.length}</span></h3>
-              <button type="button" className="ad-link" onClick={() => setQueue([])} disabled={saving}>Clear list</button>
-            </div>
-            {queue.map((q) => (
-              <div className="ad-item" key={q.id}>
-                <QueueThumb file={q.values.image} label={q.values.name} />
-                <div className="ad-item-body">
-                  <div className="ad-item-title">{q.values.name}</div>
-                  <div className="ad-item-sub">{[q.values.group, q.values.category].filter(Boolean).join(' · ') || 'No group'}</div>
-                </div>
-                <div className="ad-item-actions">
-                  <button type="button" className="ad-btn" onClick={() => popFromQueue(q)} disabled={saving}>Edit</button>
-                  <button type="button" className="ad-btn danger" onClick={() => setQueue((list) => list.filter((x) => x.id !== q.id))} disabled={saving} aria-label={`Remove ${q.values.name}`}>Remove</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="ad-actions">
-          {stackable && <button type="submit" data-action="add" className="btn-ghost" disabled={saving}>+ Add to list</button>}
-          <button type="submit" data-action="save" className="btn-solid" disabled={saving}>
-            {saving
-              ? (progress ? `Saving ${progress.done}/${progress.total}…` : 'Saving…')
-              : editing ? `Update ${cfg.noun.toLowerCase()}`
-              : stackable && queue.length + (hasDraft() ? 1 : 0) > 1
-                ? `Save ${queue.length + (hasDraft() ? 1 : 0)} ${cfg.noun.toLowerCase()}s`
-                : `Save ${cfg.noun.toLowerCase()}`}
-          </button>
-          {editing && <button type="button" className="btn-ghost" onClick={reset}>Cancel</button>}
-        </div>
-      </form>
+  const countLabel = rows.length === items.length ? `${items.length}` : `${rows.length} of ${items.length}`;
 
-      <div className="ad-card">
-        <div className="ad-list-head">
-          <h2>{cfg.listTitle} <span className="ad-count">{rows.length === items.length ? items.length : `${rows.length} of ${items.length}`}</span></h2>
+  return (
+    <div className="ad-stack">
+      {children}
+
+      <div className="ad-card ad-listcard">
+        <div className="ad-toolbar">
+          <div className="ad-filters">
+            {cfg.filter?.fields.map((fl) => {
+              const options = fl.options(filters);
+              const value = filters[fl.name] || '';
+              return (
+                <select key={fl.name} className="ad-input" value={value} onChange={(e) => setFilter(fl.name, e.target.value)} aria-label={fl.all}>
+                  <option value="">{fl.all}</option>
+                  {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {value && !options.includes(value) && <option value={value}>{value}</option>}
+                </select>
+              );
+            })}
+            <input className="ad-input ad-search" type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search ${cfg.listTitle}`} />
+            {(filtersOn || query) && <button type="button" className="ad-link ad-clear" onClick={clearFilters}>Clear</button>}
+          </div>
+          <span className="ad-count-text">{loading ? '' : `${countLabel} ${countLabel === '1' ? cfg.noun.toLowerCase() : `${cfg.noun.toLowerCase()}s`}`}</span>
+          <button type="button" className="btn-solid ad-add" onClick={openNew}>+ Add {cfg.noun.toLowerCase()}{queue.length > 0 ? ` (${queue.length} waiting)` : ''}</button>
         </div>
-        {children}
-        <div className="ad-filters">
-          {cfg.filter?.fields.map((fl) => {
-            const options = fl.options(filters);
-            const value = filters[fl.name] || '';
-            return (
-              <select key={fl.name} className="ad-input" value={value} onChange={(e) => setFilter(fl.name, e.target.value)} aria-label={fl.all}>
-                <option value="">{fl.all}</option>
-                {options.map((o) => <option key={o} value={o}>{o}</option>)}
-                {value && !options.includes(value) && <option value={value}>{value}</option>}
-              </select>
-            );
-          })}
-          <input className="ad-input ad-search" type="search" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={`Search ${cfg.listTitle}`} />
-          {(filtersOn || query) && <button type="button" className="ad-link ad-clear" onClick={clearFilters}>Clear filters</button>}
-        </div>
+
         {loading ? <p className="ad-empty">Loading…</p> : rows.length === 0 ? (
           <p className="ad-empty">{items.length === 0 ? cfg.empty_text : <>Nothing matches these filters. <button type="button" className="ad-link" onClick={clearFilters}>Show everything</button></>}</p>
         ) : grouped.map(([group, list]) => (
@@ -458,6 +443,47 @@ function ResourceTab({ cfg, items, loading, ctx, children }) {
           </div>
         ))}
       </div>
+
+      <Modal open={formOpen} onClose={closeForm} label={editing ? `Edit ${cfg.noun.toLowerCase()}` : `Add ${cfg.noun.toLowerCase()}`} className="ad-modal ad-form-modal">
+        <form className="ad-form" onSubmit={submit}>
+          <h3>{editing ? `Edit ${cfg.noun.toLowerCase()}` : `Add ${cfg.noun.toLowerCase()}`}</h3>
+          {stackable && <p className="ad-note">Fill one in and press <b>Add to list</b> (or Enter). {cfg.stack.keep.length ? 'Group and category stay filled for the next one. ' : ''}Save them all together when you’re done.</p>}
+          {halfGrid(cfg.fields)}
+          {stackable && queue.length > 0 && (
+            <div className="ad-inline ad-queue">
+              <div className="ad-list-head">
+                <h3>Ready to save <span className="ad-count">{queue.length}</span></h3>
+                <button type="button" className="ad-link" onClick={() => setQueue([])} disabled={saving}>Clear list</button>
+              </div>
+              {queue.map((q) => (
+                <div className="ad-item" key={q.id}>
+                  <QueueThumb file={q.values.image} label={q.values.name} />
+                  <div className="ad-item-body">
+                    <div className="ad-item-title">{q.values.name}</div>
+                    <div className="ad-item-sub">{[q.values.group, q.values.category].filter(Boolean).join(' · ') || 'No group'}</div>
+                  </div>
+                  <div className="ad-item-actions">
+                    <button type="button" className="ad-btn" onClick={() => popFromQueue(q)} disabled={saving}>Edit</button>
+                    <button type="button" className="ad-btn danger" onClick={() => setQueue((list) => list.filter((x) => x.id !== q.id))} disabled={saving} aria-label={`Remove ${q.values.name}`}>Remove</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="ad-actions">
+            {stackable && <button type="submit" data-action="add" className="btn-ghost" disabled={saving}>+ Add to list</button>}
+            <button type="submit" data-action="save" className="btn-solid" disabled={saving}>
+              {saving
+                ? (progress ? `Saving ${progress.done}/${progress.total}…` : 'Saving…')
+                : editing ? `Update ${cfg.noun.toLowerCase()}`
+                : stackable && queue.length + (hasDraft() ? 1 : 0) > 1
+                  ? `Save ${queue.length + (hasDraft() ? 1 : 0)} ${cfg.noun.toLowerCase()}s`
+                  : `Save ${cfg.noun.toLowerCase()}`}
+            </button>
+            {editing && <button type="button" className="btn-ghost" onClick={reset}>Cancel</button>}
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -1413,106 +1439,114 @@ function Dashboard({ user }) {
   const livePolls = data.polls.filter((p) => pollStatus(p) === 'live');
   const totalVotes = data.artists.reduce((sum, a) => sum + (a.voteCount || 0), 0);
   const topArtists = [...data.artists].sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0)).slice(0, 5);
+  const activeAds = data.ads.filter((a) => a.active).length;
   const stats = [
-    { key: 'polls', label: 'Live polls', value: livePolls.length, sub: `${data.polls.length} total` },
-    { key: 'artists', label: 'Artists', value: data.artists.length, sub: `${nf.format(totalVotes)} votes cast` },
-    { key: 'groups', label: 'Poll groups', value: data.groups.length },
-    { key: 'chika', label: 'Chika articles', value: data.chika.length },
-    { key: 'contents', label: 'Contents', value: data.contents.length },
-    { key: 'fanbases', label: 'Fanbases', value: data.fanbases.length, sub: `${data.fanposts.length} posts` },
-    { key: 'banners', label: 'Banners', value: data.banners.length },
-    { key: 'ads', label: 'Ads', value: data.ads.filter((a) => a.active).length, sub: `${data.ads.length} total` },
-    { key: 'reports', label: 'Open reports', value: data.reports.length, tone: data.reports.length ? 'alert' : '' }
+    { key: 'polls', label: 'Live polls', value: livePolls.length, sub: `${data.polls.length} in total` },
+    { key: 'artists', label: 'Votes cast', value: totalVotes, sub: `${data.artists.length} artists` },
+    { key: 'ads', label: 'Ads running', value: activeAds, sub: `${data.ads.length} in total` },
+    { key: 'reports', label: 'Open reports', value: data.reports.length, sub: data.reports.length ? 'Waiting for a reply' : 'All clear', tone: data.reports.length ? 'alert' : '' }
   ];
+  const current = TABS.find((t) => t.key === tab) || TABS[0];
 
   return (
     <main className="ad-page">
-      <div className="ad-inner">
-        <header className="ad-head rise">
-          <div>
-            <h1>Admin Dashboard</h1>
-            <p>Signed in as <b>{user.email}</b></p>
+      <div className="ad-shell">
+        <aside className="ad-side rise">
+          <div className="ad-brand">
+            <strong>Admin</strong>
+            <span title={user.email}>{user.email}</span>
           </div>
-          <Link className="btn-ghost" to="/">View site</Link>
-        </header>
-
-        {sessionBad && (
-          <div className="ad-alert rise" role="alert">
-            <div>
-              <b>Your admin session needs a refresh.</b>
-              <span> Saving changes and reading reports need a fresh admin login.</span>
-            </div>
-            <button type="button" className="btn-solid" onClick={relogin}>Log in again</button>
-          </div>
-        )}
-        {loadError && <div className="ad-alert" role="alert"><span>{loadError}</span><button type="button" className="btn-ghost" onClick={reload}>Retry</button></div>}
-
-        <nav className="ad-tabs rise" style={{ '--d': '80ms' }} aria-label="Admin sections">
-          {TABS.map((t) => (
-            <button key={t.key} type="button" className={`ad-tab ${tab === t.key ? 'on' : ''}`} onClick={() => setTab(t.key)} aria-current={tab === t.key ? 'page' : undefined}>
-              {t.label}
-              {t.key === 'reports' && data.reports.length > 0 && <span className="ad-badge">{data.reports.length}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <section key={tab} className="ad-panel rise" style={{ '--d': '120ms' }}>
-          {tab === 'overview' && (
-            <div className="ad-stack">
-              <div className="ad-stats">
-                {stats.map((s) => (
-                  <button type="button" key={s.key} className={`ad-stat ${s.tone || ''}`} onClick={() => setTab(s.key)}>
-                    <span className="ad-stat-label">{s.label}</span>
-                    <strong>{loading ? '–' : nf.format(s.value)}</strong>
-                    {s.sub && <small>{s.sub}</small>}
+          <nav className="ad-nav" aria-label="Admin sections">
+            {NAV.map((g) => (
+              <div className="ad-nav-group" key={g.group || 'top'}>
+                {g.group && <p className="ad-nav-title">{g.group}</p>}
+                {g.items.map((t) => (
+                  <button key={t.key} type="button" className={`ad-tab ${tab === t.key ? 'on' : ''}`} onClick={() => setTab(t.key)} aria-current={tab === t.key ? 'page' : undefined}>
+                    <span>{t.label}</span>
+                    {t.key === 'reports' && data.reports.length > 0 && <span className="ad-badge">{data.reports.length}</span>}
                   </button>
                 ))}
               </div>
-              <div className="ad-split">
-                <div className="ad-card">
-                  <h2>Polls running now</h2>
-                  {livePolls.length === 0 ? <p className="ad-empty">No live polls. <button type="button" className="ad-link" onClick={() => setTab('polls')}>Create one</button></p> : livePolls.map((p) => (
-                    <div className="ad-item" key={idOf(p)}>
-                      <Thumb url={p.imageUrl} label={p.title} />
-                      <div className="ad-item-body">
-                        <div className="ad-item-title">{p.title}</div>
-                        <div className="ad-item-sub">Ends {fmtDate(p.toDate)}</div>
-                      </div>
-                      <Link className="ad-btn" to={`/polls/${idOf(p)}`}>Open</Link>
-                    </div>
-                  ))}
-                </div>
-                <div className="ad-card">
-                  <h2>Most voted artists</h2>
-                  {topArtists.length === 0 ? <p className="ad-empty">No artists yet.</p> : topArtists.map((a, i) => (
-                    <div className="ad-item" key={idOf(a)}>
-                      <span className="ad-rank">{i + 1}</span>
-                      <Thumb url={a.imageUrl} label={a.name} />
-                      <div className="ad-item-body">
-                        <div className="ad-item-title">{a.name}</div>
-                        <div className="ad-item-sub">{[a.group, a.category].filter(Boolean).join(' · ') || 'Uncategorized'}</div>
-                      </div>
-                      <strong className="ad-votes">{nf.format(a.voteCount || 0)}</strong>
-                    </div>
-                  ))}
-                </div>
+            ))}
+          </nav>
+          <Link className="ad-side-link" to="/">← Back to site</Link>
+        </aside>
+
+        <div className="ad-main">
+          {sessionBad && (
+            <div className="ad-alert rise" role="alert">
+              <div>
+                <b>Your admin session needs a refresh.</b>
+                <span> Saving changes and reading reports need a fresh admin login.</span>
               </div>
+              <button type="button" className="btn-solid" onClick={relogin}>Log in again</button>
             </div>
           )}
+          {loadError && <div className="ad-alert" role="alert"><span>{loadError}</span><button type="button" className="btn-ghost" onClick={reload}>Retry</button></div>}
 
-          {tab === 'polls' && <ResourceTab key="polls" cfg={configs.polls} items={data.polls} loading={loading} ctx={ctx} />}
-          {tab === 'groups' && <ResourceTab key="groups" cfg={configs.groups} items={data.groups} loading={loading} ctx={ctx} />}
-          {tab === 'artists' && <ResourceTab key="artists" cfg={configs.artists} items={data.artists} loading={loading} ctx={ctx}>{featuredCard}</ResourceTab>}
-          {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
-          {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
-          {tab === 'fanbases' && <ResourceTab key="fanbases" cfg={configs.fanbases} items={data.fanbases} loading={loading} ctx={ctx} />}
-          {tab === 'fanposts' && <ResourceTab key="fanposts" cfg={configs.fanposts} items={data.fanposts} loading={loading} ctx={ctx} />}
-          {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
-          {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
-          {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
-          {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
-          {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
-        </section>
+          <header className="ad-title rise" style={{ '--d': '60ms' }}>
+            <h1>{current.label}</h1>
+            <p>{current.desc}</p>
+          </header>
+
+          <section key={tab} className="ad-panel rise" style={{ '--d': '100ms' }}>
+            {tab === 'overview' && (
+              <div className="ad-stack">
+                <div className="ad-stats">
+                  {stats.map((s) => (
+                    <button type="button" key={s.key} className={`ad-stat ${s.tone || ''}`} onClick={() => setTab(s.key)}>
+                      <span className="ad-stat-label">{s.label}</span>
+                      <strong>{loading ? '–' : nf.format(s.value)}</strong>
+                      {s.sub && <small>{s.sub}</small>}
+                    </button>
+                  ))}
+                </div>
+                <div className="ad-split">
+                  <div className="ad-card">
+                    <h2>Polls running now</h2>
+                    {livePolls.length === 0 ? <p className="ad-empty">No live polls. <button type="button" className="ad-link" onClick={() => setTab('polls')}>Create one</button></p> : livePolls.map((p) => (
+                      <div className="ad-item" key={idOf(p)}>
+                        <Thumb url={p.imageUrl} label={p.title} />
+                        <div className="ad-item-body">
+                          <div className="ad-item-title">{p.title}</div>
+                          <div className="ad-item-sub">Ends {fmtDate(p.toDate)}</div>
+                        </div>
+                        <Link className="ad-btn" to={`/polls/${idOf(p)}`}>Open</Link>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="ad-card">
+                    <h2>Most voted artists</h2>
+                    {topArtists.length === 0 ? <p className="ad-empty">No artists yet.</p> : topArtists.map((a, i) => (
+                      <div className="ad-item" key={idOf(a)}>
+                        <span className="ad-rank">{i + 1}</span>
+                        <Thumb url={a.imageUrl} label={a.name} />
+                        <div className="ad-item-body">
+                          <div className="ad-item-title">{a.name}</div>
+                          <div className="ad-item-sub">{[a.group, a.category].filter(Boolean).join(' · ') || 'Uncategorized'}</div>
+                        </div>
+                        <strong className="ad-votes">{nf.format(a.voteCount || 0)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'polls' && <ResourceTab key="polls" cfg={configs.polls} items={data.polls} loading={loading} ctx={ctx} />}
+            {tab === 'groups' && <ResourceTab key="groups" cfg={configs.groups} items={data.groups} loading={loading} ctx={ctx} />}
+            {tab === 'artists' && <ResourceTab key="artists" cfg={configs.artists} items={data.artists} loading={loading} ctx={ctx}>{featuredCard}</ResourceTab>}
+            {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
+            {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
+            {tab === 'fanbases' && <ResourceTab key="fanbases" cfg={configs.fanbases} items={data.fanbases} loading={loading} ctx={ctx} />}
+            {tab === 'fanposts' && <ResourceTab key="fanposts" cfg={configs.fanposts} items={data.fanposts} loading={loading} ctx={ctx} />}
+            {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
+            {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
+            {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
+            {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
+            {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
+          </section>
+        </div>
       </div>
 
       <Modal open={Boolean(confirm)} onClose={() => !confirmBusy && setConfirm(null)} label={confirm?.title || 'Confirm'} role="alertdialog" className="ad-modal">
