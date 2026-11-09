@@ -19,3 +19,21 @@
   .stars-amount { font-size: 19px; }
   .stars-card .mk-price { font-size: 14px; }
 }
+
+/* clickable packages */
+.stars-card { cursor: pointer; }
+.stars-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.stars-card:active { transform: scale(.98); }
+
+/* payment pending disclaimer */
+.modal.pay-modal { width: min(480px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.pay-summary { display: flex; align-items: center; gap: 14px; margin: 4px 0 16px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); }
+.pay-summary img { width: 48px; height: 48px; object-fit: contain; }
+.pay-summary span { display: flex; flex-direction: column; gap: 2px; }
+.pay-summary strong { font-size: 18px; }
+.pay-summary em { font-style: normal; font-weight: 800; color: #ff6b6b; }
+.pay-note { margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; color: #ffe2a8; background: rgba(255, 176, 32, .12); border: 1px solid rgba(255, 190, 70, .4); }
+.pay-note strong { color: #ffc65c; }
+.pay-note a { color: #ffd98a; font-weight: 700; text-underline-offset: 3px; }
+.modal .pay-confirm { margin-bottom: 0; color: var(--text); font-weight: 600; }
+.modal .pay-unavailable { margin: 12px 0 0; color: #ff8a96; font-size: 14px; font-weight: 600; }

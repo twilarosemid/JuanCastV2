@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import Modal from '../../../components/Modal/Modal';
+import { getUser } from '../../../api';
 import STAR1 from '../../../assets/STAR1.png';
 import STAR2 from '../../../assets/STAR2.png';
 import STAR3 from '../../../assets/STAR3.png';
@@ -15,12 +19,40 @@ const starPackages = [
   { amount: 500000, price: 2999, image: STAR6 }
 ];
 
+// Set VITE_PAYMENT_URL in client/.env to the payment page the "I Understand" button redirects to.
+const PAYMENT_URL = import.meta.env.VITE_PAYMENT_URL || '';
+
 export default function StarsShop() {
+  const [selected, setSelected] = useState(null); // the star package being purchased
+  const [unavailable, setUnavailable] = useState(false);
+
+  const choose = (item) => { setUnavailable(false); setSelected(item); };
+  const close = () => setSelected(null);
+
+  const proceed = () => {
+    if (!PAYMENT_URL) { setUnavailable(true); return; }
+    const url = new URL(PAYMENT_URL, window.location.origin);
+    url.searchParams.set('stars', selected.amount);
+    url.searchParams.set('price', selected.price);
+    const user = getUser();
+    if (user?.username) url.searchParams.set('username', user.username);
+    window.location.assign(url.toString());
+  };
+
   return (
     <>
       <div className="stars-grid">
         {starPackages.map((item, i) => (
-          <article className="mk-card stars-card" key={item.amount} style={{ '--i': i }}>
+          <article
+            className="mk-card stars-card"
+            key={item.amount}
+            style={{ '--i': i }}
+            role="button"
+            tabIndex={0}
+            aria-label={`Buy ${item.amount.toLocaleString()} Stars for PHP ${item.price}`}
+            onClick={() => choose(item)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(item); } }}
+          >
             <img className="stars-img" src={item.image} alt="" />
             <strong className="stars-amount">{item.amount.toLocaleString()}</strong>
             <span className="stars-label">Stars</span>
@@ -28,7 +60,27 @@ export default function StarsShop() {
           </article>
         ))}
       </div>
-      <p className="mk-note">Online checkout is not set up yet.</p>
+      {!PAYMENT_URL && <p className="mk-note">Online checkout is not set up yet.</p>}
+
+      <Modal open={Boolean(selected)} onClose={close} label="Payment Pending" className="pay-modal">
+        <h3>Payment Pending</h3>
+        {selected && (
+          <div className="pay-summary">
+            <img src={selected.image} alt="" />
+            <span><strong>{selected.amount.toLocaleString()} Stars</strong><em>PHP {selected.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</em></span>
+          </div>
+        )}
+        <p>Once you have completed payment, please refresh the page to make sure that the stars have been reflected.</p>
+        <div className="pay-note" role="note">
+          <strong>Note:</strong> Once payment is finished please click the “Redirect to Merchant” button. If the tab is closed before the button is clicked, please wait up to 5 minutes for the transaction to be reflected. In the case where the transaction has not yet reflected during the 5 minute period, please contact our team by navigating to the <Link to="/settings/report" onClick={close}>“Report an Issue”</Link> page.
+        </div>
+        <p className="pay-confirm">Click “I Understand” to be redirected to the payment page.</p>
+        {unavailable && <p className="pay-unavailable" role="alert">Online checkout is not set up yet.</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={close}>Cancel</button>
+          <button type="button" className="btn-solid" onClick={proceed}>I Understand</button>
+        </div>
+      </Modal>
     </>
   );
 }
