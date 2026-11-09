@@ -18,15 +18,11 @@ const starPackages = [
   { amount: 500000, price: 2999, image: STAR6 }
 ];
 
-// Packages are listed in order, so the 1st is star_1 ... the 6th is star_6
-const paymentUrl = (item) => `https://juancast.ph/purchase_star.php/?starProductIndex=star_${starPackages.indexOf(item) + 1}`;
-
 export default function StarsShop() {
   const [selected, setSelected] = useState(null); // the star package being purchased
 
   const choose = (item) => setSelected(item);
   const close = () => setSelected(null);
-  const proceed = () => { if (selected) window.location.assign(paymentUrl(selected)); };
 
   return (
     <>
@@ -65,7 +61,7 @@ export default function StarsShop() {
         <p className="pay-confirm">Click “I Understand” to be redirected to the payment page.</p>
         <div className="modal-actions">
           <button type="button" className="btn-ghost" onClick={close}>Cancel</button>
-          <button type="button" className="btn-solid" onClick={proceed}>I Understand</button>
+          <button type="button" className="btn-solid" onClick={close}>I Understand</button>
         </div>
       </Modal>
     </>
