@@ -35,8 +35,8 @@ const NAV = [
   ] },
   { group: 'Community', items: [
     { key: 'accounts', label: 'Accounts', desc: 'Decide who is a user, an artist or an admin.' },
-    { key: 'fanbases', label: 'Fanbases', desc: 'Artist communities people can join.' },
-    { key: 'fanposts', label: 'Board posts', desc: 'Posts that appear on fanbase boards.' },
+    { key: 'fanbases', label: 'Fanbases', desc: 'Artists run their own fanbase. You can feature one or remove it.' },
+    { key: 'fanposts', label: 'Board posts', desc: 'Posts artists wrote on their boards. Remove ones that break the rules.' },
     { key: 'reports', label: 'Reports', desc: 'Problems sent in by users. Reply or mark them resolved.' }
   ] },
   { group: 'Site', items: [
@@ -1034,6 +1034,99 @@ function ReportsTab({ reports, loading, ctx }) {
   );
 }
 
+/* ------------------------------------------------------------------ fanbases (artists run them; admins only moderate) */
+function FanbaseModTab({ fanbases, loading, ctx }) {
+  const { reload, notify, fail, askConfirm } = ctx;
+  const [busyId, setBusyId] = useState('');
+
+  const feature = async (fb) => {
+    setBusyId(idOf(fb));
+    try {
+      await adminFetch(`/api/fanbases/${idOf(fb)}/featured`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featured: !fb.featured })
+      });
+      notify(fb.featured ? 'No longer the featured artist.' : `${fb.name} is now the featured artist.`);
+      await reload();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setBusyId('');
+    }
+  };
+
+  const remove = (fb) => askConfirm({
+    title: 'Delete this fanbase?',
+    body: `“${fb.name}” and all of its board posts will be removed, and subscribers lose access. This can’t be undone.`,
+    confirmLabel: 'Delete',
+    run: async () => {
+      await adminFetch(`/api/fanbases/${idOf(fb)}`, { method: 'DELETE' });
+      notify('Fanbase deleted.');
+      await reload();
+    }
+  });
+
+  return (
+    <div className="ad-card">
+      <div className="ad-list-head">
+        <h2>Fanbases <span className="ad-count">{fanbases.length}</span></h2>
+      </div>
+      <p className="ad-item-sub">Each artist creates and edits their own fanbase from their profile. Here you can feature one on the Fanbase page or remove one that breaks the rules.</p>
+      {loading ? <p className="ad-empty">Loading…</p> : fanbases.length === 0 ? <p className="ad-empty">No fanbases yet. They appear when an artist opens their fanbase tools.</p> : fanbases.map((fb) => (
+        <div className="ad-item" key={idOf(fb)}>
+          <Thumb url={fb.avatarUrl || fb.imageUrl} label={fb.name} />
+          <div className="ad-item-body">
+            <div className="ad-item-title">{fb.name}{fb.featured && <span className="ad-chip live">Featured</span>}{!fb.hasOwner && <span className="ad-chip soon">No artist linked</span>}</div>
+            <div className="ad-item-sub">{`Php ${Number(fb.price || 0).toLocaleString('en-US')}/month · ${Number(fb.subscriberCount || 0).toLocaleString('en-US')} subscribers`}</div>
+          </div>
+          <div className="ad-item-actions">
+            <button type="button" className="ad-btn" disabled={busyId === idOf(fb)} onClick={() => feature(fb)}>{fb.featured ? 'Unfeature' : 'Feature'}</button>
+            <button type="button" className="ad-btn danger" onClick={() => remove(fb)}>Delete</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FanPostsModTab({ fanbases, posts, loading, ctx }) {
+  const { reload, notify, askConfirm } = ctx;
+  const nameOf = (id) => fanbases.find((f) => idOf(f) === id)?.name || 'Deleted fanbase';
+
+  const remove = (post) => askConfirm({
+    title: 'Delete this board post?',
+    body: `This post by ${post.authorName} will be removed from the board. This can’t be undone.`,
+    confirmLabel: 'Delete',
+    run: async () => {
+      await adminFetch(`/api/fanbase-posts/${idOf(post)}`, { method: 'DELETE' });
+      notify('Post deleted.');
+      await reload();
+    }
+  });
+
+  return (
+    <div className="ad-card">
+      <div className="ad-list-head">
+        <h2>Board posts <span className="ad-count">{posts.length}</span></h2>
+      </div>
+      <p className="ad-item-sub">Artists write their own board posts. You can only remove posts here.</p>
+      {loading ? <p className="ad-empty">Loading…</p> : posts.length === 0 ? <p className="ad-empty">No board posts yet.</p> : posts.map((post) => (
+        <div className="ad-item" key={idOf(post)}>
+          <Thumb url={post.imageUrl || post.authorAvatarUrl} label={post.authorName} />
+          <div className="ad-item-body">
+            <div className="ad-item-title">{post.authorName}</div>
+            <div className="ad-item-sub">{[nameOf(post.fanbaseId), (post.text || 'Photo post').slice(0, 90), fmtDate(post.postedAt)].filter(Boolean).join(' · ')}</div>
+          </div>
+          <div className="ad-item-actions">
+            <button type="button" className="ad-btn danger" onClick={() => remove(post)}>Delete</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ accounts & roles */
 const ROLE_LABEL = { superadmin: 'Super admin', admin: 'Admin', artist: 'Artist', user: 'User' };
 
@@ -1408,46 +1501,6 @@ function Dashboard({ user }) {
       searchText: (v) => `${v.title} ${v.subtitle} ${v.group} ${v.platform}`,
       row: (v) => ({ title: v.title, badge: { label: v.platform || 'YouTube', tone: 'soon' }, lines: [v.subtitle, v.group] })
     },
-    fanbases: {
-      endpoint: 'fanbases', noun: 'Fanbase', listTitle: 'Saved fanbases', empty_text: 'No fanbases yet.',
-      empty: { name: '', price: '500', subscriberCount: '0', featured: 'No', image: null, avatar: null },
-      fields: [
-        { name: 'name', label: 'Artist / group name', required: true },
-        { name: 'price', label: 'Subscription (Php per month)', type: 'number', min: 0, half: true },
-        { name: 'subscriberCount', label: 'Subscribers shown', type: 'number', min: 0, half: true },
-        { name: 'featured', label: 'Featured artist', type: 'select', options: ['No', 'Yes'], hint: 'The latest post of the featured artist shows on the Fanbase page. Only one can be featured.' },
-        { name: 'image', label: 'Banner (wide photo)', type: 'file' },
-        { name: 'avatar', label: 'Circle photo', type: 'file', imageKey: 'avatarUrl', hint: 'Shown in the Your Artists / Explore circles.' }
-      ],
-      toForm: (v) => ({ name: v.name || '', price: String(v.price ?? 500), subscriberCount: String(v.subscriberCount ?? 0), featured: v.featured ? 'Yes' : 'No', image: null, avatar: null }),
-      titleOf: (v) => v.name,
-      searchText: (v) => `${v.name}`,
-      row: (v) => ({ title: v.name, badge: v.featured ? { label: 'Featured', tone: 'live' } : undefined, lines: [`Php ${Number(v.price || 0).toLocaleString('en-US')}/month`, `${Number(v.subscriberCount || 0).toLocaleString('en-US')} subscribers`] })
-    },
-
-    fanposts: {
-      endpoint: 'fanbase-posts', noun: 'Post', listTitle: 'Saved posts', empty_text: 'No posts yet.',
-      empty: { fanbaseId: '', authorName: '', verified: 'Yes', text: '', postedAt: '', likes: '0', comments: '0', image: null, authorAvatar: null },
-      fields: [
-        { name: 'fanbaseId', label: 'Artist board', type: 'select', required: true, placeholder: 'Choose an artist', options: () => data.fanbases.map((f) => ({ value: idOf(f), label: f.name })) },
-        { name: 'authorName', label: 'Posted by', required: true, placeholder: 'e.g. Alamat_Rji', half: true },
-        { name: 'verified', label: 'Verified check', type: 'select', options: ['Yes', 'No'], half: true },
-        { name: 'text', label: 'Post text', type: 'textarea', rows: 3 },
-        { name: 'postedAt', label: 'Posted on', type: 'datetime-local', hint: 'Leave empty to use right now.' },
-        { name: 'likes', label: 'Stars', type: 'number', min: 0, half: true },
-        { name: 'comments', label: 'Comments', type: 'number', min: 0, half: true },
-        { name: 'image', label: 'Photo (optional)', type: 'file' },
-        { name: 'authorAvatar', label: 'Poster photo', type: 'file', imageKey: 'authorAvatarUrl' }
-      ],
-      toForm: (v) => ({
-        fanbaseId: v.fanbaseId || '', authorName: v.authorName || '', verified: v.verified === false ? 'No' : 'Yes', text: v.text || '',
-        postedAt: v.postedAt ? new Date(new Date(v.postedAt).getTime() - new Date(v.postedAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '',
-        likes: String(v.likes ?? 0), comments: String(v.comments ?? 0), image: null, authorAvatar: null
-      }),
-      titleOf: (v) => `${v.authorName}: ${(v.text || 'photo').slice(0, 40)}`,
-      searchText: (v) => `${v.authorName} ${v.text} ${data.fanbases.find((f) => idOf(f) === v.fanbaseId)?.name || ''}`,
-      row: (v) => ({ title: v.authorName, lines: [data.fanbases.find((f) => idOf(f) === v.fanbaseId)?.name, (v.text || '').slice(0, 80), fmtDate(v.postedAt)] })
-    }
   };
 
 
@@ -1613,8 +1666,8 @@ function Dashboard({ user }) {
             {tab === 'artists' && <ResourceTab key="artists" cfg={configs.artists} items={data.artists} loading={loading} ctx={ctx}>{featuredCard}</ResourceTab>}
             {tab === 'chika' && <ResourceTab key="chika" cfg={configs.chika} items={data.chika} loading={loading} ctx={ctx}>{headlineCard}</ResourceTab>}
             {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
-            {tab === 'fanbases' && <ResourceTab key="fanbases" cfg={configs.fanbases} items={data.fanbases} loading={loading} ctx={ctx} />}
-            {tab === 'fanposts' && <ResourceTab key="fanposts" cfg={configs.fanposts} items={data.fanposts} loading={loading} ctx={ctx} />}
+            {tab === 'fanbases' && <FanbaseModTab key="fanbases" fanbases={data.fanbases} loading={loading} ctx={ctx} />}
+            {tab === 'fanposts' && <FanPostsModTab key="fanposts" fanbases={data.fanbases} posts={data.fanposts} loading={loading} ctx={ctx} />}
             {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
             {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
             {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}

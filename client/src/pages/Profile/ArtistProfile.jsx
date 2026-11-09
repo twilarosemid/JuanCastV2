@@ -42,6 +42,154 @@ const needsRelogin = () => !getUser()?.token;
 const RELOGIN = 'Please log out and log in again to unlock your artist tools.';
 
 // ---------------------------------------------------------------
+// Your fanbase: you run it. Name, monthly price, photos, and the posts on its board.
+// (Admins can no longer create or edit fanbases; they only feature or remove them.)
+// ---------------------------------------------------------------
+function FanbaseManager({ open, onClose, say }) {
+  const [data, setData] = useState(null); // { fanbase, posts }
+  const [loadError, setLoadError] = useState('');
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('500');
+  const [banner, setBanner] = useState(null);
+  const [circle, setCircle] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [text, setText] = useState('');
+  const [photo, setPhoto] = useState(null);
+  const [posting, setPosting] = useState(false);
+  const [fileKey, setFileKey] = useState(0);
+
+  const preview = (file) => (file ? URL.createObjectURL(file) : '');
+  const fail = (error, fallback) => say('error', error.status === 401 ? RELOGIN : (error.message || fallback));
+
+  useEffect(() => {
+    if (!open) return;
+    if (needsRelogin()) { setLoadError(RELOGIN); return; }
+    setLoadError('');
+    adminFetch('/api/artist/fanbase')
+      .then((res) => {
+        setData(res);
+        setName(res.fanbase.name || '');
+        setPrice(String(res.fanbase.price ?? 500));
+        setBanner(null); setCircle(null);
+      })
+      .catch((error) => setLoadError(error.status === 401 ? RELOGIN : (error.message || 'Could not load your fanbase.')));
+  }, [open]);
+
+  const pickImage = (setter) => (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { say('error', 'Please choose an image file.'); return; }
+    if (file.size > MAX_IMAGE) { say('error', 'That image is too big (max 8 MB).'); return; }
+    setter(file);
+  };
+
+  const save = async () => {
+    if (!name.trim()) { say('error', 'Your fanbase needs a name.'); return; }
+    setSaving(true);
+    try {
+      const form = new FormData();
+      form.append('name', name.trim());
+      form.append('price', price === '' ? '0' : price);
+      if (banner) form.append('image', banner);
+      if (circle) form.append('avatar', circle);
+      const fanbase = await adminFetch('/api/artist/fanbase', { method: 'PUT', body: form });
+      setData((d) => ({ ...d, fanbase }));
+      setBanner(null); setCircle(null);
+      say('success', 'Fanbase updated.');
+    } catch (error) {
+      fail(error, 'Could not save your fanbase.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const publish = async () => {
+    if (!text.trim() && !photo) return;
+    setPosting(true);
+    try {
+      const form = new FormData();
+      form.append('text', text.trim());
+      if (photo) form.append('image', photo);
+      const created = await adminFetch('/api/artist/fanbase/posts', { method: 'POST', body: form });
+      setData((d) => ({ ...d, posts: [created, ...d.posts] }));
+      setText(''); setPhoto(null); setFileKey((k) => k + 1);
+      say('success', 'Posted to your fanbase board.');
+    } catch (error) {
+      fail(error, 'Could not publish your post.');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const removePost = async (id) => {
+    try {
+      await adminFetch(`/api/artist/fanbase/posts/${id}`, { method: 'DELETE' });
+      setData((d) => ({ ...d, posts: d.posts.filter((p) => p._id !== id) }));
+    } catch (error) {
+      fail(error, 'Could not delete the post.');
+    }
+  };
+
+  const fb = data?.fanbase;
+  const bannerSrc = banner ? preview(banner) : img(fb?.imageUrl);
+  const circleSrc = circle ? preview(circle) : img(fb?.avatarUrl);
+
+  return (
+    <Modal open={open} onClose={onClose} label="Manage your fanbase" className="ap-fb-modal">
+      <h3>Your fanbase</h3>
+      {loadError ? <p className="ap-fb-note">{loadError}</p> : !data ? <p className="ap-fb-note">Loading…</p> : (
+        <>
+          <div className="ap-fb-banner" style={bannerSrc ? { backgroundImage: `url("${bannerSrc}")` } : undefined}>
+            <span className="ap-fb-circle" style={circleSrc ? { backgroundImage: `url("${circleSrc}")` } : undefined} />
+          </div>
+          <div className="ap-fb-files">
+            <label className="ap-chip dark"><CameraIcon /> Banner<input key={`b${fileKey}`} type="file" accept="image/*" hidden onChange={pickImage(setBanner)} /></label>
+            <label className="ap-chip dark"><CameraIcon /> Circle photo<input key={`c${fileKey}`} type="file" accept="image/*" hidden onChange={pickImage(setCircle)} /></label>
+          </div>
+
+          <label className="ap-fb-field"><span>Fanbase name</span>
+            <input className="ap-input" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="ap-fb-field"><span>Subscription (Php per month)</span>
+            <input className="ap-input" type="number" min="0" max="100000" value={price} onChange={(e) => setPrice(e.target.value)} />
+          </label>
+          <div className="modal-actions">
+            <button type="button" className="btn-solid" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+          </div>
+
+          <h4 className="ap-fb-sub">Board posts</h4>
+          <p className="ap-fb-note">Only subscribers can read these.</p>
+          <textarea className="ap-bio-input" rows={3} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Share something with your subscribers…" />
+          <div className="ap-fb-files">
+            <label className="ap-chip dark"><ImageIcon /> {photo ? photo.name.slice(0, 24) : 'Photo'}<input key={`p${fileKey}`} type="file" accept="image/*" hidden onChange={pickImage(setPhoto)} /></label>
+            {photo && <button type="button" className="ap-chip subtle" onClick={() => { setPhoto(null); setFileKey((k) => k + 1); }}>Remove photo</button>}
+            <button type="button" className="btn-solid ap-fb-post" onClick={publish} disabled={posting || (!text.trim() && !photo)}>{posting ? 'Posting…' : 'Post'}</button>
+          </div>
+
+          {data.posts.length === 0 ? <p className="ap-fb-note">No board posts yet.</p> : (
+            <ul className="ap-fb-posts">
+              {data.posts.map((post) => (
+                <li key={post._id}>
+                  <div>
+                    <p>{post.text || 'Photo post'}</p>
+                    <small>{timeAgo(post.postedAt)}</small>
+                  </div>
+                  <button type="button" className="ap-del" onClick={() => removePost(post._id)} aria-label="Delete post" title="Delete post"><TrashIcon /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn-ghost" onClick={onClose}>Close</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------
 // The top of an artist profile: cover photo, avatar, name, bio, actions.
 // Own page (ownView): change cover, edit bio, preview as fan. Anyone else: Follow + share.
 // ---------------------------------------------------------------
@@ -50,6 +198,7 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
   const [busy, setBusy] = useState(false);
   const [bioOpen, setBioOpen] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
+  const [fanbaseOpen, setFanbaseOpen] = useState(false);
 
   const saveProfile = async (form) => {
     if (needsRelogin()) { say('error', RELOGIN); return false; }
@@ -104,7 +253,7 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
         )}
       </div>
 
-      <div className="ap-head">
+      <div className="pf-head ap-head">
         <div className="pf-ident ap-ident">
           <Avatar src={profile.avatar} className="pf-avatar ap-avatar" />
           <button type="button" className="pf-qr" onClick={onOpenQR} aria-label="Show profile QR code" title="Profile QR">
@@ -127,6 +276,7 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
             <>
               <button type="button" className="btn-ghost" onClick={openBio}>{profile.bio ? 'Edit bio' : 'Add bio'}</button>
               <Link className="btn-ghost" to="/profile/edit">Edit Profile</Link>
+              <button type="button" className="btn-ghost" onClick={() => setFanbaseOpen(true)}>Manage fanbase</button>
               <button type="button" className="btn-ghost ap-preview-btn" onClick={() => onPreview(true)} title="See your page the way fans see it"><EyeIcon /> Preview as fan</button>
             </>
           )}
@@ -143,6 +293,8 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
       </div>
 
       {previewing && <div className="ap-preview-banner" role="status"><EyeIcon /> You&apos;re previewing your page as a fan sees it.</div>}
+
+      {ownView && <FanbaseManager open={fanbaseOpen} onClose={() => setFanbaseOpen(false)} say={say} />}
 
       <Modal open={bioOpen} onClose={() => setBioOpen(false)} label="Edit bio">
         <h3>{profile.bio ? 'Edit bio' : 'Add a bio'}</h3>

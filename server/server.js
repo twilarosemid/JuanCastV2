@@ -1951,6 +1951,7 @@ const fanbaseSchema = new mongoose.Schema({
   price: { type: Number, default: 500, min: 0 },            // Php per month
   subscriberCount: { type: Number, default: 0, min: 0 },
   featured: { type: Boolean, default: false },              // its latest post is the "Featured Artist" post
+  ownerEmail: { type: String, default: '', index: true },   // the artist account that runs this fanbase
   createdAt: { type: Date, default: Date.now }
 });
 const Fanbase = mongoose.model('Fanbase', fanbaseSchema);
@@ -1980,8 +1981,8 @@ const toCount = (value, fallback = 0) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 const serializeFanbase = (doc) => {
-  const item = doc.toObject ? doc.toObject() : doc;
-  return { ...item, imageUrl: normalizeImageUrl(item.imageUrl), avatarUrl: normalizeImageUrl(item.avatarUrl) };
+  const { ownerEmail, ...item } = doc.toObject ? doc.toObject() : doc;
+  return { ...item, imageUrl: normalizeImageUrl(item.imageUrl), avatarUrl: normalizeImageUrl(item.avatarUrl), hasOwner: Boolean(ownerEmail) };
 };
 const serializeFanbasePost = (doc) => {
   const item = doc.toObject ? doc.toObject() : doc;
@@ -2076,47 +2077,21 @@ app.put('/api/users/fanbases', async (req, res) => {
   }
 });
 
-// ---- admin: fanbases ----
-app.post('/api/fanbases', requireAdmin, fanbaseUpload, async (req, res) => {
-  try {
-    const name = String(req.body.name || '').trim();
-    if (!name) return res.status(400).json({ message: 'Name is required.' });
-    const featured = toBool(req.body.featured);
-    const created = await Fanbase.create({
-      name,
-      imageUrl: uploadedUrl(req, 'image') || '',
-      avatarUrl: uploadedUrl(req, 'avatar') || '',
-      price: toCount(req.body.price, 500),
-      subscriberCount: toCount(req.body.subscriberCount),
-      featured
-    });
-    if (featured) await dropOtherFeatured(created._id);
-    res.status(201).json(serializeFanbase(created));
-  } catch (error) {
-    console.error('Error creating fanbase:', error);
-    res.status(500).json({ message: 'Failed to create fanbase.' });
-  }
-});
-
-app.put('/api/fanbases/:id', requireAdmin, fanbaseUpload, async (req, res) => {
+// ---- fanbases belong to their artist ----
+// Admins can no longer create or edit fanbases or their posts (artists do that from their own profile).
+// Admins keep two moderation tools: choose the featured artist, and remove a fanbase or post.
+app.put('/api/fanbases/:id/featured', requireAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
     const fanbase = await Fanbase.findById(req.params.id);
     if (!fanbase) return res.status(404).json({ message: 'Fanbase not found.' });
-    if (req.body.name !== undefined) fanbase.name = String(req.body.name).trim() || fanbase.name;
-    if (req.body.price !== undefined) fanbase.price = toCount(req.body.price, fanbase.price);
-    if (req.body.subscriberCount !== undefined) fanbase.subscriberCount = toCount(req.body.subscriberCount, fanbase.subscriberCount);
-    if (req.body.featured !== undefined) fanbase.featured = toBool(req.body.featured);
-    const banner = uploadedUrl(req, 'image');
-    const avatar = uploadedUrl(req, 'avatar');
-    if (banner) fanbase.imageUrl = banner;
-    if (avatar) fanbase.avatarUrl = avatar;
+    fanbase.featured = toBool(req.body.featured);
     await fanbase.save();
     if (fanbase.featured) await dropOtherFeatured(fanbase._id);
     res.status(200).json(serializeFanbase(fanbase));
   } catch (error) {
-    console.error('Error updating fanbase:', error);
-    res.status(500).json({ message: 'Failed to update fanbase.' });
+    console.error('Error featuring fanbase:', error);
+    res.status(500).json({ message: 'Failed to update the featured artist.' });
   }
 });
 
@@ -2142,62 +2117,6 @@ app.get('/api/fanbase-posts', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error fetching fanbase posts:', error);
     res.status(500).json({ message: 'Failed to load posts.' });
-  }
-});
-
-app.post('/api/fanbase-posts', requireAdmin, fanbasePostUpload, async (req, res) => {
-  try {
-    const authorName = String(req.body.authorName || '').trim();
-    const text = String(req.body.text || '').trim();
-    if (!mongoose.isValidObjectId(req.body.fanbaseId) || !(await Fanbase.exists({ _id: req.body.fanbaseId }))) {
-      return res.status(400).json({ message: 'Pick an artist for this post.' });
-    }
-    if (!authorName) return res.status(400).json({ message: 'Author name is required.' });
-    const imageUrl = uploadedUrl(req, 'image') || '';
-    if (!text && !imageUrl) return res.status(400).json({ message: 'Add some text or a photo.' });
-    const postedAt = req.body.postedAt ? new Date(req.body.postedAt) : new Date();
-    const created = await FanbasePost.create({
-      fanbaseId: String(req.body.fanbaseId),
-      authorName,
-      authorAvatarUrl: uploadedUrl(req, 'authorAvatar') || '',
-      verified: toBool(req.body.verified, true),
-      text,
-      imageUrl,
-      likes: toCount(req.body.likes),
-      comments: toCount(req.body.comments),
-      postedAt: Number.isNaN(postedAt.getTime()) ? new Date() : postedAt
-    });
-    res.status(201).json(serializeFanbasePost(created));
-  } catch (error) {
-    console.error('Error creating fanbase post:', error);
-    res.status(500).json({ message: 'Failed to create post.' });
-  }
-});
-
-app.put('/api/fanbase-posts/:id', requireAdmin, fanbasePostUpload, async (req, res) => {
-  try {
-    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
-    const post = await FanbasePost.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: 'Post not found.' });
-    if (req.body.fanbaseId !== undefined && mongoose.isValidObjectId(req.body.fanbaseId) && await Fanbase.exists({ _id: req.body.fanbaseId })) post.fanbaseId = String(req.body.fanbaseId);
-    if (req.body.authorName !== undefined) post.authorName = String(req.body.authorName).trim() || post.authorName;
-    if (req.body.text !== undefined) post.text = String(req.body.text).trim();
-    if (req.body.verified !== undefined) post.verified = toBool(req.body.verified, true);
-    if (req.body.likes !== undefined) post.likes = toCount(req.body.likes, post.likes);
-    if (req.body.comments !== undefined) post.comments = toCount(req.body.comments, post.comments);
-    if (req.body.postedAt) {
-      const when = new Date(req.body.postedAt);
-      if (!Number.isNaN(when.getTime())) post.postedAt = when;
-    }
-    const photo = uploadedUrl(req, 'image');
-    const avatar = uploadedUrl(req, 'authorAvatar');
-    if (photo) post.imageUrl = photo;
-    if (avatar) post.authorAvatarUrl = avatar;
-    await post.save();
-    res.status(200).json(serializeFanbasePost(post));
-  } catch (error) {
-    console.error('Error updating fanbase post:', error);
-    res.status(500).json({ message: 'Failed to update post.' });
   }
 });
 
@@ -2324,6 +2243,104 @@ app.delete('/api/artist/posts/:id', requireArtist, async (req, res) => {
     res.status(200).json({ message: 'Post deleted.' });
   } catch (error) {
     console.error('Error deleting artist post:', error);
+    res.status(500).json({ message: 'Failed to delete the post.' });
+  }
+});
+
+// --- ARTIST: manage your own fanbase (name, price, photos, board posts) ---
+const withImages = (fields) => (req, res, next) => imageUpload.fields(fields)(req, res, (err) => {
+  if (!err) return next();
+  res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'That image is too big (max 8 MB).' : (err.message || 'Upload failed.') });
+});
+const artistFanbaseUpload = withImages([{ name: 'image', maxCount: 1 }, { name: 'avatar', maxCount: 1 }]);
+const artistBoardUpload = withImages([{ name: 'image', maxCount: 1 }]);
+const artistDisplayName = (profile) => String(profile.fullName || profile.username || 'Artist').trim();
+
+// the artist's fanbase: made on first use; an older fanbase that carries their name and has no owner yet is claimed instead
+const ensureArtistFanbase = async (profile) => {
+  const email = normalizeEmail(profile.email);
+  let fanbase = await Fanbase.findOne({ ownerEmail: email });
+  if (fanbase) return fanbase;
+  const name = artistDisplayName(profile);
+  fanbase = await Fanbase.findOne({ ownerEmail: '', name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' } });
+  if (fanbase) {
+    fanbase.ownerEmail = email;
+    await fanbase.save();
+    return fanbase;
+  }
+  return Fanbase.create({ name, ownerEmail: email, avatarUrl: profile.avatar || '', imageUrl: profile.coverPhoto || '' });
+};
+
+app.get('/api/artist/fanbase', requireArtist, async (req, res) => {
+  try {
+    const fanbase = await ensureArtistFanbase(req.artistProfile);
+    const posts = await FanbasePost.find({ fanbaseId: String(fanbase._id) }).sort({ postedAt: -1 });
+    res.status(200).json({ fanbase: serializeFanbase(fanbase), posts: posts.map(serializeFanbasePost) });
+  } catch (error) {
+    console.error('Error loading artist fanbase:', error);
+    res.status(500).json({ message: 'Failed to load your fanbase.' });
+  }
+});
+
+app.put('/api/artist/fanbase', requireArtist, artistFanbaseUpload, async (req, res) => {
+  try {
+    const fanbase = await ensureArtistFanbase(req.artistProfile);
+    if (req.body.name !== undefined) {
+      const name = String(req.body.name).trim();
+      if (!name) return res.status(400).json({ message: 'Your fanbase needs a name.' });
+      if (name.length > 60) return res.status(400).json({ message: 'Fanbase names can be up to 60 characters.' });
+      fanbase.name = name;
+    }
+    if (req.body.price !== undefined) {
+      const price = Number(req.body.price);
+      if (!Number.isFinite(price) || price < 0 || price > 100000) return res.status(400).json({ message: 'Enter a monthly price between 0 and 100,000.' });
+      fanbase.price = Math.round(price);
+    }
+    const banner = uploadedUrl(req, 'image');
+    const avatar = uploadedUrl(req, 'avatar');
+    if (banner) { if (fanbase.imageUrl) removeStoredImage(fanbase.imageUrl); fanbase.imageUrl = banner; }
+    if (avatar) { if (fanbase.avatarUrl) removeStoredImage(fanbase.avatarUrl); fanbase.avatarUrl = avatar; }
+    await fanbase.save();
+    res.status(200).json(serializeFanbase(fanbase));
+  } catch (error) {
+    console.error('Error updating artist fanbase:', error);
+    res.status(500).json({ message: 'Failed to update your fanbase.' });
+  }
+});
+
+app.post('/api/artist/fanbase/posts', requireArtist, artistBoardUpload, async (req, res) => {
+  try {
+    const fanbase = await ensureArtistFanbase(req.artistProfile);
+    const text = String(req.body.text || '').trim();
+    if (text.length > 2000) return res.status(400).json({ message: 'Posts can be up to 2000 characters.' });
+    const imageUrl = uploadedUrl(req, 'image') || '';
+    if (!text && !imageUrl) return res.status(400).json({ message: 'Add some text or a photo.' });
+    const created = await FanbasePost.create({
+      fanbaseId: String(fanbase._id),
+      authorName: artistDisplayName(req.artistProfile),
+      authorAvatarUrl: req.artistProfile.avatar || '',
+      verified: true,
+      text,
+      imageUrl
+    });
+    res.status(201).json(serializeFanbasePost(created));
+  } catch (error) {
+    console.error('Error creating fanbase post:', error);
+    res.status(500).json({ message: 'Failed to publish your board post.' });
+  }
+});
+
+app.delete('/api/artist/fanbase/posts/:id', requireArtist, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
+    const fanbase = await ensureArtistFanbase(req.artistProfile);
+    const post = await FanbasePost.findOne({ _id: req.params.id, fanbaseId: String(fanbase._id) });
+    if (!post) return res.status(404).json({ message: 'Post not found.' });
+    if (post.imageUrl) removeStoredImage(post.imageUrl);
+    await post.deleteOne();
+    res.status(200).json({ message: 'Post deleted.' });
+  } catch (error) {
+    console.error('Error deleting fanbase post:', error);
     res.status(500).json({ message: 'Failed to delete the post.' });
   }
 });

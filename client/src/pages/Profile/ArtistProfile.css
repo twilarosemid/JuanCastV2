@@ -54,3 +54,21 @@
   .ap-hero .ap-avatar.pf-avatar-box { width: 104px; height: 104px; }
   .ap-cover-tools { right: 10px; bottom: 10px; }
 }
+
+/* ---------- your fanbase (manage modal) ---------- */
+.modal.ap-fb-modal { width: min(560px, 100%); max-height: 88vh; overflow-y: auto; }
+.ap-fb-banner { position: relative; height: 130px; margin: 10px 0 44px; border-radius: 16px; background: linear-gradient(135deg, #1d5bd6, #0b2f78) center / cover; }
+.ap-fb-circle { position: absolute; left: 16px; bottom: -34px; width: 76px; height: 76px; border-radius: 50%; border: 3px solid #0b2f78; background: #1d5bd6 center / cover; }
+.ap-fb-files { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.ap-fb-files .ap-chip { cursor: pointer; }
+.ap-fb-post { margin-left: auto; }
+.ap-fb-field { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+.ap-input { box-sizing: border-box; width: 100%; padding: 11px 14px; border-radius: 12px; font: inherit; font-size: 15px; color: var(--text); background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); }
+.ap-input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.ap-fb-sub { margin: 22px 0 2px; font-size: 16px; }
+.ap-fb-note { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
+.ap-fb-posts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ap-fb-posts li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .06); }
+.ap-fb-posts li > div { flex: 1; min-width: 0; }
+.ap-fb-posts p { margin: 0; font-size: 14px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ap-fb-posts small { color: var(--muted); }
