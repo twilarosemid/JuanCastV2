@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { API, saveUser } from '../../../api';
 import Modal from '../../../components/Modal/Modal';
@@ -11,6 +11,17 @@ const spinPackages = [
   { spins: 70, price: 150 },
   { spins: 100, price: 200 }
 ];
+
+// the numbers on the reels (same set the server draws from)
+const SET = [0, 5, 10, 25, 50, 100];
+const L = SET.length;
+const REPEAT = 3;                       // strip = the set repeated, so the reel can wrap without a visible jump
+const CELL_PCT = 100 / (L * REPEAT);    // one cell, as a % of the strip height (the window shows 3 cells)
+const REST = [1, 3, 5];                 // reels rest on 5 / 25 / 100 before the first spin
+const SPIN_SPEED = 20;                  // cells per second at full speed
+const MIN_SPIN_MS = 1400;               // reels spin at least this long before the first one starts to stop
+const STOP_GAP_MS = 650;                // each next reel stops this much later (left to right)
+const mod = (n, m) => ((n % m) + m) % m;
 
 const parseApiResponse = async (response) => {
   const contentType = response.headers.get('content-type') || '';
@@ -28,25 +39,88 @@ export default function Spin({ user }) {
   const location = useLocation();
   const email = user?.email;
   const [spinStatus, setSpinStatus] = useState({ spinsRemaining: 15, stars: 0, cooldownEndsAt: null });
-  const [spinValues, setSpinValues] = useState([0, 0, 0]);
+  const [spinValues, setSpinValues] = useState(REST.map((i) => SET[i]));
   const [message, setMessage] = useState('');
   const [spinning, setSpinning] = useState(false);
-  const [rolling, setRolling] = useState(false);
+  const [phases, setPhases] = useState(['idle', 'idle', 'idle']); // per reel: idle | spin | landed
+  const [winSlots, setWinSlots] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [packsOpen, setPacksOpen] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState('');
 
-  // stop the reels if the tab is hidden or restored from the back/forward cache
-  useEffect(() => {
-    const stopHidden = () => { if (document.visibilityState === 'hidden') setRolling(false); };
-    const stopRestore = () => setRolling(false);
-    document.addEventListener('visibilitychange', stopHidden);
-    window.addEventListener('pageshow', stopRestore);
-    return () => {
-      document.removeEventListener('visibilitychange', stopHidden);
-      window.removeEventListener('pageshow', stopRestore);
-    };
+  // ---- reel engine: each reel is a vertical strip moved by requestAnimationFrame (no re-render per frame) ----
+  const stripRefs = useRef([]);
+  const pos = useRef([...REST]);
+  const reels = useRef([0, 1, 2].map(() => ({ mode: 'idle' })));
+  const frame = useRef(0);
+  const landedCount = useRef(0);
+  const allLanded = useRef(null);
+
+  const setPhase = (i, value) => setPhases((cur) => cur.map((p, n) => (n === i ? value : p)));
+
+  const paint = (i) => {
+    const el = stripRefs.current[i];
+    if (!el) return;
+    const c = mod(pos.current[i], L) + L; // keep the centre cell in the middle copy of the strip
+    el.style.transform = `translate3d(0, ${-(c - 1) * CELL_PCT}%, 0)`;
+  };
+
+  useLayoutEffect(() => {
+    [0, 1, 2].forEach(paint);
+    return () => cancelAnimationFrame(frame.current);
   }, []);
+
+  const tick = (t) => {
+    let busy = false;
+    reels.current.forEach((a, i) => {
+      if (a.mode === 'spin') {
+        const dt = Math.min(0.05, Math.max(0, (t - a.last) / 1000));
+        a.last = t;
+        a.speed = Math.min(SPIN_SPEED, a.speed + (SPIN_SPEED * dt) / 0.4); // wind up to full speed
+        pos.current[i] += a.speed * dt;
+        if (a.stopAt && t >= a.stopAt) {
+          // brake: ease-out that starts at the current speed and lands exactly on the result
+          let dist = mod(a.target - pos.current[i], L);
+          while (dist < 5) dist += L;
+          a.mode = 'stop';
+          a.p0 = pos.current[i];
+          a.dist = dist;
+          a.t0 = t;
+          a.dur = ((3 * dist) / Math.max(a.speed, 4)) * 1000;
+        }
+        busy = true;
+      } else if (a.mode === 'stop') {
+        const u = Math.min(1, (t - a.t0) / a.dur);
+        pos.current[i] = a.p0 + a.dist * (1 - Math.pow(1 - u, 3));
+        if (u >= 1) {
+          a.mode = 'idle';
+          pos.current[i] = a.target;
+          setPhase(i, 'landed');
+          landedCount.current += 1;
+          if (landedCount.current >= 3) allLanded.current?.();
+        } else {
+          busy = true;
+        }
+      }
+      paint(i);
+    });
+    frame.current = busy ? requestAnimationFrame(tick) : 0;
+  };
+
+  const startReels = () => {
+    landedCount.current = 0;
+    const t = performance.now();
+    reels.current = [0, 1, 2].map(() => ({ mode: 'spin', last: t, speed: 0, stopAt: 0, target: 0 }));
+    setPhases(['spin', 'spin', 'spin']);
+    if (!frame.current) frame.current = requestAnimationFrame(tick);
+  };
+
+  const snapReels = () => {
+    reels.current = [0, 1, 2].map(() => ({ mode: 'idle' }));
+    pos.current = pos.current.map((v) => Math.round(v));
+    [0, 1, 2].forEach(paint);
+    setPhases(['idle', 'idle', 'idle']);
+  };
 
   // load spins left + cooldown
   useEffect(() => {
@@ -95,8 +169,10 @@ export default function Spin({ user }) {
     if (spinning || cooldownRemaining > 0 || spinStatus.spinsRemaining < 1) return;
 
     setSpinning(true);
-    setRolling(true);
     setMessage('');
+    setWinSlots([]);
+    const startedAt = performance.now();
+    startReels(); // the reels start spinning right away while the server picks the result
     try {
       const response = await fetch(`${API}/api/users/spin`, {
         method: 'POST',
@@ -109,17 +185,31 @@ export default function Spin({ user }) {
         throw new Error(result.message || 'Spin failed.');
       }
 
-      await new Promise((resolve) => window.setTimeout(resolve, 900));
-      setRolling(false);
+      const targets = result.symbols.map((v) => Math.max(0, SET.indexOf(Number(v))));
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
+        reels.current = [0, 1, 2].map(() => ({ mode: 'idle' }));
+        targets.forEach((target, i) => { pos.current[i] = target; paint(i); });
+        setPhases(['idle', 'idle', 'idle']);
+      } else {
+        const landed = new Promise((resolve) => { allLanded.current = resolve; });
+        const base = Math.max(performance.now(), startedAt + MIN_SPIN_MS);
+        reels.current.forEach((reel, i) => { reel.target = targets[i]; reel.stopAt = base + i * STOP_GAP_MS; });
+        await landed; // reels stop one by one, left to right
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+      }
+
       setSpinValues(result.symbols);
       setSpinStatus({ spinsRemaining: result.spinsRemaining, stars: result.stars, cooldownEndsAt: result.cooldownEndsAt });
       saveUser({ ...user, stars: result.stars });
+      if (result.reward > 0) {
+        setWinSlots(result.symbols.map((v, i) => (result.symbols.filter((x) => x === v).length > 1 ? i : -1)).filter((i) => i >= 0));
+      }
       setMessage(result.reward > 0 ? `You won ${result.reward.toLocaleString()} Stars!` : 'No match this spin. Try again!');
     } catch (error) {
-      setRolling(false);
+      snapReels();
       setMessage(error.message || 'Spin failed.');
     } finally {
-      setRolling(false);
       setSpinning(false);
     }
   };
@@ -136,12 +226,22 @@ export default function Spin({ user }) {
           </button>
         </div>
 
-        <div className="spin-machine" aria-label="Three-slot Stars game">
-          {spinValues.map((value, index) => (
-            <div className={`spin-slot${rolling ? ' is-spinning' : ''}`} key={index} aria-label={`Slot ${index + 1}: ${value} Stars`}>
-              {rolling ? <span className="spin-roll">{value}</span> : value}
+        <div className={`spin-machine${spinning ? ' running' : ''}`} aria-label="Three-slot Stars game">
+          {[0, 1, 2].map((i) => (
+            <div
+              className={`spin-slot is-${phases[i]}${winSlots.includes(i) ? ' win' : ''}`}
+              key={i}
+              role="img"
+              aria-label={`Slot ${i + 1}: ${spinValues[i]} Stars`}
+            >
+              <div className="spin-strip" ref={(el) => { stripRefs.current[i] = el; }}>
+                {Array.from({ length: L * REPEAT }, (_, k) => (
+                  <span className="spin-cell" key={k}>{SET[k % L]}</span>
+                ))}
+              </div>
             </div>
           ))}
+          <div className="spin-payline" aria-hidden="true" />
         </div>
 
         <button className="mk-btn spin-go" type="button" onClick={spin} disabled={spinDisabled}>
@@ -154,6 +254,7 @@ export default function Spin({ user }) {
           <summary>Game Instructions</summary>
           <ul>
             <li>Press the Spin button to play. It becomes available after the cooldown.</li>
+            <li>The reels show 0, 5, 10, 25, 50 and 100.</li>
             <li>Two matching values win that value in Stars.</li>
             <li>Three matching values win double that value in Stars.</li>
             <li>Your total Stars are added to your account balance.</li>
