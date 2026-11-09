@@ -6,15 +6,14 @@
 .tx-title { margin: 0; font-size: clamp(28px, 4vw, 40px); font-weight: 800; }
 .tx-sub { margin: 8px 0 0; color: var(--muted); font-size: 15px; }
 
-.tx-refresh, .tx-btn {
+.tx-btn {
   display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 22px; border: 0; border-radius: 999px;
   background: #fff; color: #0b1220; font: inherit; font-size: 14px; font-weight: 800; text-decoration: none; cursor: pointer;
   transition: transform .2s, box-shadow .3s, opacity .2s;
 }
-.tx-refresh:hover:not(:disabled), .tx-btn:hover { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
-.tx-refresh:active:not(:disabled), .tx-btn:active { transform: scale(.97); }
-.tx-refresh:disabled { cursor: wait; opacity: .6; }
-.tx-refresh:focus-visible, .tx-btn:focus-visible, .tx-chip:focus-visible, .tx-select:focus-visible, .tx-pager button:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+.tx-btn:hover { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
+.tx-btn:active { transform: scale(.97); }
+.tx-btn:focus-visible, .tx-chip:focus-visible, .tx-select:focus-visible, .tx-pager button:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
 
 /* ---------- filters ---------- */
 .tx-controls { position: relative; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }

@@ -164,11 +164,6 @@ export default function Transactions() {
           <h1 className="tx-title">Transactions</h1>
           <p className="tx-sub">A record of your rewards, conversions, votes, and spins.</p>
         </div>
-        {email && (
-          <button type="button" className="tx-refresh" onClick={refresh} disabled={loading}>
-            {loading ? 'Loading…' : 'Refresh'}
-          </button>
-        )}
       </header>
 
       {!email ? (
