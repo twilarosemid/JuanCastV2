@@ -17,7 +17,12 @@ const SET = [0, 5, 10, 25, 50, 100];
 const L = SET.length;
 const REPEAT = 3;                       // strip = the set repeated, so the reel can wrap without a visible jump
 const CELL_PCT = 100 / (L * REPEAT);    // one cell, as a % of the strip height (the window shows 3 cells)
-const REST = [1, 3, 5];                 // reels rest on 5 / 25 / 100 before the first spin
+// reels rest on random numbers before the first spin (never three of a kind, so it doesn't look like a win)
+const pickRest = () => {
+  const rest = Array.from({ length: 3 }, () => Math.floor(Math.random() * L));
+  if (rest[0] === rest[1] && rest[1] === rest[2]) rest[2] = (rest[2] + 1 + Math.floor(Math.random() * (L - 1))) % L;
+  return rest;
+};
 const SPIN_SPEED = 20;                  // cells per second at full speed
 const MIN_SPIN_MS = 1400;               // reels spin at least this long before the first one starts to stop
 const STOP_GAP_MS = 650;                // each next reel stops this much later (left to right)
@@ -39,7 +44,8 @@ export default function Spin({ user }) {
   const location = useLocation();
   const email = user?.email;
   const [spinStatus, setSpinStatus] = useState({ spinsRemaining: 15, stars: 0, cooldownEndsAt: null });
-  const [spinValues, setSpinValues] = useState(REST.map((i) => SET[i]));
+  const [restIdx] = useState(pickRest);
+  const [spinValues, setSpinValues] = useState(() => restIdx.map((i) => SET[i]));
   const [message, setMessage] = useState('');
   const [spinning, setSpinning] = useState(false);
   const [phases, setPhases] = useState(['idle', 'idle', 'idle']); // per reel: idle | spin | landed
@@ -50,7 +56,7 @@ export default function Spin({ user }) {
 
   // ---- reel engine: each reel is a vertical strip moved by requestAnimationFrame (no re-render per frame) ----
   const stripRefs = useRef([]);
-  const pos = useRef([...REST]);
+  const pos = useRef([...restIdx]);
   const reels = useRef([0, 1, 2].map(() => ({ mode: 'idle' })));
   const frame = useRef(0);
   const landedCount = useRef(0);
