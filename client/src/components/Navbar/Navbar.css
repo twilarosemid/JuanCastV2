@@ -83,11 +83,6 @@ nav.site-nav {
 .menu a:hover, .menu button:hover { background: rgba(255,255,255,.1); transform: translateX(3px); }
 .menu-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; color: var(--text); font-size: 15px; font-weight: 700; }
 .menu-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* same look as the balance pill on the profile page (Suns / Stars) */
-.menu-balance { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 7px 13px; border-radius: 999px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .1); font-weight: 700; font-size: 14px; }
-.menu-balance span { display: inline-flex; align-items: center; gap: 6px; }
-.menu-balance img { width: 18px; height: 18px; object-fit: contain; }
-.menu-balance i { color: var(--muted); font-style: normal; }
 .sep { height: 1px; margin: 6px 8px; background: rgba(255,255,255,.12); }
 .count {
   margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 99px;
@@ -127,4 +122,59 @@ nav.site-nav {
 @media (min-width: 761px) {
   nav.site-nav .logo { transition: opacity .5s cubic-bezier(.4, 0, .2, 1), transform .3s cubic-bezier(.34, 1.56, .64, 1); }
   nav.site-nav.condensed .logo:not(:hover):not(:focus-visible) { opacity: .35; }
+}
+
+/* ---------- balance (Suns / Stars) beside the bell ---------- */
+.nav-balance { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; margin: 0 4px 0 2px; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .14); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nav-balance span { display: inline-flex; align-items: center; gap: 6px; }
+.nav-balance img { width: 18px; height: 18px; object-fit: contain; }
+.nav-balance i { color: var(--muted); font-style: normal; }
+
+/* ---------- running powerups: icon on a glowing pie that drains as time runs out; hover for the time left ---------- */
+@property --pct { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
+.pu-btn, .pu-btn:hover { background: transparent; }
+.pu-btn { width: 44px; height: 44px; }
+.pu-pie {
+  position: absolute; inset: 4px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(255, 198, 92, .95) var(--pct), rgba(255, 255, 255, .13) 0);
+  box-shadow: 0 0 14px rgba(255, 176, 32, .65), 0 0 28px rgba(255, 176, 32, .35);
+  transition: --pct 1s linear; animation: puPulse 2.4s ease-in-out infinite;
+}
+.pu-img { position: relative; width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .5)); transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.pu-bolt { display: grid; place-items: center; color: #3a2600; filter: none; }
+.pu-btn:hover .pu-img { transform: scale(1.12); }
+.pu-tip {
+  position: absolute; z-index: 5; top: calc(100% + 12px); left: 50%; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 120px; max-width: 70vw; padding: 9px 14px;
+  border-radius: 14px; white-space: nowrap; pointer-events: none; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted);
+  background: rgba(7, 36, 102, .96); border: 1px solid rgba(255, 198, 92, .45); box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
+  opacity: 0; visibility: hidden; transform: translate(-50%, -6px) scale(.96); transition: opacity .2s, transform .25s cubic-bezier(.34, 1.4, .5, 1), visibility .2s;
+}
+.pu-tip b { color: #ffe2a8; font-size: 13px; }
+.pu-tip span { color: #fff; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pu-btn:hover .pu-tip, .pu-btn:focus-visible .pu-tip, .pu-btn[data-open="true"] .pu-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0) scale(1); }
+@keyframes puPulse { 0%, 100% { box-shadow: 0 0 10px rgba(255, 176, 32, .5), 0 0 20px rgba(255, 176, 32, .25); } 50% { box-shadow: 0 0 18px rgba(255, 176, 32, .85), 0 0 36px rgba(255, 176, 32, .5); } }
+@media (prefers-reduced-motion: reduce) { .pu-pie { animation: none; transition: none; } }
+.pu-count { position: absolute; top: 0; right: 0; z-index: 1; display: none; min-width: 16px; height: 16px; padding: 0 4px; place-items: center; border-radius: 99px; font-style: normal; font-size: 10px; font-weight: 800; color: #06307f; background: var(--gold); }
+.pu-extra { display: none; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin-top: 7px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, .16); }
+
+/* phones: the top bar only has room for a compact, stacked balance */
+@media (max-width: 760px) {
+  .nav-balance { margin: 0; padding: 0 12px; height: 42px; font-size: 13px; background: rgba(8, 40, 112, .6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-color: rgba(255, 255, 255, .16); }
+  .pu-btn { width: 42px; height: 42px; }
+  .pu-btn .pu-pie { inset: 3px; }
+}
+@media (max-width: 480px) {
+  .nav-balance { flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; padding: 0 10px; border-radius: 16px; font-size: 11px; line-height: 1.2; }
+  .nav-balance i { display: none; }
+  .nav-balance img { width: 14px; height: 14px; }
+  nav.site-nav .pill { gap: 6px; }
+  .pu-btn { width: 38px; height: 38px; }
+  .nav-balance { padding: 0 9px; }
+  /* only one powerup icon fits: it gets a +N badge and its tooltip lists them all */
+  .pu-secondary { display: none; }
+  .pu-count { display: grid; }
+  .pu-extra { display: flex; }
+}
+@media (max-width: 380px) {
+  nav.site-nav .logo img { height: 25px; }
 }

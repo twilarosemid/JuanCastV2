@@ -6,6 +6,7 @@ import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
 import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
 import useStartupState from '../../hooks/useStartupState';
+import useActivePowerups, { clock } from '../../hooks/useActivePowerups';
 import NotificationsMenu from '../NotificationsMenu/NotificationsMenu';
 import useMountTransition from '../../hooks/useMountTransition';
 import { markEntered } from '../../landingGate';
@@ -69,6 +70,9 @@ const CalendarIcon = () => (
 const ShieldIcon = () => (
   <Icon><path d="M12 3 4 6v6c0 4.5 3.2 8.2 8 9 4.8-.8 8-4.5 8-9V6z" /><path d="m9 12 2 2 4-4" /></Icon>
 );
+const BoltIcon = () => (
+  <Icon><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></Icon>
+);
 const LogoutIcon = () => (
   <Icon><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></Icon>
 );
@@ -82,6 +86,8 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [dailyWanted, setDailyWanted] = useState(false);
+  const [tipKey, setTipKey] = useState(null); // powerup whose time-left tooltip was opened by tapping
+  const powerups = useActivePowerups(loggedIn ? user.email : '');
   const startupState = useStartupState();
   const [condensed, setCondensed] = useState(false);
   const menuRef = useRef(null);
@@ -132,6 +138,13 @@ export default function Navbar() {
     window.addEventListener('focus', load);
     return () => { alive = false; clearInterval(id); window.removeEventListener('focus', load); };
   }, [loggedIn, user?.username]);
+
+  // a tapped powerup tooltip (phones have no hover) closes itself after a few seconds
+  useEffect(() => {
+    if (!tipKey) return undefined;
+    const id = setTimeout(() => setTipKey(null), 4000);
+    return () => clearTimeout(id);
+  }, [tipKey]);
 
   // lets any page open the popup: window.dispatchEvent(new Event('juancast-open-notifications'))
   useEffect(() => {
@@ -263,6 +276,41 @@ export default function Navbar() {
         </div>
         <span className="divider" aria-hidden="true" />
 
+        {loggedIn && (
+          <>
+            {powerups.map((p, i) => (
+              <button
+                key={p.key}
+                type="button"
+                className={`icon-btn pu-btn${i > 0 ? ' pu-secondary' : ''}`}
+                data-open={tipKey === p.key}
+                aria-label={`${p.name}${p.multiplier ? ` x${p.multiplier}` : ''}, ${clock(p.left)} left`}
+                onClick={() => setTipKey((k) => (k === p.key ? null : p.key))}
+              >
+                <span className="pu-pie" style={{ '--pct': `${p.pct}%` }} aria-hidden="true" />
+                {p.image ? <img className="pu-img" src={p.image} alt="" /> : <span className="pu-img pu-bolt"><BoltIcon /></span>}
+                {i === 0 && powerups.length > 1 && <i className="pu-count" aria-hidden="true">+{powerups.length - 1}</i>}
+                <span className="pu-tip" role="tooltip">
+                  <b>{p.name}{p.multiplier ? ` ×${p.multiplier}` : ''}</b>
+                  <span>{clock(p.left)} left</span>
+                  {/* phones show one powerup icon, so its tooltip lists the others too */}
+                  {i === 0 && powerups.slice(1).map((o) => (
+                    <div className="pu-extra" key={o.key}>
+                      <b>{o.name}{o.multiplier ? ` ×${o.multiplier}` : ''}</b>
+                      <span>{clock(o.left)} left</span>
+                    </div>
+                  ))}
+                </span>
+              </button>
+            ))}
+            <span className="nav-balance" aria-label="Your balance">
+              <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+              <i aria-hidden="true">/</i>
+              <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+            </span>
+          </>
+        )}
+
         <button
           type="button"
           className="icon-btn"
@@ -296,11 +344,6 @@ export default function Navbar() {
               <>
                 <div className="menu-head">
                   <span className="menu-name">{name.startsWith('@') ? name : `@${name}`}</span>
-                  <span className="menu-balance" aria-label="Your balance">
-                    <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
-                    <i aria-hidden="true">/</i>
-                    <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
-                  </span>
                 </div>
                 <div className="sep" />
                 <Link role="menuitem" to={LINKS.profile}><UserIcon /> Profile</Link>
