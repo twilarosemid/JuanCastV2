@@ -203,16 +203,19 @@ export default function SignUp() {
 
   /* step 3 */
   const requestCode = async () => {
-    await post('/api/request-otp', { email: email.trim().toLowerCase(), phone: toInternational(country, phone), password });
+    await post('/api/request-otp', { email: email.trim().toLowerCase(), phone: phone.replace(/\D/g, '') ? toInternational(country, phone) : '', password });
     setCooldown(RESEND_SECONDS);
   };
 
   const submitContact = async (e) => {
     e.preventDefault();
     if (!EMAIL_RE.test(email.trim())) return setError('Please enter a valid email address.');
-    const pErr = phoneError(country, phone);
-    if (pErr) return setError(pErr);
-    if (phone.replace(/\D/g, '').length < country.minLength) return setError('Phone number is too short.');
+    // phone is optional: only validate it when something was typed
+    if (phone.replace(/\D/g, '').length) {
+      const pErr = phoneError(country, phone);
+      if (pErr) return setError(pErr);
+      if (phone.replace(/\D/g, '').length < country.minLength) return setError('Phone number is too short.');
+    }
 
     setBusy(true); setError('');
     try {
@@ -369,10 +372,10 @@ export default function SignUp() {
                   <input type="email" autoComplete="email" placeholder="juan@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} required />
                 </label>
                 <div className="login-field">
-                  <span>Mobile number</span>
+                  <span>Mobile number <small style={{ opacity: .6, fontWeight: 400 }}>(optional)</small></span>
                   <div className="su-phone">
                     <CountryPicker index={countryIndex} onPick={(i) => { setCountryIndex(i); setPhone(''); setError(''); }} />
-                    <input type="tel" inputMode="tel" autoComplete="tel-national" placeholder={country.placeholder} value={phone} onChange={(e) => { setPhone(formatPhone(country, e.target.value)); setError(''); }} required />
+                    <input type="tel" inputMode="tel" autoComplete="tel-national" placeholder={country.placeholder} value={phone} onChange={(e) => { setPhone(formatPhone(country, e.target.value)); setError(''); }} />
                   </div>
                 </div>
                 <p className="login-error" role="alert">{error}</p>

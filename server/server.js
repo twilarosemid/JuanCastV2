@@ -74,6 +74,20 @@ app.get('/uploads/:filename', async (req, res, next) => {
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log("Connected to MongoDB Atlas!");
+
+    // Phone is now optional: drop the old plain unique index (it treats every missing phone as a duplicate)
+    try {
+      const indexes = await User.collection.indexes();
+      for (const ix of indexes) {
+        if (ix.key && ix.key.phone === 1 && !ix.partialFilterExpression) {
+          await User.collection.dropIndex(ix.name);
+          console.log(`Dropped old phone index: ${ix.name}`);
+        }
+      }
+      await User.syncIndexes();
+    } catch (err) {
+      console.error("Phone index migration failed:", err.message);
+    }
     await seedChikaArticles();
     await seedPolls();
     await seedRankings();
@@ -91,7 +105,7 @@ mongoose.connect(process.env.MONGO_URI)
 // 2a. Define the User Schema (Authentication)
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
-  phone: { type: String, required: true, unique: true }, 
+  phone: { type: String }, // optional; uniqueness is enforced by a partial index (see below)
   password: { type: String, required: true },
   otp: { type: String }, 
   passwordResetTokenHash: { type: String },
@@ -100,6 +114,8 @@ const userSchema = new mongoose.Schema({
   isAdmin: { type: Boolean, default: false },
   role: { type: String, enum: ['user', 'artist', 'admin', 'superadmin'], default: 'user' }
 });
+// Phone is optional: only enforce uniqueness when a phone number is actually stored.
+userSchema.index({ phone: 1 }, { unique: true, partialFilterExpression: { phone: { $type: 'string' } }, name: 'phone_unique_when_present' });
 const User = mongoose.model('User', userSchema);
 
 const normalizeEmail = (value = '') => String(value).trim().toLowerCase();
@@ -1614,6 +1630,7 @@ app.post('/api/request-otp', async (req, res) => {
   try {
     const { email, phone, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
+    const cleanPhone = typeof phone === 'string' ? phone.trim() : '';
 
     let user = await User.findOne({ email: { $regex: `^${escapeRegex(normalizedEmail)}$`, $options: 'i' } });
     if (user && user.isVerified) {
@@ -1624,12 +1641,13 @@ app.post('/api/request-otp', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     if (!user) {
-      user = new User({ email: normalizedEmail, phone, password: hashedPassword, otp });
+      user = new User({ email: normalizedEmail, password: hashedPassword, otp });
+      if (cleanPhone) user.phone = cleanPhone;
     } else {
       user.email = normalizedEmail;
       user.password = hashedPassword;
       user.otp = otp;
-      user.phone = phone; 
+      user.phone = cleanPhone || undefined; // optional; never store an empty string
     }
     await user.save();
 

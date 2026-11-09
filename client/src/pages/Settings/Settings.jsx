@@ -116,7 +116,7 @@ function Share() {
 
 /* ---------- FAQ ---------- */
 const FAQS = [
-  { q: 'How do I create an account?', a: <p>Click “Sign Up” on the home screen, enter your Full Name, Birthdate, Username, Email, Mobile number and Password, then follow the prompts to complete the registration.</p> },
+  { q: 'How do I create an account?', a: <p>Click “Sign Up” on the home screen, enter your Full Name, Birthdate, Username, Email, Password and (optionally) Mobile number, then follow the prompts to complete the registration.</p> },
   { q: 'Didn’t receive the confirmation email?', a: <p>Check your spam or junk folder. If you still don’t see the email, try resending it from the app or contact our support team.</p> },
   { q: 'Can I change my personal information?', a: <p>You can update your Full Name, Username, profile photo and cover photo from Edit Profile. Your email and birth date cannot be changed after registration. To change your password, use Forgot Password in Settings.</p> },
   { q: 'What personal information does the app collect?', a: <p>We collect your Full Name, Birthdate, Username, Email, and Password during registration. This information is used to provide you with a personalized experience and to ensure the security of your account.</p> },
