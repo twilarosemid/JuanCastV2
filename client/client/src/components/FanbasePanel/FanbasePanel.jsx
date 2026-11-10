@@ -218,7 +218,7 @@ function Board({ id, onBack }) {
     );
   }
 
-  const { fanbase, locked, total, posts, members = [] } = state.data;
+  const { fanbase, locked, total, posts, members = [], previewPhotos = [], photoTotal = 0 } = state.data;
   const photos = posts.flatMap((p) => photosOf(p).map((url, n) => ({ key: `${p._id}-${n}`, url, postId: p._id, index: n })));
   const viewPost = (photo) => {
     setLightbox(null);
@@ -251,12 +251,41 @@ function Board({ id, onBack }) {
       </div>
 
       {tab === 'board' && (
-        <div className="fb-body">
+        <div className="fb-body open">
           <div className="fb-feed">
             {posts.length === 0 && <div className="feed-empty">No posts yet.</div>}
             {posts.map((post) => <PostCard key={post._id} post={post} focused={focus?.postId === post._id} startIndex={focus?.postId === post._id ? focus.index : 0} />)}
             {locked && <LockedBlock count={Math.max(0, total - 1)} />}
           </div>
+
+          {/* desktop: photo rail beside the posts (2+ columns). Subscribers open the viewer; others see a few teaser photos. */}
+          {!locked && photos.length > 0 && (
+            <aside className="fb-rail" aria-label="Fanbase photos">
+              <div className="fb-rail-head">
+                <h3>Photos</h3>
+                <button type="button" className="fb-rail-all" onClick={() => setTab('media')}>See all ({photos.length})</button>
+              </div>
+              <div className="fb-rail-grid">
+                {photos.slice(0, 12).map((p, i) => (
+                  <button key={p.key} type="button" className="fb-tile fb-tile-btn" style={bg(p.url)} onClick={() => setLightbox(i)} aria-label={`Open photo ${i + 1} of ${photos.length}`} />
+                ))}
+              </div>
+            </aside>
+          )}
+          {locked && previewPhotos.length > 0 && (
+            <aside className="fb-rail" aria-label="Fanbase photo preview">
+              <div className="fb-rail-head">
+                <h3>Photos</h3>
+                <span className="fb-rail-count">{photoTotal} total</span>
+              </div>
+              <div className="fb-rail-grid">
+                {previewPhotos.map((url, i) => <span key={`${url}-${i}`} className="fb-tile" style={bg(url)} role="img" aria-label="Photo preview" />)}
+              </div>
+              <button type="button" className="fb-subscribe fb-rail-unlock" onClick={() => setSoon(true)}>
+                Subscribe to see all {photoTotal} photos
+              </button>
+            </aside>
+          )}
         </div>
       )}
 
