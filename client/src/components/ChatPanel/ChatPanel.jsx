@@ -153,7 +153,7 @@ export default function ChatPanel() {
 
   return (
     <div className="chat">
-      <div className="composer">
+      <div className="composer" data-tour="chat-composer">
         <Avatar src={user?.avatar} name={handle} />
         <textarea
           rows={2}

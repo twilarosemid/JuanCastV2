@@ -116,7 +116,7 @@ export default function AllPolls() {
 
   return (
     <div className="polls-page">
-      <aside className="polls-sidebar rise">
+      <aside className="polls-sidebar rise" data-tour="polls-filters">
         <div className="polls-search">
           <SearchIcon />
           <input
@@ -197,6 +197,7 @@ export default function AllPolls() {
                       <article
                         key={poll._id || poll.id}
                         className="poll-card"
+                        data-tour={gi === 0 && i === 0 ? 'poll-card' : undefined}
                         style={{ '--i': i }}
                         tabIndex={0}
                         onClick={() => navigate(`/polls/${poll._id || poll.id}`)}

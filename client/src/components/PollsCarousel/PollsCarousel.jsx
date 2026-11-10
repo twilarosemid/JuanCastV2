@@ -72,6 +72,7 @@ export default function PollsCarousel() {
       </div>
       <div
         className="carousel"
+        data-tour="polls-carousel"
         // mouse only: on a phone a tap fires "mouseenter" and would leave autoplay paused forever
         onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
         onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}

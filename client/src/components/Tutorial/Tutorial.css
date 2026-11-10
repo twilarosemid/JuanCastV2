@@ -1,6 +1,6 @@
 /* Game-style walkthrough: dimmed screen, a glowing spotlight on the thing being explained, and a speech card. */
 .tut { position: fixed; inset: 0; z-index: 3000; }
-.tut-block { position: absolute; inset: 0; }
+.tut-block { position: absolute; inset: 0; touch-action: none; }
 .tut-dim { position: absolute; inset: 0; background: rgba(3, 10, 32, .8); backdrop-filter: blur(3px); animation: tutFade .3s ease-out; }
 .tut-spot {
   position: absolute; border-radius: 18px; pointer-events: none;
@@ -14,11 +14,11 @@
 @keyframes tutFade { from { opacity: 0; } }
 
 .tut-card {
-  position: absolute; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); padding: 18px 20px 16px;
+  position: absolute; z-index: 2; max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); padding: 18px 20px 16px;
   border-radius: 20px; color: var(--text); background: linear-gradient(160deg, #0f3a8f, #0a2566);
   border: 1px solid rgba(255, 255, 255, .22); box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
   animation: tutPop .32s cubic-bezier(.34, 1.4, .5, 1);
-  transition: top .35s cubic-bezier(.2, .7, .2, 1), left .35s cubic-bezier(.2, .7, .2, 1);
+  transition: top .28s cubic-bezier(.2, .7, .2, 1), left .28s cubic-bezier(.2, .7, .2, 1);
 }
 @keyframes tutPop { from { opacity: 0; transform: translateY(10px) scale(.95); } }
 .tut-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

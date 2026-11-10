@@ -423,7 +423,7 @@ export default function FanbasePanel() {
   if (loading) return <div className="fb-home" />;
 
   return (
-    <div className="fb-home">
+    <div className="fb-home" data-tour="fanbase-list">
       {featured?.post && (
         <section className="fb-sec">
           <h3 className="fb-h">Featured</h3>

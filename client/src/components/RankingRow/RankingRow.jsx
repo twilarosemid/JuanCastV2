@@ -57,7 +57,7 @@ export default function RankingRow() {
         <Link to={pollId ? `/polls/${pollId}` : '/polls'}>View All <span aria-hidden="true">→</span></Link>
       </div>
 
-      <div className="podium">
+      <div className="podium" data-tour="rankings">
         {ordered.map(({ item, rank }, n) => (
           <Reveal key={item._id} className={`slot r${rank + 1}`} delay={n * 130}>
             <div className="poster" style={bg(item.imageUrl)}>
@@ -68,7 +68,7 @@ export default function RankingRow() {
                 <h3>{item.name}</h3>
                 <small><CountUp value={item.voteCount} /> votes</small>
               </div>
-              <button className="vote" onClick={openPoll}>Cast Vote</button>
+              <button className="vote" data-tour={rank === 0 ? 'cast-vote' : undefined} onClick={openPoll}>Cast Vote</button>
             </div>
           </Reveal>
         ))}

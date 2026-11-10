@@ -35,7 +35,7 @@ export default function Market() {
   return (
     <div className={`market-page${ads.length ? ' has-ad' : ''}`}>
       <aside className="mk-sidebar rise">
-        <nav className="mk-nav" aria-label="Market sections">
+        <nav className="mk-nav" data-tour="market-tabs" aria-label="Market sections">
           {bubble.style && <span className="mk-bubble" style={bubble.style} />}
           {SECTIONS.map((s) => (
             <button
@@ -57,7 +57,7 @@ export default function Market() {
           <h1 className="mk-title">{current.title}</h1>
           <p className="mk-blurb">{current.blurb}</p>
         </header>
-        <div className={`mk-section${CENTERED.includes(active) ? ' centered' : ''}`} key={active}>
+        <div className={`mk-section${CENTERED.includes(active) ? ' centered' : ''}`} data-tour="market-content" key={active}>
           {active === 'stars' && <StarsShop />}
           {active === 'suns' && <SunsConvert user={user} />}
           {active === 'spin' && <Spin user={user} />}

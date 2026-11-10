@@ -155,7 +155,7 @@ export default function Community() {
   return (
     <div className="community-page">
       <aside className="cm-sidebar rise">
-        <nav className="cm-nav" aria-label="Community sections">
+        <nav className="cm-nav" data-tour="community-tabs" aria-label="Community sections">
           {bubble.style && <span className="cm-bubble" style={bubble.style} />}
           {SECTIONS.map((s) => (
             <button
