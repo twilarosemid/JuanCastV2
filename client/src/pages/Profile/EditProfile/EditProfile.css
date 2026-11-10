@@ -59,3 +59,12 @@
   .ep-form { padding: 20px 16px 22px; }
   .ep-back { width: 100%; }
 }
+
+/* ---------- artists: bio + links ---------- */
+.ep-about { display: flex; flex-direction: column; gap: 14px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.ep-about h2 { margin: 0; }
+.ep-sub { margin: 6px 0 0; font-size: 15px; font-weight: 800; }
+.ep-textarea { box-sizing: border-box; width: 100%; padding: 12px 16px; resize: vertical; border-radius: 14px; font: inherit; font-size: 15px; line-height: 1.5; color: var(--text); background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: border-color .25s, box-shadow .25s; }
+.ep-textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.ep-count { align-self: flex-end; }
+.ep-about .sl-input { min-height: 46px; }

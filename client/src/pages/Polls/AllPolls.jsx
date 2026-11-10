@@ -168,21 +168,6 @@ export default function AllPolls() {
       </aside>
 
       <main className="polls-main">
-        {loading && (
-          <section className="polls-section" aria-busy="true" aria-label="Loading polls">
-            <div className="skeleton skeleton-title" />
-            <div className="polls-grid collapsed">
-              {[0, 1, 2].map((n) => (
-                <div className="poll-card skeleton-card" key={n}>
-                  <div className="skeleton skeleton-img" />
-                  <div className="skeleton skeleton-line" />
-                  <div className="skeleton skeleton-line short" />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {pollsByGroup.map((group, gi) => {
           // one category picked -> show all of its polls as a wrapped grid; otherwise a swipe row per category
           const single = activeGroup !== 'All';

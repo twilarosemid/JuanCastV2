@@ -168,8 +168,6 @@ export default function ChatPanel() {
       </div>
 
       <div className="chat-scroll">
-        {loading && [0, 1, 2].map((n) => <div key={n} className="feed-skel" />)}
-
         {!loading && posts.length === 0 && (
           <div className="feed-empty">No posts yet. Be the first to say something!</div>
         )}

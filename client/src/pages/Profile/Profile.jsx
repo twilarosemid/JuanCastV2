@@ -5,9 +5,9 @@ import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
 import Feedback from '../../components/Feedback/Feedback';
 import QRCode from '../../components/QRCode/QRCode';
-import { ArtistHero, ArtistFeed } from './ArtistProfile';
-import RewardsCenter from '../../components/RewardsCenter/RewardsCenter';
+import { ArtistHero, ArtistFeed, ArtistLinksCard } from './ArtistProfile';
 import DailyRewards, { dailyState } from '../../components/DailyRewards/DailyRewards';
+import PromoCode from '../../components/PromoCode/PromoCode';
 import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
 import './Profile.css';
@@ -40,7 +40,8 @@ const toProfile = (data) => ({
   following: Array.isArray(data.following) ? data.following : [],
   role: data.role || 'user',
   coverPhoto: data.coverPhoto || '',
-  bio: data.bio || ''
+  bio: data.bio || '',
+  socialLinks: data.socialLinks || {}
 });
 
 const UserSvg = () => (
@@ -56,7 +57,7 @@ const Avatar = ({ src, className = '' }) => (
 const FEATURES = [
   { id: 'rewards', icon: '⭐', label: 'Rewards' },
   { id: 'juantask', icon: '🎁', label: 'Juantask', soon: true },
-  { id: 'promo', icon: '📢', label: 'Promo', soon: true },
+  { id: 'promo', icon: '📢', label: 'Promo' },
   { id: 'badges', icon: '🎖️', label: 'Badges', soon: true }
 ];
 
@@ -113,8 +114,8 @@ export default function Profile() {
   const [replyInputs, setReplyInputs] = useState({});
   const [newPost, setNewPost] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [rewardsOpen, setRewardsOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
   const [peopleList, setPeopleList] = useState(null); // 'followers' | 'following' | null
   const [peopleQuery, setPeopleQuery] = useState('');
   const [qrOpen, setQrOpen] = useState(false);
@@ -324,9 +325,7 @@ export default function Profile() {
 
   if (!profile) {
     return (
-      <main className="pf-page">
-        <div className="pf-hero pf-skel-block" />
-      </main>
+      <main className="pf-page" />
     );
   }
 
@@ -437,6 +436,8 @@ export default function Profile() {
             </div>
           </div>
 
+          {isArtist && <ArtistLinksCard links={profile.socialLinks} ownView={ownView} />}
+
           {ownView && (
             <div className="pf-card rise" style={{ '--d': '160ms' }}>
               <h2>Platform Features</h2>
@@ -447,7 +448,10 @@ export default function Profile() {
                     type="button"
                     className="pf-feature"
                     disabled={f.soon}
-                    onClick={() => f.id === 'rewards' && setRewardsOpen(true)}
+                    onClick={() => {
+                      if (f.id === 'rewards') navigate('/rewards');
+                      else if (f.id === 'promo') setPromoOpen(true);
+                    }}
                   >
                     <span className="pf-feature-icon">{f.icon}</span>
                     <span>{f.label}</span>
@@ -581,7 +585,7 @@ export default function Profile() {
                   <Link to={`/profile/${encodeURIComponent(key)}`} onClick={() => setPeopleList(null)}>
                     <Avatar src={info?.avatar} className="pf-pm-avatar" />
                     <span className="pf-pm-text">
-                      {info ? <strong>{info.name || `@${key}`}</strong> : <i className="pf-pm-skel" aria-hidden="true" />}
+                      {info ? <strong>{info.name || `@${key}`}</strong> : null}
                       <em>@{key}</em>
                     </span>
                     <ChevronIcon />
@@ -618,13 +622,6 @@ export default function Profile() {
 
       {isOwn && (
         <>
-          <RewardsCenter
-            open={rewardsOpen}
-            onClose={() => setRewardsOpen(false)}
-            user={viewer}
-            dailyStreak={daily.streak}
-            onOpenDaily={() => setDailyOpen(true)}
-          />
           <DailyRewards
             open={dailyOpen}
             onClose={() => setDailyOpen(false)}
@@ -632,6 +629,7 @@ export default function Profile() {
             claimedToday={daily.claimedToday}
             onClaim={claimDaily}
           />
+          <PromoCode open={promoOpen} onClose={() => setPromoOpen(false)} user={viewer} onLogin={goLogin} />
         </>
       )}
 

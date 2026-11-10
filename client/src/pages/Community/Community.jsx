@@ -92,11 +92,7 @@ function ContentSection() {
   };
 
   if (loading) {
-    return (
-      <div className="cm-skel-row">
-        {[0, 1, 2].map((n) => <div key={n} className="feed-skel cm-skel" />)}
-      </div>
-    );
+    return null;
   }
   if (!byPlatform.length) return <div className="feed-empty">No content available yet.</div>;
 

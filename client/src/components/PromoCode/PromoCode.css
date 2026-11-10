@@ -1,0 +1,11 @@
+.promo-input { text-align: center; text-transform: uppercase; letter-spacing: .14em; font-weight: 800; font-size: 17px; }
+.promo-input::placeholder { letter-spacing: .1em; font-weight: 700; opacity: .45; }
+.modal p.promo-error { margin: 10px 0 0; color: #ff8a96; font-size: 14px; font-weight: 700; }
+
+.promo-win { display: flex; flex-direction: column; align-items: center; padding: 10px 0 0; text-align: center; }
+.promo-win h3 { margin: 0 0 16px; font-size: 24px; font-weight: 800; }
+.promo-rewards { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 22px; margin-bottom: 12px; }
+.promo-reward { display: inline-flex; align-items: center; gap: 8px; color: #facc15; font-size: 30px; font-weight: 900; }
+.promo-reward img { width: 44px; height: 44px; object-fit: contain; }
+.promo-reward small { font-size: 14px; font-weight: 800; }
+.modal .promo-win p { margin: 0 0 22px; }

@@ -1,0 +1,168 @@
+.pf-page { min-height: 100vh; padding: 110px 5vw 90px; max-width: 1200px; margin: 0 auto; }
+
+/* ---------- header card ---------- */
+.pf-hero { overflow: hidden; border-radius: 26px; background: rgba(8, 40, 112, .45); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(16px); }
+.pf-head { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap; padding: 28px 28px 26px; background: linear-gradient(135deg, rgba(47, 123, 255, .16), transparent 60%); }
+.pf-ident { position: relative; flex: 0 0 auto; }
+/* small round QR badge on the avatar's corner; tap to expand */
+.pf-qr {
+  position: absolute; z-index: 2; right: -6px; bottom: -6px; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; overflow: hidden; cursor: pointer;
+  border: 3px solid #fff; border-radius: 50%; background: #fff; box-shadow: 0 6px 16px rgba(0, 0, 0, .45);
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s;
+}
+.pf-qr:hover { transform: scale(1.18); box-shadow: 0 10px 22px rgba(0, 0, 0, .55); }
+.pf-qr:active { transform: scale(.94); }
+.pf-qr:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.pf-qr svg { display: block; width: 74%; height: 74%; }
+.pf-avatar-box {
+  display: grid; place-items: center; flex: 0 0 auto; overflow: hidden; border-radius: 50%; background: rgba(255, 255, 255, .1); color: var(--muted);
+}
+.pf-avatar-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pf-avatar-box svg { width: 55%; height: 55%; }
+.pf-avatar.pf-avatar-box { position: relative; z-index: 1; width: 120px; height: 120px; border: 4px solid rgba(255, 255, 255, .18); box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
+.pf-id { flex: 1 1 200px; min-width: 0; padding-bottom: 6px; }
+.pf-id h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); font-weight: 800; overflow-wrap: anywhere; }
+.pf-handle { margin: 2px 0 0; color: #7fb0ff; font-weight: 700; }
+.pf-joined { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.pf-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pf-balance { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 999px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .1); font-weight: 700; font-size: 14px; }
+.pf-balance span { display: inline-flex; align-items: center; gap: 6px; }
+.pf-balance img { width: 18px; height: 18px; object-fit: contain; }
+.pf-balance i { color: var(--muted); font-style: normal; }
+.pf-actions .btn-solid, .pf-actions .btn-ghost { text-decoration: none; }
+
+/* ---------- columns ---------- */
+.pf-cols { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 24px; margin-top: 24px; align-items: start; }
+.pf-side { position: sticky; top: 100px; display: flex; flex-direction: column; gap: 18px; }
+.pf-feed { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pf-card { padding: 20px 22px; border-radius: 22px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .09); backdrop-filter: blur(12px); }
+.pf-card h2 { margin: 0 0 14px; font-size: 17px; font-weight: 800; }
+
+.pf-statgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pf-stat {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding: 14px 14px 14px 16px; border-radius: 16px;
+  font: inherit; color: var(--text); text-align: left; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1);
+}
+.pf-stat-label { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .02em; }
+.pf-stat strong { font-size: 24px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pf-stat-wide { grid-column: 1 / -1; padding: 16px 18px; background: linear-gradient(135deg, rgba(47, 123, 255, .3), rgba(47, 123, 255, .08)); border-color: rgba(127, 176, 255, .35); }
+.pf-stat-wide strong { font-size: 34px; }
+button.pf-stat { cursor: pointer; transition: transform .25s cubic-bezier(.2, .7, .2, 1), background .25s, border-color .25s; }
+button.pf-stat:hover { transform: translateY(-3px); background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .25); }
+button.pf-stat:active { transform: scale(.97); }
+button.pf-stat svg { position: absolute; top: 14px; right: 10px; color: var(--muted); transition: transform .2s; }
+button.pf-stat:hover svg { transform: translateX(2px); color: var(--text); }
+
+.pf-features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pf-feature {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 8px; border-radius: 16px; font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--text); background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); cursor: pointer;
+  transition: transform .3s cubic-bezier(.2, .7, .2, 1), background .25s, border-color .25s;
+}
+.pf-feature:hover:not(:disabled) { transform: translateY(-4px); background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .25); }
+.pf-feature:disabled { cursor: default; opacity: .55; }
+.pf-feature-icon { font-size: 26px; line-height: 1; }
+.pf-feature em { position: absolute; top: 6px; right: 8px; font-size: 9px; font-style: normal; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+
+/* ---------- composer ---------- */
+.pf-composer textarea {
+  display: block; width: 100%; min-height: 44px; max-height: 220px; resize: none; overflow-y: auto; padding: 0; border: 0; outline: 0; background: transparent;
+  color: var(--text); font: inherit; font-size: 16px; line-height: 1.5;
+}
+.pf-composer textarea::placeholder { color: rgba(169, 182, 211, .65); }
+.pf-composer-bar { display: flex; justify-content: flex-end; margin-top: 10px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.pf-composer-bar .btn-solid:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- posts ---------- */
+.pf-post header { display: flex; align-items: center; gap: 12px; }
+.pf-post header div { display: flex; flex-direction: column; }
+.pf-post header strong { font-size: 15px; }
+.pf-post header span { color: var(--muted); font-size: 12px; }
+.pf-mini.pf-avatar-box { width: 42px; height: 42px; }
+.pf-mini.sm.pf-avatar-box { width: 30px; height: 30px; }
+.pf-post-text { margin: 12px 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pf-post footer { display: flex; align-items: center; gap: 6px; }
+.pf-post footer button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 12px; line-height: 1; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s, transform .15s; }
+.pf-post footer button:hover { background: rgba(255, 255, 255, .1); color: var(--text); }
+.pf-post footer button:active { transform: scale(.94); }
+.pf-post footer button svg { flex: 0 0 auto; display: block; }
+.pf-post footer button.liked { color: #ff6b85; }
+.pf-empty { margin: 0; color: var(--muted); text-align: center; }
+
+.pf-replies { margin-top: 12px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .08); display: flex; flex-direction: column; gap: 12px; animation: pfIn .35s cubic-bezier(.2, .7, .2, 1) backwards; }
+@keyframes pfIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.pf-reply { display: flex; gap: 10px; align-items: flex-start; }
+.pf-reply p { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.pf-reply strong { margin-right: 4px; }
+.pf-reply-box { display: flex; gap: 8px; }
+.pf-reply-box input {
+  flex: 1; min-width: 0; min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; color: var(--text);
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: border-color .25s, box-shadow .25s;
+}
+.pf-reply-box input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.pf-reply-box .btn-solid { min-height: 40px; padding: 0 18px; }
+
+/* ---------- states ---------- */
+.pf-skel-block { height: 360px; background: linear-gradient(100deg, rgba(255, 255, 255, .05) 30%, rgba(255, 255, 255, .1) 50%, rgba(255, 255, 255, .05) 70%); background-size: 200% 100%; animation: pfShimmer 1.4s linear infinite; }
+@keyframes pfShimmer { to { background-position: -200% 0; } }
+.pf-missing { max-width: 480px; margin: 60px auto 0; text-align: center; }
+.pf-missing h1 { margin: 0 0 8px; font-size: 26px; }
+.pf-missing p { margin: 0 0 18px; color: var(--muted); }
+.pf-missing .btn-solid { text-decoration: none; }
+
+@media (max-width: 900px) {
+  .pf-page { padding-top: 140px; }
+  .pf-cols { grid-template-columns: 1fr; }
+  .pf-side { position: static; }
+}
+@media (max-width: 560px) {
+  .pf-head { padding: 22px 16px 20px; }
+  .pf-avatar.pf-avatar-box { width: 96px; height: 96px; }
+  .pf-qr { width: 40px; height: 40px; right: -4px; bottom: -4px; }
+  .pf-actions { width: 100%; }
+  .pf-card { padding: 16px; }
+}
+
+/* clickable names */
+.pf-who { color: inherit; text-decoration: none; }
+.pf-who:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* followers / following popup */
+.modal.pf-people-modal { width: min(440px, 100%); padding: 22px 18px 18px; }
+.pf-pm-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 0 4px; }
+.pf-pm-head h3 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 22px; font-weight: 800; }
+.pf-pm-count { padding: 3px 11px; border-radius: 999px; font-size: 13px; font-weight: 800; color: #9cc3ff; background: rgba(47, 123, 255, .22); border: 1px solid rgba(127, 176, 255, .3); font-variant-numeric: tabular-nums; }
+.pf-pm-x { display: grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: var(--text); cursor: pointer; transition: background .2s, transform .15s; }
+.pf-pm-x:hover { background: rgba(255, 255, 255, .18); }
+.pf-pm-x:active { transform: scale(.9); }
+
+.modal label.pf-pm-search { position: relative; display: block; margin: 0 4px 12px; }
+.pf-pm-search svg { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.modal .pf-pm-search input { min-height: 42px; padding: 0 14px 0 38px; border-radius: 999px; font-size: 14px; }
+
+.pf-people { list-style: none; margin: 0; padding: 0 2px; max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
+.pf-people li a { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 16px; color: var(--text); text-decoration: none; transition: background .2s, transform .2s; }
+.pf-people li a:hover { background: rgba(255, 255, 255, .09); }
+.pf-people li a:active { transform: scale(.985); }
+.pf-people li a > svg { flex: 0 0 auto; color: var(--muted); opacity: 0; transform: translateX(-4px); transition: opacity .2s, transform .2s; }
+.pf-people li a:hover > svg, .pf-people li a:focus-visible > svg { opacity: 1; transform: none; }
+.pf-pm-avatar.pf-avatar-box { width: 46px; height: 46px; border: 2px solid rgba(255, 255, 255, .14); }
+.pf-pm-text { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
+.pf-pm-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-pm-text em { color: var(--muted); font-size: 13px; font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-pm-skel { display: block; width: 110px; max-width: 70%; height: 14px; margin: 2px 0; border-radius: 6px; background: linear-gradient(100deg, rgba(255, 255, 255, .07) 30%, rgba(255, 255, 255, .16) 50%, rgba(255, 255, 255, .07) 70%); background-size: 200% 100%; animation: pfShimmer 1.4s linear infinite; }
+
+.pf-pm-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 30px 16px 26px; text-align: center; color: var(--muted); }
+.pf-pm-empty svg { width: 30px; height: 30px; margin-bottom: 6px; padding: 14px; box-sizing: content-box; border-radius: 50%; background: rgba(255, 255, 255, .07); }
+.pf-pm-empty strong { color: var(--text); font-size: 16px; }
+.pf-pm-empty span { font-size: 13px; }
+
+/* profile QR popup */
+.modal.pf-qr-modal { width: min(360px, 100%); padding: 22px 20px 20px; text-align: center; }
+.pf-qr-modal .pf-pm-head { text-align: left; }
+.pf-qr-big { width: min(240px, 100%); aspect-ratio: 1; margin: 4px auto 14px; overflow: hidden; border-radius: 20px; background: #fff; box-shadow: 0 14px 34px rgba(0, 0, 0, .4); }
+.pf-qr-big svg { display: block; width: 100%; height: 100%; }
+.modal .pf-qr-name { display: flex; flex-direction: column; gap: 2px; margin: 0 0 6px; color: var(--text); }
+.pf-qr-name span { color: #7fb0ff; font-weight: 700; }
+.modal .pf-qr-hint { margin: 0; font-size: 13px; }
+.pf-qr-modal .modal-actions { justify-content: center; }

@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { API, getJSON, img, mergeUser, saveUser } from '../../../api';
+import { API, adminFetch, getJSON, img, isArtistUser, mergeUser, saveUser } from '../../../api';
 import useUser from '../../../hooks/useUser';
 import Modal from '../../../components/Modal/Modal';
 import Feedback from '../../../components/Feedback/Feedback';
+import { SOCIAL_PLATFORMS, SocialLinksFields } from '../../../components/SocialLinks/SocialLinks';
 import './EditProfile.css';
 
 const STAGE_H = 320;
+const BIO_MAX = 300;
+// every platform key, trimmed, so two link sets can be compared reliably
+const cleanLinks = (value) => Object.fromEntries(SOCIAL_PLATFORMS.map(({ key }) => [key, String(value?.[key] || '').trim()]));
 const DAY = 24 * 60 * 60 * 1000;
 
 const formatJoined = (value) => {
@@ -48,6 +52,8 @@ export default function EditProfile() {
 
   const [form, setForm] = useState({ fullName: '', username: '', avatar: '' });
   const [initial, setInitial] = useState(null);
+  const [about, setAbout] = useState({ bio: '', links: cleanLinks({}) }); // artists only
+  const [aboutInitial, setAboutInitial] = useState(null);
   const [joined, setJoined] = useState('Joined recently');
   const [locks, setLocks] = useState({ name: 0, username: 0 });
   const [saving, setSaving] = useState(false);
@@ -76,6 +82,9 @@ export default function EditProfile() {
       .then((fresh) => {
         if (cancelled) return;
         fill(fresh);
+        const loaded = { bio: String(fresh.bio || ''), links: cleanLinks(fresh.socialLinks) };
+        setAbout(loaded);
+        setAboutInitial(loaded);
         setLocks({ name: daysLeft(fresh.lastNameChange, 7), username: daysLeft(fresh.lastUsernameChange, 30) });
       })
       .catch((error) => {
@@ -85,7 +94,10 @@ export default function EditProfile() {
     return () => { cancelled = true; };
   }, [viewer?.email]);
 
-  const hasChanges = initial !== null && Object.keys(form).some((key) => form[key] !== initial[key]);
+  const isArtist = isArtistUser(viewer);
+  const profileChanged = initial !== null && Object.keys(form).some((key) => form[key] !== initial[key]);
+  const aboutChanged = isArtist && aboutInitial !== null && (about.bio.trim() !== aboutInitial.bio.trim() || JSON.stringify(cleanLinks(about.links)) !== JSON.stringify(aboutInitial.links));
+  const hasChanges = profileChanged || aboutChanged;
 
   const spec = useMemo(() => (cropper ? cropSpec() : null), [Boolean(cropper)]);
 
@@ -161,19 +173,38 @@ export default function EditProfile() {
     if (!hasChanges || saving) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API}/api/users/update-profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: viewer.email,
-          fullName: form.fullName,
-          username: form.username,
-          avatar: form.avatar
-        })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message || 'Failed to save your profile.');
-      saveUser(mergeUser(viewer, data));
+      let savedUser = viewer;
+      if (profileChanged) {
+        const res = await fetch(`${API}/api/users/update-profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: viewer.email,
+            fullName: form.fullName,
+            username: form.username,
+            avatar: form.avatar
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || 'Failed to save your profile.');
+        savedUser = mergeUser(viewer, data);
+        saveUser(savedUser);
+        setInitial({ ...form });
+      }
+      if (aboutChanged) {
+        if (!viewer.token) throw new Error('Please log out and log in again to unlock your artist tools.');
+        const body = new FormData();
+        body.append('bio', about.bio.trim());
+        body.append('socialLinks', JSON.stringify(cleanLinks(about.links)));
+        try {
+          const saved = await adminFetch('/api/artist/profile', { method: 'PUT', body });
+          const next = { bio: String(saved.bio || ''), links: cleanLinks(saved.socialLinks) };
+          setAbout(next);
+          setAboutInitial(next);
+        } catch (error) {
+          throw new Error(error.status === 401 ? 'Please log out and log in again to unlock your artist tools.' : (error.message || 'Could not save your bio and links.'));
+        }
+      }
       say('success', 'Your profile was updated.');
     } catch (error) {
       say('error', error.message || 'A network error occurred.');
@@ -241,6 +272,26 @@ export default function EditProfile() {
             </div>
             <small>{userHint}</small>
           </label>
+
+          {isArtist && (
+            <section className="ep-about" aria-label="About and links">
+              <h2>About</h2>
+              <label className="ep-field">
+                <span>Bio</span>
+                <textarea
+                  className="ep-textarea"
+                  rows={4}
+                  maxLength={BIO_MAX}
+                  value={about.bio}
+                  placeholder="Who are you, and what do you make?"
+                  onChange={(e) => setAbout((a) => ({ ...a, bio: e.target.value }))}
+                />
+                <small className="ep-count">{about.bio.length}/{BIO_MAX}</small>
+              </label>
+              <h3 className="ep-sub">Your links</h3>
+              <SocialLinksFields value={about.links} onChange={(links) => setAbout((a) => ({ ...a, links }))} idPrefix="ep-link" />
+            </section>
+          )}
 
           <div className="ep-actions">
             <Link className="btn-ghost" to="/profile">Cancel</Link>

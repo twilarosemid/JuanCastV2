@@ -6,6 +6,8 @@ import AllPolls from './pages/Polls/AllPolls.jsx';
 import PollDetail from './pages/Polls/PollDetail.jsx';
 import Community from './pages/Community/Community.jsx';
 import Market from './pages/Market/Market.jsx';
+import Rewards from './pages/Rewards/Rewards.jsx';
+import ChikaArticle from './pages/Chika/ChikaArticle.jsx';
 import Login from './pages/Login/Login.jsx';
 import Profile from './pages/Profile/Profile.jsx';
 import EditProfile from './pages/Profile/EditProfile/EditProfile.jsx';
@@ -53,7 +55,9 @@ function Shell() {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/community" element={<Community />} />
+          <Route path="/community/chika/:id" element={<ChikaArticle />} />
           <Route path="/market" element={<Market />} />
+          <Route path="/rewards" element={<Rewards />} />
           <Route path="/notifications" element={<OpenNotifications />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/edit" element={<EditProfile />} />

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { API, getJSON, getUser, img } from '../../api';
 import Modal from '../Modal/Modal';
+import PhotoCarousel from '../PhotoCarousel/PhotoCarousel';
 import './FanbasePanel.css';
 
 const bg = (url) => (url ? { backgroundImage: `url("${img(url)}")` } : undefined);
@@ -33,7 +35,7 @@ const LockIcon = () => (
 );
 const FANBASE_SOCIALS = [
   ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['youtube', 'YouTube'],
-  ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook']
+  ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook'], ['threads', 'Threads']
 ];
 
 function FanbaseSocialIcon({ platform }) {
@@ -42,27 +44,42 @@ function FanbaseSocialIcon({ platform }) {
   if (platform === 'x') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h4.5l11.5 18h-4.5L4 3Zm0 18 7-8m2-2 7-8" /></svg>;
   if (platform === 'youtube') return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="4" /><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none" /></svg>;
   if (platform === 'spotify') return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M6.5 9.5c4.4-1.3 8.7-.8 11.6 1M7.5 12.5c3.4-1 6.8-.6 9.3.8M8.5 15.4c2.6-.7 5-.4 6.9.7" /></svg>;
+  if (platform === 'threads') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 10.6C17.2 7.4 15.1 5.5 12 5.5c-3.3 0-5.5 2.5-5.5 6.5s2.2 6.5 5.6 6.5c2.9 0 4.6-1.5 4.6-3.4 0-2.1-1.8-3.2-4.3-3.2-1.7 0-2.8.8-2.8 2 0 1 .9 1.7 2.2 1.7 1.8 0 3-1.3 3-3.6v-.6" /></svg>;
   if (platform === 'appleMusic') return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.8 4.5v12.1a2.8 2.8 0 1 1-1.8-2.6V8.1l-6.1 1.3v8.4a2.8 2.8 0 1 1-1.8-2.6V7.9l9.7-2.1Z" /></svg>;
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5h1.7V3.9c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.2V10H7.7v3h2.7v8z" fill="currentColor" stroke="none" /></svg>;
 }
 
-function PostCard({ post, onClick }) {
+// every photo of a post (older posts only have imageUrl)
+const photosOf = (post) => (post.images?.length ? post.images : (post.imageUrl ? [post.imageUrl] : []));
+
+function PostCard({ post, onClick, focused = false, startIndex = 0 }) {
+  const images = photosOf(post);
+  // posts written by an artist link to that artist's profile
+  const artistPath = post.source === 'artist' && post.authorUsername ? `/profile/${encodeURIComponent(post.authorUsername)}` : '';
   return (
-    <article className={`fb-post${onClick ? ' clickable' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+    <article id={`fb-post-${post._id}`} className={`fb-post${images.length ? ' has-photo' : ''}${onClick ? ' clickable' : ''}${focused ? ' focused' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter') onClick(); } : undefined}>
-      <span className="fb-post-av" style={bg(post.authorAvatarUrl)} />
-      <div className="fb-post-body">
-        <div className="fb-post-name">{post.authorName}{post.verified !== false && <Verified />}</div>
-        {post.text && <p>{post.text}</p>}
-        <div className="fb-post-meta">
-          <time>{fmtWhen(post.postedAt)}</time>
-          <div className="fb-post-stats">
-            <span><StarIcon />{nf(post.likes)}</span>
-            <span><CommentIcon />{nf(post.comments)}</span>
+      {images.length > 1 && <PhotoCarousel images={images} ratio="4 / 3" initialIndex={startIndex} />}
+      {images.length === 1 && <span className="fb-post-photo" style={bg(images[0])} role="img" aria-label="Post photo" />}
+      <div className="fb-post-main">
+        {artistPath
+          ? <Link to={artistPath} className="fb-post-av" style={bg(post.authorAvatarUrl)} aria-label={`${post.authorName}'s profile`} />
+          : <span className="fb-post-av" style={bg(post.authorAvatarUrl)} />}
+        <div className="fb-post-body">
+          <div className="fb-post-name">
+            {artistPath ? <Link to={artistPath} className="fb-post-link">{post.authorName}</Link> : post.authorName}
+            {post.verified !== false && <Verified />}
+          </div>
+          {post.text && <p>{post.text}</p>}
+          <div className="fb-post-meta">
+            <time>{fmtWhen(post.postedAt)}</time>
+            <div className="fb-post-stats">
+              <span><StarIcon />{nf(post.likes)}</span>
+              <span><CommentIcon />{nf(post.comments)}</span>
+            </div>
           </div>
         </div>
       </div>
-      {post.imageUrl && <span className="fb-post-photo" style={bg(post.imageUrl)} role="img" aria-label="Post photo" />}
     </article>
   );
 }
@@ -89,12 +106,73 @@ function LockedBlock({ count }) {
   );
 }
 
-function Circle({ fanbase, onOpen }) {
+// Full-screen photo viewer for the Media tab. "View Post" jumps to that photo's post on the Board.
+function Lightbox({ photos, index, onIndex, onClose, onViewPost }) {
+  const photo = photos[index];
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') onIndex(Math.max(0, index - 1));
+      if (e.key === 'ArrowRight') onIndex(Math.min(photos.length - 1, index + 1));
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [index, photos.length, onClose, onIndex]);
+
+  if (!photo) return null;
+  return createPortal(
+    <div className="fb-lb" role="dialog" aria-modal="true" aria-label="Photo viewer" onClick={onClose}>
+      <button type="button" className="fb-lb-close" onClick={onClose} aria-label="Close photo">×</button>
+      <div className="fb-lb-stage" onClick={(e) => e.stopPropagation()}>
+        <img src={img(photo.url)} alt="Fanbase photo" />
+        {index > 0 && <button type="button" className="fb-lb-nav prev" onClick={() => onIndex(index - 1)} aria-label="Previous photo">‹</button>}
+        {index < photos.length - 1 && <button type="button" className="fb-lb-nav next" onClick={() => onIndex(index + 1)} aria-label="Next photo">›</button>}
+      </div>
+      <div className="fb-lb-bar" onClick={(e) => e.stopPropagation()}>
+        <span>{index + 1} / {photos.length}</span>
+        <button type="button" className="fb-subscribe fb-lb-view" onClick={() => onViewPost(photo)}>View Post</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ArtistCard({ fanbase, onOpen, index = 0 }) {
   return (
-    <button type="button" className="fb-circle" onClick={() => onOpen(fanbase._id)} title={fanbase.name}>
-      <span className="fb-circle-img" style={bg(fanbase.avatarUrl || fanbase.imageUrl)} />
-      <span className="fb-circle-name">{fanbase.name}</span>
+    <button type="button" className="fb-card" style={{ '--i': index }} onClick={() => onOpen(fanbase._id)}>
+      <span className="fb-card-img" style={bg(fanbase.avatarUrl || fanbase.imageUrl)} />
+      {fanbase.price > 0 && <span className="fb-card-price">Php {nf(fanbase.price)}/mo</span>}
+      <span className="fb-card-meta">
+        <strong>{fanbase.name}</strong>
+        <small>{nf(fanbase.subscriberCount)} {Number(fanbase.subscriberCount) === 1 ? 'subscriber' : 'subscribers'}</small>
+      </span>
     </button>
+  );
+}
+
+function FeaturedCard({ post, fanbase, onOpen }) {
+  const cover = post.imageUrl || fanbase?.imageUrl || fanbase?.avatarUrl;
+  return (
+    <article className={`fb-feature${onOpen ? ' clickable' : ''}`} onClick={onOpen} role={onOpen ? 'button' : undefined} tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={onOpen ? (e) => { if (e.key === 'Enter') onOpen(); } : undefined}>
+      <span className="fb-feature-img" style={bg(cover)} />
+      <div className="fb-feature-body">
+        <span className="fb-feature-name">{post.authorName || fanbase?.name}{post.verified !== false && <Verified />}</span>
+        {post.text && <p>{post.text}</p>}
+        <div className="fb-post-meta">
+          <time>{fmtWhen(post.postedAt)}</time>
+          <div className="fb-post-stats">
+            <span><StarIcon />{nf(post.likes)}</span>
+            <span><CommentIcon />{nf(post.comments)}</span>
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -103,11 +181,15 @@ function Board({ id, onBack }) {
   const [state, setState] = useState({ loading: true, error: '', data: null });
   const [tab, setTab] = useState('board');
   const [soon, setSoon] = useState(false);
+  const [lightbox, setLightbox] = useState(null); // index into the Media photos
+  const [focus, setFocus] = useState(null);       // { postId, index }: a post to scroll to on the Board
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true, error: '', data: null });
     setTab('board');
+    setLightbox(null);
+    setFocus(null);
     const qs = user?.email ? `?email=${encodeURIComponent(user.email)}` : '';
     getJSON(`/api/fanbases/${id}/board${qs}`)
       .then((data) => { if (alive) setState({ loading: false, error: '', data }); })
@@ -115,8 +197,17 @@ function Board({ id, onBack }) {
     return () => { alive = false; };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // after "View Post": scroll to that post on the Board, highlight it for a moment, then let go
+  useEffect(() => {
+    if (!focus || tab !== 'board') return undefined;
+    const el = document.getElementById(`fb-post-${focus.postId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setFocus(null), 2600);
+    return () => clearTimeout(timer);
+  }, [focus, tab]);
+
   if (state.loading) {
-    return <div className="fb-board"><div className="skeleton fb-skel-banner" /><div className="skeleton fb-skel-post" /></div>;
+    return <div className="fb-board" />;
   }
   if (state.error || !state.data) {
     return (
@@ -128,17 +219,22 @@ function Board({ id, onBack }) {
   }
 
   const { fanbase, locked, total, posts, members = [] } = state.data;
-  const photos = posts.filter((p) => p.imageUrl);
+  const photos = posts.flatMap((p) => photosOf(p).map((url, n) => ({ key: `${p._id}-${n}`, url, postId: p._id, index: n })));
+  const viewPost = (photo) => {
+    setLightbox(null);
+    setTab('board');
+    setFocus({ postId: photo.postId, index: photo.index });
+  };
   const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar']];
 
   return (
     <div className="fb-board">
-      <button type="button" className="fb-back" onClick={onBack}>← Fanbase</button>
+      <button type="button" className="fb-back" onClick={onBack}>← All artists</button>
 
       <header className="fb-banner" style={bg(fanbase.imageUrl)}>
         <div className="fb-banner-text">
           <h2>{fanbase.name}</h2>
-          <span>Subscribers: {nf(fanbase.subscriberCount)}</span>
+          <span className="fb-chip">{nf(fanbase.subscriberCount)} {Number(fanbase.subscriberCount) === 1 ? 'subscriber' : 'subscribers'}</span>
         </div>
       </header>
 
@@ -149,21 +245,31 @@ function Board({ id, onBack }) {
           ))}
         </nav>
         <div className="fb-sub">
-          <span className="fb-price">Php {peso(fanbase.price)}/Month</span>
+          <span className="fb-price">Php {peso(fanbase.price)}<small>/month</small></span>
           <button type="button" className="fb-subscribe" disabled={!locked} onClick={() => setSoon(true)}>{locked ? 'Subscribe' : 'Subscribed'}</button>
         </div>
       </div>
 
       {tab === 'board' && (
-        <div className={`fb-body${locked ? '' : ' open'}`}>
+        <div className="fb-body open">
           <div className="fb-feed">
             {posts.length === 0 && <div className="feed-empty">No posts yet.</div>}
-            {posts.map((post) => <PostCard key={post._id} post={post} />)}
+            {posts.map((post) => <PostCard key={post._id} post={post} focused={focus?.postId === post._id} startIndex={focus?.postId === post._id ? focus.index : 0} />)}
             {locked && <LockedBlock count={Math.max(0, total - 1)} />}
           </div>
+
+          {/* desktop: photo rail beside the posts (2+ columns). Tap a photo to open the viewer. */}
           {!locked && photos.length > 0 && (
-            <aside className="fb-media" aria-label="Photos">
-              {photos.slice(0, 6).map((p) => <span key={p._id} className="fb-tile" style={bg(p.imageUrl)} />)}
+            <aside className="fb-rail" aria-label="Fanbase photos">
+              <div className="fb-rail-head">
+                <h3>Photos</h3>
+                <button type="button" className="fb-rail-all" onClick={() => setTab('media')}>See all ({photos.length})</button>
+              </div>
+              <div className="fb-rail-grid">
+                {photos.slice(0, 12).map((p, i) => (
+                  <button key={p.key} type="button" className="fb-tile fb-tile-btn" style={bg(p.url)} onClick={() => setLightbox(i)} aria-label={`Open photo ${i + 1} of ${photos.length}`} />
+                ))}
+              </div>
             </aside>
           )}
         </div>
@@ -171,7 +277,11 @@ function Board({ id, onBack }) {
 
       {tab === 'media' && (
         locked ? <LockedBlock count={0} /> : photos.length ? (
-          <div className="fb-media-grid">{photos.map((p) => <span key={p._id} className="fb-tile" style={bg(p.imageUrl)} />)}</div>
+          <div className="fb-media-grid">
+            {photos.map((p, i) => (
+              <button key={p.key} type="button" className="fb-tile fb-tile-btn" style={bg(p.url)} onClick={() => setLightbox(i)} aria-label={`Open photo ${i + 1} of ${photos.length}`} />
+            ))}
+          </div>
         ) : <div className="feed-empty">No photos yet.</div>
       )}
 
@@ -179,15 +289,16 @@ function Board({ id, onBack }) {
         <div className="fb-about">
           <section className="fb-about-section">
             <h3>About the group</h3>
+            {fanbase.bio && <p className="fb-bio">{fanbase.bio}</p>}
             {members.length ? (
               <div className="fb-member-grid">
-                {members.map((member) => (
-                  <Link className="fb-member" key={member.email} to={`/profile/${encodeURIComponent(member.username)}`}>
-                    <span className="fb-member-avatar" style={bg(member.avatar)} />
-                    <span className="fb-member-info">
+                {members.map((member, i) => (
+                  <Link className="fb-card fb-member-card" key={member.email} style={{ '--i': i }} to={`/profile/${encodeURIComponent(member.username)}`}>
+                    <span className="fb-card-img" style={bg(member.avatar)} />
+                    {!member.avatar && <span className="fb-member-initial" aria-hidden="true">{(member.name || member.username || '?').charAt(0).toUpperCase()}</span>}
+                    <span className="fb-card-meta">
                       <strong>{member.name}</strong>
                       <small>@{member.username}</small>
-                      {member.bio && <span className="fb-member-bio">{member.bio}</span>}
                     </span>
                   </Link>
                 ))}
@@ -199,7 +310,7 @@ function Board({ id, onBack }) {
             <div className="fb-social-links">
               {FANBASE_SOCIALS.filter(([key]) => fanbase.socialLinks?.[key]).map(([key, label]) => (
                 <a key={key} href={fanbase.socialLinks[key]} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}>
-                  <FanbaseSocialIcon platform={key} />
+                  <FanbaseSocialIcon platform={key} /><span>{label}</span>
                 </a>
               ))}
               {!FANBASE_SOCIALS.some(([key]) => fanbase.socialLinks?.[key]) && <p className="fb-about-empty">Social links coming soon.</p>}
@@ -209,6 +320,10 @@ function Board({ id, onBack }) {
       )}
 
       {tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
+
+      {lightbox !== null && photos[lightbox] && (
+        <Lightbox photos={photos} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} onViewPost={viewPost} />
+      )}
 
       <Modal open={soon} onClose={() => setSoon(false)} label="Subscribe" role="alertdialog">
         <div className="center">
@@ -291,50 +406,41 @@ export default function FanbasePanel() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fb-home">
-        <h2 className="fb-h">Your Artists</h2>
-        <div className="fb-circles">{[0, 1, 2, 3].map((n) => <span key={n} className="fb-circle-img skeleton" />)}</div>
-        <h2 className="fb-h">Explore Other Artists</h2>
-        <div className="fb-circles">{[0, 1, 2, 3, 4, 5].map((n) => <span key={n} className="fb-circle-img skeleton" />)}</div>
-      </div>
-    );
-  }
+  if (loading) return <div className="fb-home" />;
 
   return (
     <div className="fb-home">
-      <section>
-        <h2 className="fb-h">Your Artists</h2>
-        <div className="fb-circles">
-          {mine.map((f) => <Circle key={f._id} fanbase={f} onOpen={open} />)}
-          <button type="button" className="fb-circle fb-add" onClick={openPicker} aria-label="Add or remove your artists" title="Add artists">
-            <span className="fb-circle-img">+</span>
-            <span className="fb-circle-name">{mine.length ? 'Edit' : 'Add'}</span>
+      {featured?.post && (
+        <section className="fb-sec">
+          <h3 className="fb-h">Featured</h3>
+          <FeaturedCard post={featured.post} fanbase={featured.fanbase} onOpen={featured.fanbase ? () => open(featured.fanbase._id) : undefined} />
+        </section>
+      )}
+
+      <section className="fb-sec">
+        <h3 className="fb-h">Your artists</h3>
+        <div className="fb-grid">
+          {mine.map((f, i) => <ArtistCard key={f._id} fanbase={f} onOpen={open} index={i} />)}
+          <button type="button" className="fb-card fb-add" style={{ '--i': mine.length }} onClick={openPicker} aria-label="Add or remove your artists">
+            <span className="fb-add-plus">+</span>
+            <span className="fb-add-label">{mine.length ? 'Edit your artists' : 'Add your artists'}</span>
           </button>
         </div>
       </section>
 
-      <section>
-        <h2 className="fb-h">Explore Other Artists</h2>
+      <section className="fb-sec">
+        <h3 className="fb-h">Explore artists</h3>
         {others.length === 0
           ? <div className="feed-empty">{fanbases.length === 0 ? 'No artists yet.' : 'You have added every artist.'}</div>
-          : <div className="fb-circles">{others.map((f) => <Circle key={f._id} fanbase={f} onOpen={open} />)}</div>}
+          : <div className="fb-grid">{others.map((f, i) => <ArtistCard key={f._id} fanbase={f} onOpen={open} index={i} />)}</div>}
       </section>
-
-      {featured?.post && (
-        <section>
-          <h2 className="fb-h">Featured Artist</h2>
-          <PostCard post={featured.post} onClick={featured.fanbase ? () => open(featured.fanbase._id) : undefined} />
-        </section>
-      )}
 
       <Modal open={picker} onClose={() => setPicker(false)} label="Your artists" className="fb-picker">
         <h3>Your Artists</h3>
         <div className="fb-pick-list">
           {fanbases.map((f) => (
             <button key={f._id} type="button" className={`fb-pick${draft.includes(f._id) ? ' on' : ''}`} onClick={() => toggle(f._id)} aria-pressed={draft.includes(f._id)}>
-              <span className="fb-circle-img" style={bg(f.avatarUrl || f.imageUrl)} />
+              <span className="fb-pick-img" style={bg(f.avatarUrl || f.imageUrl)} />
               <span>{f.name}</span>
             </button>
           ))}

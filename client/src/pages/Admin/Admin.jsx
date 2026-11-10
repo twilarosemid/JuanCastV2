@@ -4,6 +4,7 @@ import Cropper from 'react-easy-crop';
 import { adminFetch, clearUser, getJSON, img, isAdminUser } from '../../api';
 import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
+import { SocialLinksFields } from '../../components/SocialLinks/SocialLinks';
 import './Admin.css';
 
 /* ------------------------------------------------------------------ helpers */
@@ -42,6 +43,7 @@ const NAV = [
   { group: 'Site', items: [
     { key: 'banners', label: 'Banners', desc: 'The homepage carousel.' },
     { key: 'ads', label: 'Ads', desc: 'Ads shown around the site.' },
+    { key: 'promos', label: 'Promo codes', desc: 'Codes people can enter on their profile for free Stars or Suns.' },
     { key: 'landing', label: 'Landing', desc: 'Links and buttons on the landing page.' }
   ] }
 ];
@@ -1047,7 +1049,7 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
   const [avatarPreview, setAvatarPreview] = useState('');
   const socialFields = [
     ['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['x', 'X'], ['youtube', 'YouTube'],
-    ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook']
+    ['spotify', 'Spotify'], ['appleMusic', 'Apple Music'], ['facebook', 'Facebook'], ['threads', 'Threads']
   ];
 
   useEffect(() => {
@@ -1075,7 +1077,7 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
     setEditingId('');
     setBanner(null);
     setAvatar(null);
-    setForm({ name: '', price: '500', memberEmails: [], socialLinks: {}, imageUrl: '', avatarUrl: '' });
+    setForm({ name: '', bio: '', price: '500', memberEmails: [], socialLinks: {}, imageUrl: '', avatarUrl: '' });
   };
   const edit = (fb) => {
     setEditingId(idOf(fb));
@@ -1083,6 +1085,7 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
     setAvatar(null);
     setForm({
       name: fb.name || '',
+      bio: fb.bio || '',
       price: String(fb.price ?? 500),
       memberEmails: fb.memberEmails || (fb.ownerEmail ? [fb.ownerEmail] : []),
       socialLinks: fb.socialLinks || {},
@@ -1095,6 +1098,7 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
     setSaving(true);
     const body = new FormData();
     body.append('name', form.name.trim());
+    body.append('bio', form.bio.trim());
     body.append('price', form.price);
     body.append('memberEmails', JSON.stringify(form.memberEmails));
     body.append('socialLinks', JSON.stringify(form.socialLinks));
@@ -1185,6 +1189,10 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
             <label className="ad-field">
               <span>Fanbase name</span>
               <input className="ad-input" required maxLength={60} value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} />
+            </label>
+            <label className="ad-field">
+              <span>Bio <small>({(form.bio || '').length}/500)</small></span>
+              <textarea className="ad-input" rows={4} maxLength={500} value={form.bio || ''} placeholder="Tell fans what this fanbase is about." onChange={(e) => setForm((current) => ({ ...current, bio: e.target.value }))} />
             </label>
             <div className="ad-field">
               <span>Artists in this group</span>
@@ -1307,6 +1315,9 @@ function AccountsTab({ ctx }) {
   const [state, setState] = useState({ accounts: [], total: 0, pages: 1, canManageAdmins: false, you: '' });
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [aboutFor, setAboutFor] = useState(null); // account whose about section is being edited
+  const [reloadKey, setReloadKey] = useState(0);
   const seq = useRef(0);
 
   // wait for a pause in typing before searching
@@ -1328,7 +1339,7 @@ function AccountsTab({ ctx }) {
       .then((data) => { if (mine === seq.current) setState(data); })
       .catch((err) => { if (mine === seq.current) onError(err); })
       .finally(() => { if (mine === seq.current) setLoading(false); });
-  }, [page, search, role, onError]);
+  }, [page, search, role, reloadKey, onError]);
 
   const nameOf = (a) => (a.username ? `@${a.username}` : a.email);
 
@@ -1371,6 +1382,7 @@ function AccountsTab({ ctx }) {
     <div className="ad-card">
       <div className="ad-list-head">
         <h2>Accounts <span className="ad-count">{total}</span></h2>
+        <button type="button" className="btn-solid" onClick={() => setAddOpen(true)}>+ Add user</button>
       </div>
       <p className="ad-empty">
         Set who is a user, an artist or an admin.{' '}
@@ -1421,6 +1433,7 @@ function AccountsTab({ ctx }) {
                 <option value="artist">Artist</option>
                 {(canManageAdmins || a.role === 'admin') && <option value="admin" disabled={!canManageAdmins}>Admin</option>}
               </select>
+              {a.role === 'artist' && <button type="button" className="btn-ghost" onClick={() => setAboutFor(a)}>Edit about</button>}
             </div>
           </div>
         );
@@ -1433,6 +1446,317 @@ function AccountsTab({ ctx }) {
           <button type="button" className="btn-ghost" onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages || loading}>Next</button>
         </div>
       )}
+
+      <AboutModal
+        account={aboutFor}
+        onClose={() => setAboutFor(null)}
+        onSaved={(account) => setState((st) => ({ ...st, accounts: st.accounts.map((x) => (x.id === account.id ? account : x)) }))}
+        ctx={ctx}
+      />
+
+      <AddUserModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        canManageAdmins={canManageAdmins}
+        onCreated={() => { setReloadKey((k) => k + 1); setPage(1); }}
+        ctx={ctx}
+      />
+    </div>
+  );
+}
+
+// Admin: edit an artist's "about" section: name, bio, links, and remove the cover photo.
+function AboutModal({ account, onClose, onSaved, ctx }) {
+  const { notify, fail } = ctx;
+  const [form, setForm] = useState({ fullName: '', bio: '', socialLinks: {}, removeCover: false });
+  const [busy, setBusy] = useState(false);
+  const shown = useRef(null);
+  if (account) shown.current = account; // keep the last account while the dialog fades out
+  const acc = account || shown.current;
+
+  useEffect(() => {
+    if (account) setForm({ fullName: account.fullName || '', bio: account.bio || '', socialLinks: { ...(account.socialLinks || {}) }, removeCover: false });
+  }, [account]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    if (busy || !account) return;
+    setBusy(true);
+    try {
+      const data = await adminFetch(`/api/admin/accounts/${account.id}/about`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      onSaved(data.account);
+      notify(data.message || 'Profile updated.');
+      onClose();
+    } catch (err) {
+      if (err?.status === 400 || err?.status === 403 || err?.status === 404) notify(err.message, 'err');
+      else fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={Boolean(account)} onClose={onClose} label="Edit about" className="ad-modal sl-modal">
+      <form className="ad-form" onSubmit={save}>
+        <h3>Edit about{acc?.username ? ` · @${acc.username}` : ''}</h3>
+        <div className="ad-field">
+          <label htmlFor="ab-name">Name</label>
+          <input id="ab-name" className="ad-input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} maxLength={80} required />
+        </div>
+        <div className="ad-field">
+          <label htmlFor="ab-bio">Bio <small>({form.bio.length}/300)</small></label>
+          <textarea id="ab-bio" className="ad-input" rows={4} maxLength={300} value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} placeholder="Who are they, and what do they make?" />
+        </div>
+        <div className="ad-field">
+          <label>Links <small>(leave empty to hide)</small></label>
+          <SocialLinksFields value={form.socialLinks} onChange={(socialLinks) => setForm((f) => ({ ...f, socialLinks }))} idPrefix="ab-link" />
+        </div>
+        {acc?.hasCover && (
+          <label className="ad-check-all ad-remove-cover">
+            <input type="checkbox" checked={form.removeCover} onChange={(e) => setForm((f) => ({ ...f, removeCover: e.target.checked }))} /> Remove the cover photo
+          </label>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className="btn-solid" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Create an account directly (no sign-up form or email code). The account is verified straight away.
+const EMPTY_NEW_USER = { fullName: '', username: '', email: '', password: '', birthdate: '', role: 'user' };
+
+function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
+  const { notify, fail } = ctx;
+  const [form, setForm] = useState(EMPTY_NEW_USER);
+  const [busy, setBusy] = useState(false);
+  const [created, setCreated] = useState(null); // { username, email, password } shown once after creating
+  const [copied, setCopied] = useState(false);
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const close = () => { setForm(EMPTY_NEW_USER); setCreated(null); setCopied(false); onClose(); };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const data = await adminFetch('/api/admin/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, username: form.username.replace(/\s/g, '') })
+      });
+      onCreated();
+      notify(data.message || 'Account created.');
+      setCreated({ username: data.account?.username || form.username, email: data.account?.email || form.email, password: data.generatedPassword || form.password });
+    } catch (err) {
+      if (err?.status === 400 || err?.status === 403 || err?.status === 409) notify(err.message, 'err');
+      else fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyLogin = async () => {
+    try {
+      await navigator.clipboard.writeText(`Email: ${created.email}\nPassword: ${created.password}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      notify('Could not copy. Please copy it manually.', 'err');
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={close} label="Add user" className="ad-modal ad-form-modal">
+      {created ? (
+        <div className="ad-form">
+          <h3>Account created</h3>
+          <p className="ad-note">@{created.username} can log in right away with these details. {form.password ? '' : 'The password is only shown now, so copy it before closing.'}</p>
+          <div className="ad-cred">
+            <div><small>Email</small><b>{created.email}</b></div>
+            <div><small>Password</small><b>{created.password}</b></div>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={copyLogin}>{copied ? 'Copied ✓' : 'Copy login'}</button>
+            <button type="button" className="btn-solid" onClick={close}>Done</button>
+          </div>
+        </div>
+      ) : (
+        <form className="ad-form" onSubmit={submit}>
+          <h3>Add user</h3>
+          <p className="ad-note">Creates a ready-to-use account without the sign-up form or email code.</p>
+          <div className="ad-field">
+            <label htmlFor="au-name">Full name <em>*</em></label>
+            <input id="au-name" className="ad-input" value={form.fullName} onChange={set('fullName')} maxLength={80} required autoFocus />
+          </div>
+          <div className="ad-row2">
+            <div className="ad-field">
+              <label htmlFor="au-user">Username <em>*</em></label>
+              <input id="au-user" className="ad-input" value={form.username} onChange={set('username')} maxLength={24} placeholder="juandelacruz" autoComplete="off" required />
+            </div>
+            <div className="ad-field">
+              <label htmlFor="au-role">Role</label>
+              <select id="au-role" className="ad-input" value={form.role} onChange={set('role')}>
+                <option value="user">User</option>
+                <option value="artist">Artist</option>
+                {canManageAdmins && <option value="admin">Admin</option>}
+              </select>
+            </div>
+          </div>
+          <div className="ad-field">
+            <label htmlFor="au-email">Email <em>*</em></label>
+            <input id="au-email" className="ad-input" type="email" value={form.email} onChange={set('email')} autoComplete="off" required />
+          </div>
+          <div className="ad-row2">
+            <div className="ad-field">
+              <label htmlFor="au-pass">Password <small>(blank = generate one)</small></label>
+              <input id="au-pass" className="ad-input" type="text" value={form.password} onChange={set('password')} minLength={8} autoComplete="new-password" placeholder="At least 8 characters" />
+            </div>
+            <div className="ad-field">
+              <label htmlFor="au-bday">Birthdate <small>(optional)</small></label>
+              <input id="au-bday" className="ad-input" type="date" value={form.birthdate} onChange={set('birthdate')} />
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-ghost" onClick={close} disabled={busy}>Cancel</button>
+            <button type="submit" className="btn-solid" disabled={busy}>{busy ? 'Creating…' : 'Create account'}</button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ promo codes */
+function PromosTab({ ctx }) {
+  const { notify, fail, askConfirm } = ctx;
+  const [promos, setPromos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ code: '', stars: '', suns: '', maxRedemptions: '', expiresAt: '' });
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  useEffect(() => {
+    let alive = true;
+    adminFetch('/api/admin/promos')
+      .then((data) => { if (alive) setPromos(Array.isArray(data) ? data : []); })
+      .catch((err) => { if (alive) fail(err); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [fail]);
+
+  const create = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const made = await adminFetch('/api/admin/promos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      setPromos((list) => [made, ...list]);
+      setForm({ code: '', stars: '', suns: '', maxRedemptions: '', expiresAt: '' });
+      notify(`Code ${made.code} created.`);
+    } catch (err) {
+      if (err?.status === 400 || err?.status === 409) notify(err.message, 'err');
+      else fail(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggle = async (promo) => {
+    try {
+      const next = await adminFetch(`/api/admin/promos/${promo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !promo.active })
+      });
+      setPromos((list) => list.map((p) => (p.id === promo.id ? next : p)));
+      notify(`${promo.code} ${next.active ? 'is on again' : 'is turned off'}.`);
+    } catch (err) { fail(err); }
+  };
+
+  const remove = (promo) => askConfirm({
+    title: `Delete ${promo.code}?`,
+    body: 'The code stops working right away. People who already used it keep their reward.',
+    confirmLabel: 'Delete',
+    tone: 'danger',
+    run: async () => {
+      await adminFetch(`/api/admin/promos/${promo.id}`, { method: 'DELETE' });
+      setPromos((list) => list.filter((p) => p.id !== promo.id));
+      notify(`${promo.code} deleted.`);
+    }
+  });
+
+  const worth = (p) => [p.stars > 0 && `${nf.format(p.stars)} Stars`, p.suns > 0 && `${nf.format(p.suns)} Suns`].filter(Boolean).join(' + ');
+  const expired = (p) => Boolean(p.expiresAt) && new Date(p.expiresAt) < new Date();
+
+  return (
+    <div className="ad-stack">
+      <div className="ad-card">
+        <h2>Create a promo code</h2>
+        <p className="ad-note">People enter codes under Promo on their profile. Each account can use a code once. Leave the code blank to make a random one.</p>
+        <div className="ad-banner-form">
+          <div className="ad-field">
+            <label htmlFor="ad-promo-code">Code <small>(optional, letters and numbers)</small></label>
+            <input id="ad-promo-code" className="ad-input" placeholder="e.g. WELCOME500" maxLength={30} value={form.code} onChange={set('code')} />
+          </div>
+          <div className="ad-row2">
+            <div className="ad-field">
+              <label htmlFor="ad-promo-stars">Stars</label>
+              <input id="ad-promo-stars" className="ad-input" type="number" min="0" placeholder="0" value={form.stars} onChange={set('stars')} />
+            </div>
+            <div className="ad-field">
+              <label htmlFor="ad-promo-suns">Suns</label>
+              <input id="ad-promo-suns" className="ad-input" type="number" min="0" placeholder="0" value={form.suns} onChange={set('suns')} />
+            </div>
+          </div>
+          <div className="ad-row2">
+            <div className="ad-field">
+              <label htmlFor="ad-promo-max">Max uses <small>(0 or blank = unlimited)</small></label>
+              <input id="ad-promo-max" className="ad-input" type="number" min="0" placeholder="Unlimited" value={form.maxRedemptions} onChange={set('maxRedemptions')} />
+            </div>
+            <div className="ad-field">
+              <label htmlFor="ad-promo-exp">Expires <small>(optional, last day it works)</small></label>
+              <input id="ad-promo-exp" className="ad-input" type="date" value={form.expiresAt} onChange={set('expiresAt')} />
+            </div>
+          </div>
+          <div className="ad-actions">
+            <button type="button" className="btn-solid" onClick={create} disabled={busy}>{busy ? 'Creating…' : 'Create code'}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="ad-card">
+        <h2>Promo codes <span className="ad-count">{promos.length}</span></h2>
+        {loading ? <p className="ad-empty">Loading…</p> : promos.length === 0 ? <p className="ad-empty">No promo codes yet.</p> : promos.map((p) => (
+          <div className="ad-item" key={p.id}>
+            <div className="ad-item-body">
+              <div className="ad-item-title">
+                <span style={{ fontFamily: 'ui-monospace, Consolas, monospace', letterSpacing: '.06em' }}>{p.code}</span>
+                <span className={`ad-status ${p.active && !expired(p) ? 'live' : 'paused'}`}>{!p.active ? 'Off' : expired(p) ? 'Expired' : 'Live'}</span>
+              </div>
+              <div className="ad-item-sub">{worth(p)}</div>
+              <div className="ad-item-sub">
+                Used {nf.format(p.redeemedCount)}{p.maxRedemptions > 0 ? ` of ${nf.format(p.maxRedemptions)}` : ''}
+                {p.expiresAt ? ` · Expires ${fmtDate(p.expiresAt)}` : ' · No expiry'}
+              </div>
+            </div>
+            <div className="ad-item-actions">
+              <button type="button" className="ad-btn" onClick={() => toggle(p)}>{p.active ? 'Turn off' : 'Turn on'}</button>
+              <button type="button" className="ad-btn danger" onClick={() => remove(p)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1850,6 +2174,7 @@ function Dashboard({ user }) {
             {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
             {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
             {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
+            {tab === 'promos' && <PromosTab key="promos" ctx={ctx} />}
           </section>
         </div>
       </div>

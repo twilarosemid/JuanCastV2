@@ -192,11 +192,7 @@ export default function Transactions() {
           </div>
 
           <section className="tx-panel rise" style={{ '--d': '140ms' }} aria-live="polite">
-            {loading ? (
-              <div className="tx-skels" role="status" aria-label="Loading your activity">
-                {[0, 1, 2, 3, 4].map((n) => <div key={n} className="feed-skel tx-skel" />)}
-              </div>
-            ) : error ? (
+            {loading ? null : error ? (
               <div className="tx-state" role="alert">
                 <h2>Transactions couldn’t load</h2>
                 <p>{error}</p>

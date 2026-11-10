@@ -105,12 +105,10 @@ export default function DailyRewards({ open, onClose, streak = 0, claimedToday =
             </div>
 
             <div className={`dr-card dr-grand ${statusOf(7)}`}>
-              <div className="dr-grand-info">
-                <span className="dr-tag">GRAND PRIZE</span>
-                <h3>Day 7</h3>
-                <strong>1,000 STARS</strong>
-              </div>
+              <span className="dr-tag">GRAND PRIZE</span>
+              <h3>Day 7</h3>
               <img src={STAR7} alt="" />
+              <strong>1,000 <span>STARS</span></strong>
               <Action status={statusOf(7)} />
             </div>
 

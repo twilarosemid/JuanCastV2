@@ -1,10 +1,14 @@
 /* ---------- artist profile: cover + header ---------- */
 .ap-hero { position: relative; }
-.ap-cover {
-  position: relative; height: clamp(150px, 26vw, 270px); background-size: cover; background-position: center; background-color: #0b2f78;
+.ap-cover { position: relative; height: clamp(150px, 26vw, 270px); }
+/* the photo lives on its own layer so it can be masked: it fades to transparent at the bottom,
+   which lets the card's own background show through (a seamless blend, no overlay tint) */
+.ap-cover-img {
+  position: absolute; inset: 0; background-size: cover; background-position: center; background-color: #0b2f78;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0, 0, 0, .55) 72%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, #000 45%, rgba(0, 0, 0, .55) 72%, transparent 100%);
 }
-.ap-cover.empty { background-image: linear-gradient(135deg, #1d5bd6 0%, #0b2f78 55%, #071a4a 100%); }
-.ap-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 55%, rgba(6, 20, 60, .55)); pointer-events: none; }
+.ap-cover-img.empty { background-image: linear-gradient(135deg, #1d5bd6 0%, #0b2f78 55%, #071a4a 100%); }
 .ap-cover-tools { position: absolute; z-index: 2; right: 14px; bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .ap-chip {
   display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
@@ -76,3 +80,83 @@
 /* keep the name, handle and bio fully below the cover photo (a bright cover made them unreadable) */
 .ap-head .ap-id { padding-top: 70px; }
 @media (max-width: 560px) { .ap-head .ap-id { padding-top: 58px; } }
+
+/* Profile.css loads after this file and its .pf-head tint gradient was winning over .ap-head's "background: none",
+   which left a lighter patch under the cover's bottom edge (the visible line). Higher specificity fixes it. */
+.ap-hero .ap-head { background: none; }
+
+/* ---------- composer: several photos ---------- */
+.ap-attach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin-top: 12px; }
+.ap-attach-tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .15); background: #0a1440; }
+.ap-attach-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ap-attach-tile button { position: absolute; top: 5px; right: 5px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; font-size: 17px; line-height: 1; color: #fff; background: rgba(0, 0, 0, .7); cursor: pointer; }
+.ap-attach-cover { position: absolute; left: 5px; bottom: 5px; padding: 2px 8px; border-radius: 999px; background: rgba(0, 0, 0, .7); color: #fff; font-size: 11px; font-weight: 700; }
+
+/* ---------- Instagram-style posts ---------- */
+.ig-post { overflow: hidden; border: 1px solid rgba(255, 255, 255, .1); border-radius: 18px; background: var(--card); backdrop-filter: blur(14px); box-shadow: 0 8px 24px rgba(0, 0, 0, .2); }
+.ig-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.ig-ring { flex: none; display: grid; place-items: center; padding: 2px; border-radius: 50%; background: linear-gradient(135deg, #ffe08a, var(--gold) 45%, #ff8f5a); }
+.ig-ring .pf-avatar-box { width: 38px; height: 38px; border: 2px solid #0b2f78; }
+.ig-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.ig-who strong { display: inline-flex; align-items: center; font-size: 14.5px; }
+.ig-who span { color: var(--muted); font-size: 12px; }
+.ig-actions { display: flex; align-items: center; gap: 4px; padding: 8px 10px 0; }
+.ig-actions button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; transition: background .2s, transform .15s, color .2s; }
+.ig-actions button svg { width: 25px; height: 25px; }
+.ig-actions button:hover { background: rgba(255, 255, 255, .1); }
+.ig-actions button:active { transform: scale(.88); }
+.ig-actions button.liked { color: #ff5a78; }
+.ig-meta { display: flex; flex-direction: column; gap: 5px; padding: 2px 16px 14px; }
+.ig-meta p { margin: 0; }
+.ig-likes { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ig-caption { font-size: 14.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ig-caption.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ig-caption strong { margin-right: 4px; }
+.ig-more, .ig-viewall { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; text-align: left; }
+.ig-more { margin-left: 6px; }
+.ig-more:hover, .ig-viewall:hover { color: var(--text); }
+.ig-time { color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.ig-replies { margin: 0; padding: 0 16px 16px; }
+.ig-head .ap-del { margin-left: auto; }
+
+/* ---------- locked posts ---------- */
+.ig-locked { position: relative; min-height: 300px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .12); border-radius: 18px; }
+.ig-locked-ghosts { display: flex; flex-direction: column; gap: 14px; filter: blur(6px); opacity: .5; pointer-events: none; user-select: none; }
+.ig-ghost { overflow: hidden; border-radius: 18px; background: var(--card); }
+.ig-ghost-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.ig-ghost-av { width: 38px; height: 38px; border-radius: 50%; background: rgba(188, 214, 255, .3); }
+.ig-ghost-bar { width: 120px; height: 12px; border-radius: 6px; background: rgba(188, 214, 255, .3); }
+.ig-ghost-photo { aspect-ratio: 1; max-height: 420px; background: rgba(188, 214, 255, .18); }
+.ig-lock-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; color: #fff;
+  background: linear-gradient(to top, rgba(6, 34, 96, .93), rgba(6, 42, 115, .74)); backdrop-filter: blur(8px);
+}
+.ig-lock-overlay svg { color: var(--gold); }
+.ig-lock-overlay strong { color: var(--gold); font-size: 19px; font-weight: 800; }
+.ig-lock-overlay small { color: var(--muted); font-size: 13px; font-weight: 600; }
+.ig-lock-cta { display: inline-flex; align-items: center; justify-content: center; margin-top: 8px; text-decoration: none; }
+
+/* ---------- ... menu on the cover ---------- */
+.ap-kebab-wrap { position: absolute; z-index: 3; top: 12px; right: 12px; }
+.ap-kebab { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border-radius: 50%; color: #fff; background: rgba(8, 24, 70, .72); border: 1px solid rgba(255, 255, 255, .28); backdrop-filter: blur(8px); cursor: pointer; transition: background .2s, transform .2s; }
+.ap-kebab:hover, .ap-kebab[aria-expanded="true"] { background: rgba(8, 24, 70, .92); transform: scale(1.06); }
+.ap-menu { position: absolute; top: 46px; right: 0; min-width: 190px; padding: 6px; border-radius: 14px; background: #0b2a6e; border: 1px solid rgba(255, 255, 255, .18); box-shadow: 0 16px 40px rgba(0, 0, 0, .45); animation: apMenuIn .16s ease-out; }
+@keyframes apMenuIn { from { opacity: 0; transform: translateY(-6px); } }
+.ap-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
+.ap-menu button:hover, .ap-menu button:focus-visible { background: rgba(255, 255, 255, .12); outline: 0; }
+.ap-bio-empty a { color: var(--accent); font-style: normal; font-weight: 700; }
+
+/* ---------- artist links (under Statistics) ---------- */
+.al-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-link { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; color: var(--text); text-decoration: none; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); transition: transform .2s, background .2s, border-color .2s; animation: alIn .3s ease-out backwards; }
+@keyframes alIn { from { opacity: 0; transform: translateY(-6px); } }
+.al-link:hover { transform: translateX(3px); background: rgba(255, 255, 255, .13); border-color: rgba(245, 197, 66, .5); }
+.al-ico { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(255, 255, 255, .1); }
+.al-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.al-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.al-text strong { font-size: 14px; }
+.al-text small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.al-more { width: 100%; min-height: 40px; margin-top: 10px; border: 1px dashed rgba(255, 255, 255, .25); border-radius: 12px; background: transparent; color: var(--accent); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; transition: background .2s, border-color .2s; }
+.al-more:hover { background: rgba(255, 255, 255, .08); border-color: var(--accent); }
+.al-empty { margin: 0; color: var(--muted); font-size: 14px; }
+.al-empty a { color: var(--accent); font-weight: 700; }

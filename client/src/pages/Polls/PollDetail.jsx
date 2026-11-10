@@ -111,10 +111,7 @@ export default function PollDetail() {
 
   if (loading) {
     return (
-      <div className="poll-detail" aria-busy="true">
-        <div className="skeleton poll-banner-skeleton" />
-        <div className="skeleton skeleton-block" />
-      </div>
+      <div className="poll-detail" aria-busy="true" />
     );
   }
   if (!poll) return <div className="polls-status rise">Poll not found.</div>;
