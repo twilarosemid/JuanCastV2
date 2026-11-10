@@ -2538,11 +2538,17 @@ app.get('/api/fanbases/:id/board', async (req, res) => {
 
     const [posts, members] = await Promise.all([getFanbaseBoardPosts(fanbase), getFanbaseMemberProfiles(fanbase)]);
     const shown = unlocked ? posts : posts.slice(0, 1);
+    // non-subscribers get a small teaser of photos from the locked posts (never the posts themselves)
+    const photosOfPost = (post) => (post.images?.length ? post.images : (post.imageUrl ? [post.imageUrl] : []));
+    const previewPhotos = unlocked ? [] : posts.slice(1).flatMap(photosOfPost).slice(0, 4);
+    const photoTotal = posts.flatMap(photosOfPost).length;
     res.status(200).json({
       fanbase: serializeFanbase(fanbase),
       locked: !unlocked,
       total: posts.length,
       posts: shown,
+      previewPhotos,
+      photoTotal,
       members
     });
   } catch (error) {

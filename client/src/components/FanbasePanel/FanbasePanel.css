@@ -210,3 +210,6 @@ a.fb-post-av { display: block; }
 .fb-rail-all:hover { text-decoration: underline; }
 .fb-rail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .fb-rail-grid .fb-tile { aspect-ratio: 1 / 1; }
+.fb-rail-count { color: var(--muted); font-size: 13px; font-weight: 700; }
+.fb-rail-unlock { width: 100%; min-height: 42px; }
+.fb-rail-grid .fb-tile:not(.fb-tile-btn):hover { transform: none; box-shadow: none; }
