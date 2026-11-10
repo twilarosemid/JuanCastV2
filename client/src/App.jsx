@@ -20,6 +20,7 @@ import Admin from './pages/Admin/Admin.jsx';
 import Landing from './pages/Landing/Landing.jsx';
 import Atmosphere from './components/Atmosphere/Atmosphere';
 import ScrollProgress from './components/ScrollProgress/ScrollProgress';
+import Tutorial from './components/Tutorial/Tutorial';
 import './App.css';
 
 // Notifications are a popup now. An old /notifications link goes home and opens it.
@@ -43,6 +44,7 @@ function Shell() {
       {!bare && <ScrollProgress />}
       {/* Home gets its glow from the hero banner; every other page gets the shared one */}
       {!bare && <Atmosphere />}
+      {!bare && <Tutorial />}
       {/* key = pathname re-runs the fade-in on every page change */}
       <div className="page" key={pathname}>
         <Routes>

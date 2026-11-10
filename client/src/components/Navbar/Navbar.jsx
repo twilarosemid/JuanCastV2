@@ -6,6 +6,7 @@ import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
 import DailyRewards, { dailyState } from '../DailyRewards/DailyRewards';
 import useStartupState from '../../hooks/useStartupState';
+import useTutorialPending from '../../hooks/useTutorialPending';
 import useActivePowerups, { clock } from '../../hooks/useActivePowerups';
 import NotificationsMenu from '../NotificationsMenu/NotificationsMenu';
 import useMountTransition from '../../hooks/useMountTransition';
@@ -89,6 +90,7 @@ export default function Navbar() {
   const [tipKey, setTipKey] = useState(null); // powerup whose time-left tooltip was opened by tapping
   const powerups = useActivePowerups(loggedIn ? user.email : '');
   const startupState = useStartupState();
+  const tutorialPending = useTutorialPending();
   const [condensed, setCondensed] = useState(false);
   const menuRef = useRef(null);
   const { mounted: menuMounted, visible: menuVisible } = useMountTransition(open, 220);
@@ -213,13 +215,14 @@ export default function Navbar() {
   const waitingForAd = pathname === '/' && startupState !== 'done';
   useEffect(() => {
     if (!dailyWanted) return undefined;
+    if (tutorialPending) return undefined; // new users get the tutorial first; the check-in opens right after it
     if (!waitingForAd) {
       const id = setTimeout(() => { setDailyWanted(false); if (!dailyState(getUser()).claimedToday) setDailyOpen(true); }, 350);
       return () => clearTimeout(id);
     }
     const giveUp = setTimeout(() => { setDailyWanted(false); setDailyOpen(true); }, 15000);
     return () => clearTimeout(giveUp);
-  }, [dailyWanted, waitingForAd]);
+  }, [dailyWanted, waitingForAd, tutorialPending]);
 
   // lets any page open the check-in: window.dispatchEvent(new Event('juancast-open-daily'))
   useEffect(() => {
@@ -275,6 +278,7 @@ export default function Navbar() {
               key={n.key}
               ref={(el) => { linkRefs.current[n.key] = el; }}
               className={active === n.key ? 'on' : ''}
+              data-tour={`nav-${n.key}`}
               aria-current={active === n.key ? 'page' : undefined}
               to={n.href}
             >
@@ -312,7 +316,7 @@ export default function Navbar() {
                 </span>
               </button>
             ))}
-            <span className="nav-balance" aria-label="Your balance">
+            <span className="nav-balance" data-tour="balance" aria-label="Your balance">
               <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
               <i aria-hidden="true">/</i>
               <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
@@ -323,6 +327,7 @@ export default function Navbar() {
         <button
           type="button"
           className="icon-btn"
+          data-tour="bell"
           aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
           aria-haspopup="dialog"
           aria-expanded={notifOpen}
@@ -335,6 +340,7 @@ export default function Navbar() {
         <button
           type="button"
           className={`avatar ${open ? 'open' : ''}`}
+          data-tour="avatar"
           aria-label="Account menu"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -379,7 +385,7 @@ export default function Navbar() {
       {/* phones only: the balance on a row of its own (the desktop pill above hides it on phones); the powerup icon sits in the top row beside the bell */}
       {loggedIn && (
         <div className="nav-status">
-          <span className="ns-chip ns-balance" aria-label="Your balance">
+          <span className="ns-chip ns-balance" data-tour="balance" aria-label="Your balance">
             <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
             <i aria-hidden="true" />
             <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>

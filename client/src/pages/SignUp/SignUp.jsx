@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flagNewAccount } from '../../tutorialGate';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { API } from '../../api';
 import useUser from '../../hooks/useUser';
@@ -260,6 +261,7 @@ export default function SignUp() {
     setBusy(true); setError('');
     try {
       await post('/api/verify-otp', { email: email.trim().toLowerCase(), otp: code, fullName, username, birthdate, gender });
+      flagNewAccount(email.trim().toLowerCase());
       setFb({ open: true, type: 'success', message: 'Your account has been created. You can now log in.' });
     } catch (err) {
       if (/username/i.test(err.message)) { go(1); setError('That username was just taken. Please choose another.'); }

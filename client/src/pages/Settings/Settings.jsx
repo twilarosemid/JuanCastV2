@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { API } from '../../api';
 import useUser from '../../hooks/useUser';
+import { startTutorial } from '../../tutorialGate';
 import Feedback from '../../components/Feedback/Feedback';
 import TermsBody from './TermsBody';
 import './Settings.css';
@@ -47,6 +48,8 @@ function Shell({ title, children, wide }) {
 
 /* ---------- hub ---------- */
 function Home() {
+  const user = useUser();
+  const navigate = useNavigate();
   return (
     <main className="st-page">
       <div className="st-inner">
@@ -70,6 +73,9 @@ function Home() {
         </nav>
 
         <div className="st-actions rise" style={{ '--d': '160ms' }}>
+          {user?.email && (
+            <button type="button" className="st-btn" onClick={() => { navigate('/'); setTimeout(startTutorial, 300); }}>{Ico.help} Replay Tutorial</button>
+          )}
           <Link className="st-btn" to="/forgot-password">{Ico.key} Forgot Password</Link>
         </div>
       </div>
