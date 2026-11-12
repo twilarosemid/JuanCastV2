@@ -1,0 +1,26 @@
+/* featured group: the whole 1x1 container is the group's picture; name + subscribers sit at the bottom */
+.hart-card {
+  position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 22px; color: #fff; text-decoration: none;
+  border: 1px solid rgba(255,255,255,.12); background: linear-gradient(135deg, var(--tint), var(--bg)); box-shadow: 0 24px 60px rgba(0,0,0,.35);
+  transition: transform .45s cubic-bezier(.2,.7,.2,1), box-shadow .45s;
+}
+.hart-card:hover, .hart-card:focus-visible { transform: translateY(-6px); box-shadow: 0 32px 70px rgba(0,0,0,.5); outline: 0; }
+.hart-img { position: absolute; inset: 0; background: center / cover no-repeat; transition: transform .7s cubic-bezier(.2,.7,.2,1); }
+.hart-card:hover .hart-img { transform: scale(1.05); }
+/* darkens the bottom so the text stays readable on any picture */
+.hart-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,34,96,.92) 0%, rgba(6,34,96,.55) 30%, transparent 58%); pointer-events: none; }
+.hart-initial { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.3); font-size: 140px; font-weight: 900; }
+.hart-info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 6px; padding: 24px; text-align: left; }
+.hart-info strong { font-size: clamp(22px, 2.6vw, 32px); font-weight: 800; line-height: 1.15; overflow-wrap: anywhere; text-shadow: 0 2px 12px rgba(0,0,0,.45); }
+.hart-card.skel { background: rgba(255,255,255,.07); animation: hartPulse 1.2s ease-in-out infinite; }
+@keyframes hartPulse { 50% { opacity: .55; } }
+@media (max-width: 480px) { .hart-info { padding: 16px; } }
+
+/* 2x2 grid of 4 groups; the featured one is placed top-left (see ArtistsPanel.jsx) */
+.hart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.hart-card.featured { border-color: rgba(250,204,21,.7); box-shadow: 0 0 0 2px rgba(250,204,21,.35), 0 24px 60px rgba(0,0,0,.35); }
+.hart-badge { position: absolute; top: 10px; right: 10px; z-index: 3; padding: 4px 10px; border-radius: 999px; background: #facc15; color: #1a1300; font-size: 11px; font-weight: 800; letter-spacing: .02em; box-shadow: 0 4px 12px rgba(0,0,0,.35); }
+.hart-card.small { border-radius: 18px; }
+.hart-card.small .hart-info { padding: 14px; gap: 4px; }
+.hart-card.small .hart-info strong { font-size: clamp(15px, 1.5vw, 20px); }
+.hart-card.small .hart-initial { font-size: 70px; }

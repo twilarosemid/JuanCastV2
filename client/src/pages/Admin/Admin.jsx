@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
-import { adminFetch, clearUser, getJSON, img, isAdminUser } from '../../api';
+import { adminFetch, clearUser, getJSON, img, isAdminUser, isGroupAdminUser, isSuperAdminUser } from '../../api';
 import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
 import { SocialLinksFields } from '../../components/SocialLinks/SocialLinks';
+import { markEntered } from '../../landingGate';
 import './Admin.css';
 
 /* ------------------------------------------------------------------ helpers */
@@ -23,7 +24,7 @@ const pollStatus = (poll) => {
 const STATUS_LABEL = { live: 'Live', ended: 'Ended', soon: 'Upcoming' };
 
 // Sidebar sections, grouped by what the admin is doing
-const NAV = [
+const NAV_SUPER = [
   { group: '', items: [
     { key: 'overview', label: 'Overview', desc: 'What is live on the site right now.' }
   ] },
@@ -35,9 +36,7 @@ const NAV = [
     { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' },
   ] },
   { group: 'Community', items: [
-    { key: 'accounts', label: 'Accounts', desc: 'Decide who is a user, an artist or an admin.' },
-    { key: 'fanbases', label: 'Fanbases', desc: 'Create and manage artist fanbase pages.' },
-    { key: 'fanposts', label: 'Board posts', desc: 'Review posts shown on artist fanbase pages.' },
+    { key: 'accounts', label: 'Accounts', desc: 'Accounts made from this dashboard, and who is a user, an artist, a Group Admin, a System Admin or a super admin.' },
     { key: 'reports', label: 'Reports', desc: 'Problems sent in by users. Reply or mark them resolved.' }
   ] },
   { group: 'Site', items: [
@@ -47,7 +46,20 @@ const NAV = [
     { key: 'landing', label: 'Landing', desc: 'Links and buttons on the landing page.' }
   ] }
 ];
-const TABS = NAV.flatMap((g) => g.items);
+// System Admin: the same website tabs, without account management
+const NAV_SYSTEM = NAV_SUPER.map((g) => ({ ...g, items: g.items.filter((t) => t.key !== 'accounts') }));
+
+// Group Admin: fanbase groups and artist profiles only
+const NAV_GROUP = [
+  { group: 'Groups', items: [
+    { key: 'fanbases', label: 'Fanbase groups', desc: 'Create and manage group fanbase pages, their members and which group is featured.' },
+    { key: 'fanposts', label: 'Board posts', desc: 'Review posts shown on group fanbase pages.' },
+    { key: 'merch', label: 'Merch', desc: 'Add the products shown on a fanbase\'s Merch tab: pictures, price, description and buy link.' }
+  ] },
+  { group: 'Artists', items: [
+    { key: 'artistprofiles', label: 'Artist profiles', desc: 'Add artists and edit their profile: name, bio and links.' }
+  ] }
+];
 
 /* crop helper for banners: returns a JPEG File, scaled down to a sensible size */
 const loadImage = (src) => new Promise((resolve, reject) => {
@@ -1216,7 +1228,7 @@ function FanbaseModTab({ fanbases, artists, loading, ctx }) {
                     </label>
                   );
                 })}
-                {artists.length === 0 && <small>Assign artist roles in Accounts before adding group members.</small>}
+                {artists.length === 0 && <small>Add artist accounts in Artist profiles before adding group members.</small>}
               </div>
             </div>
             <label className="ad-field">
@@ -1303,10 +1315,181 @@ function FanPostsModTab({ fanbases, posts, loading, ctx }) {
   );
 }
 
-/* ------------------------------------------------------------------ accounts & roles */
-const ROLE_LABEL = { superadmin: 'Super admin', admin: 'Admin', artist: 'Artist', user: 'User' };
+/* ------------------------------------------------------------------ fanbase merch */
+const MERCH_MAX_PICS = 5;
+function MerchModTab({ fanbases, loading, ctx }) {
+  const { notify, fail, askConfirm } = ctx;
+  const [fanbaseId, setFanbaseId] = useState('');
+  const [items, setItems] = useState([]);
+  const [listing, setListing] = useState(false);
+  const [form, setForm] = useState(null);      // { name, price, link, description, keep: [url], files: [File] }
+  const [editingId, setEditingId] = useState('');
+  const [previews, setPreviews] = useState([]);
+  const [saving, setSaving] = useState(false);
 
-function AccountsTab({ ctx }) {
+  // start on the first fanbase
+  useEffect(() => {
+    if (!fanbaseId && fanbases.length) setFanbaseId(idOf(fanbases[0]));
+  }, [fanbases, fanbaseId]);
+
+  const load = useCallback(async () => {
+    if (!fanbaseId) { setItems([]); return; }
+    setListing(true);
+    try {
+      const data = await getJSON(`/api/fanbases/${fanbaseId}/merch`);
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      fail(err);
+    } finally {
+      setListing(false);
+    }
+  }, [fanbaseId, fail]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const urls = (form?.files || []).map((file) => URL.createObjectURL(file));
+    setPreviews(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [form?.files]);
+
+  const closeEditor = () => { if (saving) return; setForm(null); setEditingId(''); };
+  const create = () => { setEditingId(''); setForm({ name: '', price: '', link: '', description: '', keep: [], files: [] }); };
+  const edit = (item) => {
+    setEditingId(idOf(item));
+    setForm({ name: item.name || '', price: String(item.price ?? ''), link: item.link || '', description: item.description || '', keep: item.images || [], files: [] });
+  };
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const addFiles = (list) => {
+    const picked = Array.from(list || []);
+    setForm((current) => {
+      const room = MERCH_MAX_PICS - current.keep.length - current.files.length;
+      if (picked.length > room) notify(`A product can have up to ${MERCH_MAX_PICS} pictures.`, 'err');
+      return { ...current, files: [...current.files, ...picked.slice(0, Math.max(0, room))] };
+    });
+  };
+
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    const body = new FormData();
+    body.append('name', form.name.trim());
+    body.append('price', form.price);
+    body.append('link', form.link.trim());
+    body.append('description', form.description.trim());
+    if (editingId) body.append('keepImages', JSON.stringify(form.keep));
+    form.files.forEach((file) => body.append('images', file));
+    try {
+      await adminFetch(editingId ? `/api/fanbases/${fanbaseId}/merch/${editingId}` : `/api/fanbases/${fanbaseId}/merch`, {
+        method: editingId ? 'PUT' : 'POST',
+        body
+      });
+      notify(editingId ? 'Product updated.' : 'Product added.');
+      setForm(null);
+      setEditingId('');
+      await load();
+    } catch (err) {
+      fail(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = (item) => askConfirm({
+    title: 'Delete this product?',
+    body: `“${item.name}” will be removed from the Merch tab. This can’t be undone.`,
+    confirmLabel: 'Delete',
+    run: async () => {
+      await adminFetch(`/api/fanbases/${fanbaseId}/merch/${idOf(item)}`, { method: 'DELETE' });
+      notify('Product deleted.');
+      await load();
+    }
+  });
+
+  const peso = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return (
+    <div className="ad-card">
+      <div className="ad-list-head">
+        <h2>Merch <span className="ad-count">{items.length}</span></h2>
+        <button type="button" className="btn-solid ad-add" onClick={create} disabled={!fanbaseId}>Add product</button>
+      </div>
+      <p className="ad-item-sub">Products shown on a fanbase’s Merch tab. Fans see the picture, name and price; the description opens in a pop-up, and the link is where they buy it.</p>
+      {fanbases.length > 0 && (
+        <div className="ad-filters">
+          <select className="ad-input" value={fanbaseId} onChange={(e) => setFanbaseId(e.target.value)} aria-label="Fanbase">
+            {fanbases.map((fb) => <option key={idOf(fb)} value={idOf(fb)}>{fb.name}</option>)}
+          </select>
+        </div>
+      )}
+      {loading ? <p className="ad-empty">Loading…</p> : fanbases.length === 0 ? <p className="ad-empty">Create a fanbase first, then add its merch here.</p> : listing && !items.length ? <p className="ad-empty">Loading…</p> : items.length === 0 ? <p className="ad-empty">No products yet for this fanbase.</p> : items.map((item) => (
+        <div className="ad-item" key={idOf(item)}>
+          <Thumb url={item.images?.[0]} label={item.name} />
+          <div className="ad-item-body">
+            <div className="ad-item-title">{item.name}{!item.link && <span className="ad-chip soon">No link</span>}</div>
+            <div className="ad-item-sub">{[`Php ${peso(item.price)}`, `${(item.images || []).length} picture${(item.images || []).length === 1 ? '' : 's'}`, item.link && item.link.replace(/^https?:\/\//, '').slice(0, 48)].filter(Boolean).join(' · ')}</div>
+          </div>
+          <div className="ad-item-actions">
+            <button type="button" className="ad-btn" onClick={() => edit(item)}>Edit</button>
+            <button type="button" className="ad-btn danger" onClick={() => remove(item)}>Delete</button>
+          </div>
+        </div>
+      ))}
+
+      <Modal open={Boolean(form)} onClose={closeEditor} label={editingId ? 'Edit product' : 'Add product'} className="ad-form-modal">
+        {form && (
+          <form className="ad-form" onSubmit={save}>
+            <h3>{editingId ? 'Edit product' : 'Add product'}</h3>
+            <label className="ad-field">
+              <span>Product name</span>
+              <input className="ad-input" required maxLength={80} value={form.name} onChange={(e) => set('name', e.target.value)} />
+            </label>
+            <label className="ad-field">
+              <span>Price (Php)</span>
+              <input className="ad-input" type="number" required min="0" max="1000000" step="0.01" value={form.price} onChange={(e) => set('price', e.target.value)} />
+            </label>
+            <label className="ad-field">
+              <span>Link to buy</span>
+              <input className="ad-input" type="url" placeholder="https://shop.example.com/product" value={form.link} onChange={(e) => set('link', e.target.value)} />
+            </label>
+            <label className="ad-field">
+              <span>Description <small>({form.description.length}/1000) · only shown in the pop-up</small></span>
+              <textarea className="ad-input" rows={4} maxLength={1000} value={form.description} onChange={(e) => set('description', e.target.value)} />
+            </label>
+            <div className="ad-field">
+              <span>Pictures <small>({form.keep.length + form.files.length}/{MERCH_MAX_PICS}) · the first one is the cover</small></span>
+              <div className="ad-merch-pics">
+                {form.keep.map((url) => (
+                  <span className="ad-merch-pic" key={url}>
+                    <img src={img(url)} alt="" />
+                    <button type="button" aria-label="Remove picture" onClick={() => set('keep', form.keep.filter((u) => u !== url))}>×</button>
+                  </span>
+                ))}
+                {form.files.map((file, n) => (
+                  <span className="ad-merch-pic" key={`${file.name}-${n}`}>
+                    {previews[n] && <img src={previews[n]} alt="" />}
+                    <button type="button" aria-label="Remove picture" onClick={() => set('files', form.files.filter((_, i) => i !== n))}>×</button>
+                  </span>
+                ))}
+              </div>
+              {form.keep.length + form.files.length < MERCH_MAX_PICS && (
+                <input className="ad-input" type="file" accept="image/*" multiple onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+              )}
+            </div>
+            <div className="ad-actions">
+              <button type="button" className="btn-ghost" onClick={closeEditor} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn-solid" disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Add product'}</button>
+            </div>
+          </form>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ accounts & roles */
+const ROLE_LABEL = { superadmin: 'Super admin', systemadmin: 'System Admin', groupadmin: 'Group Admin', admin: 'Group Admin', artist: 'Artist', user: 'User' };
+
+function AccountsTab({ ctx, groupMode = false }) {
   const { notify, fail, askConfirm } = ctx;
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
@@ -1317,6 +1500,7 @@ function AccountsTab({ ctx }) {
   const [busyId, setBusyId] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [aboutFor, setAboutFor] = useState(null); // account whose about section is being edited
+  const [transferFor, setTransferFor] = useState(null); // account that would receive the super admin rights
   const [reloadKey, setReloadKey] = useState(0);
   const seq = useRef(0);
 
@@ -1362,14 +1546,18 @@ function AccountsTab({ ctx }) {
 
   const pick = (account, nextRole) => {
     if (nextRole === account.role) return;
-    if (nextRole !== 'admin' && account.role !== 'admin') return changeRole(account, nextRole);
-    const promoting = nextRole === 'admin';
+    const isStaffRole = (r) => ['groupadmin', 'systemadmin', 'admin'].includes(r);
+    if (!isStaffRole(nextRole) && !isStaffRole(account.role)) return changeRole(account, nextRole);
+    const promoting = isStaffRole(nextRole);
+    const nextLabel = ROLE_LABEL[nextRole];
     askConfirm({
-      title: promoting ? `Make ${nameOf(account)} an admin?` : `Remove admin from ${nameOf(account)}?`,
+      title: promoting ? `Make ${nameOf(account)} a ${nextLabel}?` : `Remove ${ROLE_LABEL[account.role]} from ${nameOf(account)}?`,
       body: promoting
-        ? 'Admins can open this dashboard and edit polls, content, ads and reports.'
+        ? (nextRole === 'systemadmin'
+          ? 'System Admins can open the dashboard to manage polls, content, ads, banners and reports. They cannot manage accounts.'
+          : 'Group Admins can open the Group Admin dashboard to manage fanbase groups and artist profiles.')
         : `They lose dashboard access and become ${ROLE_LABEL[nextRole].toLowerCase()}.`,
-      confirmLabel: promoting ? 'Make admin' : 'Remove admin',
+      confirmLabel: promoting ? `Make ${nextLabel}` : `Remove ${ROLE_LABEL[account.role]}`,
       tone: promoting ? 'ok' : 'danger',
       run: () => changeRole(account, nextRole)
     });
@@ -1381,20 +1569,24 @@ function AccountsTab({ ctx }) {
   return (
     <div className="ad-card">
       <div className="ad-list-head">
-        <h2>Accounts <span className="ad-count">{total}</span></h2>
-        <button type="button" className="btn-solid" onClick={() => setAddOpen(true)}>+ Add user</button>
+        <h2>{groupMode ? 'Artist profiles' : 'Accounts'} <span className="ad-count">{total}</span></h2>
+        <button type="button" className="btn-solid" onClick={() => setAddOpen(true)}>{groupMode ? '+ Add artist' : '+ Add user'}</button>
       </div>
       <p className="ad-empty">
-        Set who is a user, an artist or an admin.{' '}
-        {canManageAdmins ? 'As a super admin you can also make or remove admins.' : 'Only a super admin can make or remove admins.'}
+        {groupMode
+          ? 'Add artist accounts and edit their profile: name, bio, links and cover photo.'
+          : <>Accounts made from this dashboard. People who signed up themselves are not listed. {canManageAdmins ? 'As a super admin you can make or remove Group Admins and System Admins.' : 'Only a super admin can make or remove admins.'}</>}
       </p>
       <div className="ad-filters">
-        <select className="ad-input" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }} aria-label="Filter by role">
-          <option value="">All roles</option>
-          <option value="user">Users</option>
-          <option value="artist">Artists</option>
-          <option value="admin">Admins</option>
-        </select>
+        {!groupMode && (
+          <select className="ad-input" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }} aria-label="Filter by role">
+            <option value="">All roles</option>
+            <option value="user">Users</option>
+            <option value="artist">Artists</option>
+            <option value="groupadmin">Group Admins</option>
+            <option value="systemadmin">System Admins</option>
+          </select>
+        )}
         <input className="ad-input ad-search" type="search" placeholder="Search name, @username or email…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search accounts" />
         {(query || role) && <button type="button" className="ad-link ad-clear" onClick={clear}>Clear filters</button>}
       </div>
@@ -1404,7 +1596,7 @@ function AccountsTab({ ctx }) {
       ) : accounts.map((a) => {
         const isYou = a.id === you;
         const fixed = a.locked || isYou;
-        const lockedForMe = !fixed && a.role === 'admin' && !canManageAdmins;
+        const lockedForMe = !fixed && ['admin', 'groupadmin', 'systemadmin'].includes(a.role) && !canManageAdmins;
         return (
           <div className="ad-item" key={a.id}>
             <span className="ad-thumb" aria-hidden="true"><b>{(a.username || a.email || '?').charAt(0).toUpperCase()}</b></span>
@@ -1421,19 +1613,35 @@ function AccountsTab({ ctx }) {
               </div>
             </div>
             <div className="ad-item-actions">
-              <select
-                className="ad-input ad-role-select"
-                value={a.role}
-                disabled={fixed || lockedForMe || busyId === a.id}
-                onChange={(e) => pick(a, e.target.value)}
-                aria-label={`Role for ${nameOf(a)}`}
-              >
-                {a.role === 'superadmin' && <option value="superadmin">Super admin</option>}
-                <option value="user">User</option>
-                <option value="artist">Artist</option>
-                {(canManageAdmins || a.role === 'admin') && <option value="admin" disabled={!canManageAdmins}>Admin</option>}
-              </select>
-              {a.role === 'artist' && <button type="button" className="btn-ghost" onClick={() => setAboutFor(a)}>Edit about</button>}
+              {!groupMode && canManageAdmins && !isYou && a.role === 'systemadmin' && (
+                <button
+                  type="button"
+                  className="ad-crown-btn"
+                  onClick={() => setTransferFor(a)}
+                  title="Make super admin"
+                  aria-label={`Make ${nameOf(a)} super admin`}
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                    <path fill="currentColor" d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 11H5L3 7zm2.4 13h13.2v2H5.4v-2z" />
+                  </svg>
+                </button>
+              )}
+              {!groupMode && (
+                <select
+                  className="ad-input ad-role-select"
+                  value={a.role === 'admin' ? 'groupadmin' : a.role}
+                  disabled={fixed || lockedForMe || busyId === a.id}
+                  onChange={(e) => pick(a, e.target.value)}
+                  aria-label={`Role for ${nameOf(a)}`}
+                >
+                  {a.role === 'superadmin' && <option value="superadmin">Super admin</option>}
+                  <option value="user">User</option>
+                  <option value="artist">Artist</option>
+                  {(canManageAdmins || a.role === 'admin' || a.role === 'groupadmin') && <option value="groupadmin" disabled={!canManageAdmins}>Group Admin</option>}
+                  {(canManageAdmins || a.role === 'systemadmin') && <option value="systemadmin" disabled={!canManageAdmins}>System Admin</option>}
+                </select>
+              )}
+              {groupMode && a.role === 'artist' && <button type="button" className="btn-ghost" onClick={() => setAboutFor(a)}>Edit about</button>}
             </div>
           </div>
         );
@@ -1454,14 +1662,89 @@ function AccountsTab({ ctx }) {
         ctx={ctx}
       />
 
+      <TransferSuperModal account={transferFor} onClose={() => setTransferFor(null)} ctx={ctx} />
+
       <AddUserModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
         canManageAdmins={canManageAdmins}
+        artistOnly={groupMode}
         onCreated={() => { setReloadKey((k) => k + 1); setPage(1); }}
         ctx={ctx}
       />
     </div>
+  );
+}
+
+// Super admin only: hand the super admin rights to another account. The button stays grey until
+// the super admin has typed their OWN email in full, then it turns red.
+function TransferSuperModal({ account, onClose, ctx }) {
+  const { notify, fail } = ctx;
+  const me = useUser();
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const shown = useRef(null);
+  if (account) shown.current = account; // keep the last account while the dialog fades out
+  const acc = account || shown.current;
+  const myEmail = String(me?.email || '').trim();
+  const matches = myEmail !== '' && typed.trim().toLowerCase() === myEmail.toLowerCase();
+
+  useEffect(() => { if (account) setTyped(''); }, [account]);
+
+  const close = () => { if (!busy) onClose(); };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!matches || busy || !acc) return;
+    setBusy(true);
+    try {
+      const data = await adminFetch('/api/admin/transfer-superadmin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetId: acc.id, confirmEmail: typed.trim() })
+      });
+      notify(data.message || 'Super admin rights transferred.');
+      onClose();
+      // you are a System Admin now: sign in again so the dashboard matches your new role
+      setTimeout(() => { clearUser(); window.location.assign('/login'); }, 1500);
+    } catch (err) {
+      if (err?.status === 400 || err?.status === 403 || err?.status === 404) notify(err.message, 'err');
+      else fail(err);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={Boolean(account)} onClose={close} label="Transfer super admin" className="ad-modal ad-form-modal">
+      <form className="ad-form" onSubmit={submit}>
+        <h3>Transfer super admin rights?</h3>
+        <p className="ad-note">
+          <b>{acc ? (acc.username ? `@${acc.username}` : acc.email) : ''}</b>{acc?.username ? ` (${acc.email})` : ''} will become the super admin.
+          You will become a System Admin and will no longer be able to manage accounts and roles. Only the new super admin can undo this.
+        </p>
+        <div className="ad-field">
+          <label htmlFor="ts-email">To confirm, type your email: <b>{myEmail}</b></label>
+          <input
+            id="ts-email"
+            className="ad-input"
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder={myEmail}
+            disabled={busy}
+            autoFocus
+          />
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={close} disabled={busy}>Cancel</button>
+          <button type="submit" className={`btn-solid ad-transfer-confirm${matches ? ' ready' : ''}`} disabled={!matches || busy}>
+            {busy ? 'Transferring…' : 'Transfer super admin'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -1532,7 +1815,7 @@ function AboutModal({ account, onClose, onSaved, ctx }) {
 // Create an account directly (no sign-up form or email code). The account is verified straight away.
 const EMPTY_NEW_USER = { fullName: '', username: '', email: '', password: '', birthdate: '', role: 'user' };
 
-function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
+function AddUserModal({ open, onClose, canManageAdmins, artistOnly = false, onCreated, ctx }) {
   const { notify, fail } = ctx;
   const [form, setForm] = useState(EMPTY_NEW_USER);
   const [busy, setBusy] = useState(false);
@@ -1550,7 +1833,7 @@ function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
       const data = await adminFetch('/api/admin/accounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, username: form.username.replace(/\s/g, '') })
+        body: JSON.stringify({ ...form, role: artistOnly ? 'artist' : form.role, username: form.username.replace(/\s/g, '') })
       });
       onCreated();
       notify(data.message || 'Account created.');
@@ -1574,7 +1857,7 @@ function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
   };
 
   return (
-    <Modal open={open} onClose={close} label="Add user" className="ad-modal ad-form-modal">
+    <Modal open={open} onClose={close} label={artistOnly ? 'Add artist' : 'Add user'} className="ad-modal ad-form-modal">
       {created ? (
         <div className="ad-form">
           <h3>Account created</h3>
@@ -1590,7 +1873,7 @@ function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
         </div>
       ) : (
         <form className="ad-form" onSubmit={submit}>
-          <h3>Add user</h3>
+          <h3>{artistOnly ? 'Add artist' : 'Add user'}</h3>
           <p className="ad-note">Creates a ready-to-use account without the sign-up form or email code.</p>
           <div className="ad-field">
             <label htmlFor="au-name">Full name <em>*</em></label>
@@ -1601,14 +1884,17 @@ function AddUserModal({ open, onClose, canManageAdmins, onCreated, ctx }) {
               <label htmlFor="au-user">Username <em>*</em></label>
               <input id="au-user" className="ad-input" value={form.username} onChange={set('username')} maxLength={24} placeholder="juandelacruz" autoComplete="off" required />
             </div>
-            <div className="ad-field">
-              <label htmlFor="au-role">Role</label>
-              <select id="au-role" className="ad-input" value={form.role} onChange={set('role')}>
-                <option value="user">User</option>
-                <option value="artist">Artist</option>
-                {canManageAdmins && <option value="admin">Admin</option>}
-              </select>
-            </div>
+            {!artistOnly && (
+              <div className="ad-field">
+                <label htmlFor="au-role">Role</label>
+                <select id="au-role" className="ad-input" value={form.role} onChange={set('role')}>
+                  <option value="user">User</option>
+                  <option value="artist">Artist</option>
+                  {canManageAdmins && <option value="groupadmin">Group Admin</option>}
+                  {canManageAdmins && <option value="systemadmin">System Admin</option>}
+                </select>
+              </div>
+            )}
           </div>
           <div className="ad-field">
             <label htmlFor="au-email">Email <em>*</em></label>
@@ -1765,8 +2051,14 @@ function PromosTab({ ctx }) {
 function Dashboard({ user }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'overview';
-  const setTab = (key) => setParams(key === 'overview' ? {} : { tab: key }, { replace: true });
+  const isSuper = isSuperAdminUser(user);
+  const isGroup = isGroupAdminUser(user);
+  // Super Admin: website content + accounts. System Admin: website content only. Group Admin: groups + artist profiles.
+  const NAV = isGroup ? NAV_GROUP : isSuper ? NAV_SUPER : NAV_SYSTEM;
+  const TABS = NAV.flatMap((g) => g.items);
+  const homeTab = TABS[0].key;
+  const tab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : homeTab;
+  const setTab = (key) => setParams(key === homeTab ? {} : { tab: key }, { replace: true });
 
   const [data, setData] = useState({ polls: [], groups: [], artists: [], chika: [], contents: [], fanbases: [], fanbaseArtists: [], fanposts: [], banners: [], ads: [], reports: [], settings: {} });
   const [loading, setLoading] = useState(true);
@@ -1793,7 +2085,20 @@ function Dashboard({ user }) {
   const reload = useCallback(async () => {
     const safe = (p, fallback) => p.catch(() => fallback);
     try {
-      const [polls, groups, artists, chika, contents, banners, ads, settings, reports, fanbaseData, fanposts] = await Promise.all([
+      if (isGroup) {
+        // Group Admin: only fanbase groups and their board posts
+        const [fanbaseData, fanposts] = await Promise.all([
+          adminFetch('/api/admin/fanbases').catch((err) => {
+            if (err.status === 401 || err.status === 403) setSessionBad(true);
+            throw err;
+          }),
+          adminFetch('/api/fanbase-posts').catch(() => [])
+        ]);
+        setData((d) => ({ ...d, fanbases: fanbaseData?.fanbases || [], fanbaseArtists: fanbaseData?.artists || [], fanposts: fanposts || [] }));
+        setLoadError('');
+        return;
+      }
+      const [polls, groups, artists, chika, contents, banners, ads, settings, reports, artistAccounts, fanbaseList] = await Promise.all([
         getJSON('/api/polls'),
         safe(getJSON('/api/poll-groups'), []),
         getJSON('/api/rankings'),
@@ -1809,17 +2114,12 @@ function Dashboard({ user }) {
           if (err.status === 401 || err.status === 403) setSessionBad(true);
           return [];
         }),
-        adminFetch('/api/admin/fanbases').catch((err) => {
-          if (err.status === 401 || err.status === 403) setSessionBad(true);
-          throw err;
-        }),
-        adminFetch('/api/fanbase-posts').catch(() => [])
+        adminFetch('/api/admin/artist-accounts').catch(() => ({ artists: [] })),
+        safe(getJSON('/api/fanbases'), [])
       ]);
       setData({
         polls, groups, artists, chika, contents,
-        fanbases: fanbaseData?.fanbases || [],
-        fanbaseArtists: fanbaseData?.artists || [],
-        fanposts: fanposts || [],
+        fanbases: Array.isArray(fanbaseList) ? fanbaseList : [], fanbaseArtists: artistAccounts?.artists || [], fanposts: [],
         banners, ads: ads || [], reports: reports || [], settings
       });
       setLoadError('');
@@ -1829,7 +2129,7 @@ function Dashboard({ user }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGroup]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -1841,6 +2141,7 @@ function Dashboard({ user }) {
   };
 
   const relogin = () => { clearUser(); navigate('/login', { state: { from: '/admin' } }); };
+  const logout = () => { markEntered(); clearUser(); navigate('/login', { replace: true }); };
 
   const ctx = { reload, notify, fail, askConfirm };
 
@@ -1942,7 +2243,7 @@ function Dashboard({ user }) {
         keep: ['group', 'category'],
         key: (v) => [v.name, v.group, v.category].map((x) => String(x || '').trim().toLowerCase()).join('|')
       },
-      empty: { name: '', group: '', category: '', position: '1', youtubeUrl: '', youtubeStartTime: '', image: null },
+      empty: { name: '', group: '', category: '', position: '1', youtubeUrl: '', youtubeStartTime: '', accountEmail: '', fanbaseId: '', image: null },
       fields: [
         { name: 'name', label: 'Artist name', required: true },
         { name: 'group', label: 'Poll group', type: 'select', placeholder: 'Select group…', options: groupNames },
@@ -1952,6 +2253,16 @@ function Dashboard({ user }) {
           placeholder: (f) => (titlesForGroup(f.group).length ? 'Select category…' : f.group ? 'No polls in this group yet' : 'Select a group first…'),
           hint: 'Only polls in the selected group are listed.'
         },
+        {
+          name: 'accountEmail', label: 'Linked artist account (optional)', type: 'select', placeholder: 'Not linked',
+          options: () => (data.fanbaseArtists || []).map((a) => ({ value: a.email, label: `${a.name} (@${a.username})` })),
+          hint: 'Optional. Links this entry to the artist’s profile, so their polls show on their profile card. You can leave it empty and link it later by editing.'
+        },
+        {
+          name: 'fanbaseId', label: 'Linked fanbase (optional)', type: 'select', placeholder: 'Not linked',
+          options: () => (data.fanbases || []).map((f) => ({ value: idOf(f), label: f.name })),
+          hint: 'Optional. For an entry that stands for a whole group: votes for it count toward that fanbase’s Top Fans. Entries named exactly like a fanbase, or linked to one of its artists, count automatically.'
+        },
         { name: 'youtubeUrl', label: 'YouTube video', placeholder: 'https://youtube.com/…', hint: 'Optional. Plays when someone opens the artist.' },
         { name: 'youtubeStartTime', label: 'Start time (seconds)', type: 'number', min: 0, placeholder: 'e.g. 75 for 1:15', half: true },
         { name: 'position', label: 'Current rank', type: 'number', min: 1, hint: 'Ranks re-sort by votes automatically.', half: true },
@@ -1959,12 +2270,12 @@ function Dashboard({ user }) {
       ],
       // changing the group clears a category that doesn't belong to the new group
       onChange: (next, name) => (name === 'group' && next.category && !titlesForGroup(next.group).includes(next.category) ? { ...next, category: '' } : next),
-      toForm: (a) => ({ name: a.name || '', group: a.group || '', category: a.category || '', position: String(a.position || 1), youtubeUrl: a.youtubeUrl || '', youtubeStartTime: a.youtubeStartTime || '', image: null }),
+      toForm: (a) => ({ name: a.name || '', group: a.group || '', category: a.category || '', position: String(a.position || 1), youtubeUrl: a.youtubeUrl || '', youtubeStartTime: a.youtubeStartTime || '', accountEmail: a.accountEmail || '', fanbaseId: a.fanbaseId || '', image: null }),
       titleOf: (a) => a.name,
       searchText: (a) => `${a.name} ${a.group} ${a.category}`,
       groupBy: (a) => (a.category ? (a.group ? `${a.group} · ${a.category}` : a.category) : 'Uncategorized'),
       sort: (a, b) => Number(a.position) - Number(b.position),
-      row: (a) => ({ title: a.name, badge: orphaned(a) ? { label: 'Poll deleted', tone: 'gone' } : { label: `#${a.position}`, tone: 'rank' }, lines: [`${nf.format(a.voteCount || 0)} votes`, a.category ? '' : a.group] })
+      row: (a) => ({ title: a.name, badge: orphaned(a) ? { label: 'Poll deleted', tone: 'gone' } : { label: `#${a.position}`, tone: 'rank' }, lines: [`${nf.format(a.voteCount || 0)} votes`, a.category ? '' : a.group, a.profileUsername ? `Linked to @${a.profileUsername}` : ''] })
     },
 
     chika: {
@@ -2082,8 +2393,9 @@ function Dashboard({ user }) {
       <div className="ad-shell">
         <aside className="ad-side rise">
           <div className="ad-brand">
-            <strong>Admin</strong>
+            <strong>{isGroup ? 'Group Admin' : isSuper ? 'Admin' : 'System Admin'}</strong>
             <span title={user.email}>{user.email}</span>
+            <button type="button" className="ad-logout" onClick={logout}>Log out</button>
           </div>
           <nav className="ad-nav" aria-label="Admin sections">
             {NAV.map((g) => (
@@ -2098,7 +2410,7 @@ function Dashboard({ user }) {
               </div>
             ))}
           </nav>
-          <Link className="ad-side-link" to="/">← Back to site</Link>
+
         </aside>
 
         <div className="ad-main">
@@ -2169,11 +2481,13 @@ function Dashboard({ user }) {
             {tab === 'contents' && <ResourceTab key="contents" cfg={configs.contents} items={data.contents} loading={loading} ctx={ctx} />}
             {tab === 'fanbases' && <FanbaseModTab key="fanbases" fanbases={data.fanbases} artists={data.fanbaseArtists} loading={loading} ctx={ctx} />}
             {tab === 'fanposts' && <FanPostsModTab key="fanposts" fanbases={data.fanbases} posts={data.fanposts} loading={loading} ctx={ctx} />}
+            {tab === 'merch' && isGroup && <MerchModTab key="merch" fanbases={data.fanbases} loading={loading} ctx={ctx} />}
             {tab === 'banners' && <BannersTab banners={data.banners} ctx={ctx} />}
             {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
             {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
             {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
             {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
+            {tab === 'artistprofiles' && <AccountsTab key="artistprofiles" ctx={ctx} groupMode />}
             {tab === 'promos' && <PromosTab key="promos" ctx={ctx} />}
           </section>
         </div>

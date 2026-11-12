@@ -114,3 +114,32 @@ a.st-row:hover .st-chev { color: #fff; transform: translateX(4px); }
   a.st-row:hover { padding-left: 16px; }
   .st-faq-q, .st-faq-a-inner { padding-left: 16px; padding-right: 16px; }
 }
+
+/* ---------- Change password / Account & Security ---------- */
+.st-field input[type='password'], .st-field input.st-code {
+  width: 100%; padding: 13px 16px; border-radius: 14px; font: inherit; font-size: 15px; font-weight: 400; color: var(--text);
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); transition: border-color .25s, box-shadow .25s;
+}
+.st-field input[type='password']:focus, .st-field input.st-code:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.st-code, .modal input.st-code { letter-spacing: .5em; font-size: 20px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+.st-link-btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.st-linkbtn { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.st-linkbtn:disabled { opacity: .5; cursor: not-allowed; }
+.st-pad { padding: 0 22px 18px; margin: 0; }
+
+.st-opt { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.st-intro + .st-opt { border-top: 0; }
+.st-opt-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.st-opt-text strong { font-size: 15px; font-weight: 800; }
+.st-opt-text span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.st-pill {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 20px; border: 0; border-radius: 999px;
+  background: #fff; color: #0b1220; font: inherit; font-size: 13px; font-weight: 800; text-decoration: none; cursor: pointer; transition: transform .2s, box-shadow .3s, opacity .2s;
+}
+.st-pill:hover:not(:disabled) { box-shadow: 0 8px 22px rgba(0, 0, 0, .3); transform: translateY(-1px); }
+.st-pill:disabled { opacity: .45; cursor: not-allowed; }
+.st-pill.danger, .btn-solid.st-danger { background: #ff4d63; color: #fff; }
+@media (max-width: 520px) {
+  .st-opt { flex-direction: column; align-items: stretch; }
+  .st-pill { width: 100%; }
+}

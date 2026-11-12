@@ -129,6 +129,10 @@ nav.site-nav {
 .nav-balance span { display: inline-flex; align-items: center; gap: 6px; }
 .nav-balance img { width: 18px; height: 18px; object-fit: contain; }
 .nav-balance i { color: var(--muted); font-style: normal; }
+/* Suns -> Suns view, Stars -> Star Shop */
+.nb-link { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; cursor: pointer; transition: transform .2s, opacity .2s; }
+.nb-link:hover { transform: scale(1.08); }
+.nb-link:focus-visible { outline: 2px solid var(--gold, #f5c542); outline-offset: 3px; border-radius: 8px; }
 
 /* ---------- running powerups: icon on a glowing pie that drains as time runs out; hover for the time left ---------- */
 @property --pct { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
@@ -199,7 +203,7 @@ nav.site-nav {
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text);
   }
-  .ns-balance > span { display: inline-flex; align-items: center; gap: 6px; }
+  .ns-balance > span, .ns-balance > a { display: inline-flex; align-items: center; gap: 6px; }
   .ns-balance img { width: 18px; height: 18px; object-fit: contain; }
   .ns-balance i { width: 1px; height: 16px; background: rgba(255, 255, 255, .22); }
 }

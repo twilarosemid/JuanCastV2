@@ -9,9 +9,13 @@ export default function useUser() {
     const sync = () => setUser(getUser());
     window.addEventListener('juancast-user-updated', sync);
     window.addEventListener('storage', sync);
+    window.addEventListener('focus', sync);
+    const timer = setInterval(sync, 60 * 1000); // an open tab is logged out once its 24 hours are up
     return () => {
       window.removeEventListener('juancast-user-updated', sync);
       window.removeEventListener('storage', sync);
+      window.removeEventListener('focus', sync);
+      clearInterval(timer);
     };
   }, []);
 

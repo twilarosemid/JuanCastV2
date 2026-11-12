@@ -26,8 +26,10 @@
 .ad-tab:hover { background: rgba(255, 255, 255, .1); }
 .ad-tab.on { background: #fff; color: #06307f; }
 .ad-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-grid; place-items: center; font-size: 11px; font-weight: 800; background: #e0334a; color: #fff; }
-.ad-side-link { padding: 10px 12px 2px; border-top: 1px solid rgba(255, 255, 255, .1); color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.ad-side-link { padding: 10px 12px 2px; border: 0; border-top: 1px solid rgba(255, 255, 255, .1); background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; text-align: left; text-decoration: none; cursor: pointer; }
 .ad-side-link:hover { color: var(--text); }
+.ad-logout { justify-self: start; margin-top: 10px; min-height: 36px; padding: 0 16px; border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; background: rgba(255, 255, 255, .08); color: var(--text); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s, border-color .2s; }
+.ad-logout:hover, .ad-logout:focus-visible { background: #fff; border-color: #fff; color: #06307f; outline: 0; }
 
 /* ---------- page title ---------- */
 .ad-title { margin-bottom: 20px; }
@@ -82,7 +84,7 @@ textarea.ad-input { resize: vertical; line-height: 1.5; }
 select.ad-input { appearance: none; padding-right: 38px; cursor: pointer; color-scheme: dark;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23bcd6ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center; }
-select.ad-input option { color: #0b1220; background: #fff; }
+select.ad-input option { color: #fff; background: #0a1f5c; }
 input[type='date'].ad-input { color-scheme: dark; }
 input[type='file'].ad-input { padding: 9px 12px; cursor: pointer; }
 input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding: 6px 14px; border: 0; border-radius: 999px; background: #fff; color: #06307f; font: inherit; font-weight: 700; cursor: pointer; }
@@ -141,7 +143,7 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
 .ad-chip.ended { background: rgba(255, 255, 255, .1); color: var(--muted); }
 .ad-chip.soon, .ad-chip.rank { background: rgba(245, 197, 66, .18); color: #ffd870; }
 .ad-chip.role-superadmin { background: rgba(245, 197, 66, .2); color: #ffd870; }
-.ad-chip.role-admin { background: rgba(74, 168, 255, .2); color: #8cc8ff; }
+.ad-chip.role-admin, .ad-chip.role-groupadmin, .ad-chip.role-systemadmin { background: rgba(74, 168, 255, .2); color: #8cc8ff; }
 .ad-chip.role-artist { background: rgba(190, 130, 255, .2); color: #d7b3ff; }
 .ad-status { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .ad-status.live { background: rgba(123, 227, 165, .18); color: #7be3a5; }
@@ -227,7 +229,7 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
   .ad-nav-group { display: contents; }
   .ad-nav-title { display: none; }
   .ad-tab { flex: none; width: auto; min-height: 38px; padding: 0 14px; border-radius: 999px; white-space: nowrap; background: rgba(255, 255, 255, .06); }
-  .ad-side-link { display: none; }
+  .ad-side-link { padding-top: 8px; }
   .ad-split { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
@@ -291,3 +293,18 @@ input[type='file'].ad-input::file-selector-button { margin-right: 12px; padding:
 /* admin: checkbox row inside a dialog (the generic ".modal input" rule would stretch it) */
 .modal .ad-remove-cover { display: inline-flex; margin: 0; }
 .modal .ad-remove-cover input { width: 18px; min-height: 0; height: 18px; padding: 0; }
+
+/* transfer super admin: the confirm button is grey until the typed email matches, then it turns red */
+.btn-solid.ad-transfer-confirm, .btn-solid.ad-transfer-confirm:disabled { background: rgba(255, 255, 255, .14); color: rgba(255, 255, 255, .5); box-shadow: none; transform: none; cursor: not-allowed; }
+.btn-solid.ad-transfer-confirm.ready { background: linear-gradient(180deg, #ff6b7d, #e0334a); color: #fff; cursor: pointer; box-shadow: 0 8px 22px rgba(224, 51, 74, .4); }
+.btn-solid.ad-transfer-confirm.ready:hover { filter: brightness(1.08); }
+.ad-crown-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 12px; border: 1px solid rgba(255, 207, 74, .45); background: rgba(255, 207, 74, .12); color: #ffcf4a; cursor: pointer; transition: background .15s, transform .15s; }
+.ad-crown-btn:hover { background: rgba(255, 207, 74, .25); transform: translateY(-1px); }
+.ad-crown-btn:focus-visible { outline: 2px solid #ffcf4a; outline-offset: 2px; }
+
+/* merch pictures in the product form */
+.ad-merch-pics { display: flex; flex-wrap: wrap; gap: 10px; }
+.ad-merch-pic { position: relative; width: 84px; height: 84px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .06); }
+.ad-merch-pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ad-merch-pic button { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; font-size: 16px; line-height: 1; color: #fff; background: rgba(4, 22, 70, .8); cursor: pointer; }
+.ad-merch-pic button:hover { background: #c0392b; }

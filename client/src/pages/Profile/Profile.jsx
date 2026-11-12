@@ -5,7 +5,7 @@ import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
 import Feedback from '../../components/Feedback/Feedback';
 import QRCode from '../../components/QRCode/QRCode';
-import { ArtistHero, ArtistFeed, ArtistLinksCard } from './ArtistProfile';
+import { ArtistHero, ArtistFeed, ArtistLinksCard, ArtistPollsCard } from './ArtistProfile';
 import DailyRewards, { dailyState } from '../../components/DailyRewards/DailyRewards';
 import PromoCode from '../../components/PromoCode/PromoCode';
 import StarCurr from '../../assets/StarCurr.png';
@@ -377,7 +377,7 @@ export default function Profile() {
           qrValue={profileUrl}
           onProfileChange={(patch) => setProfile((p) => ({ ...p, ...patch }))}
           say={say}
-          balance={balanceChip}
+          balance={null} // artists have no balance
         />
       ) : (
       <section className="pf-hero rise">
@@ -437,8 +437,9 @@ export default function Profile() {
           </div>
 
           {isArtist && <ArtistLinksCard links={profile.socialLinks} ownView={ownView} />}
+          {isArtist && <ArtistPollsCard username={profile.username} />}
 
-          {ownView && (
+          {ownView && !isArtist && ( // artists have no Platform Features (rewards / promo)
             <div className="pf-card rise" style={{ '--d': '160ms' }}>
               <h2>Platform Features</h2>
               <div className="pf-features">
@@ -620,7 +621,7 @@ export default function Profile() {
         </div>
       </Modal>
 
-      {isOwn && (
+      {isOwn && !isArtist && (
         <>
           <DailyRewards
             open={dailyOpen}

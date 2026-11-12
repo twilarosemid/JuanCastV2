@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { getJSON, img, getUser } from '../../api';
+import { getJSON, img, getUser, isArtistUser } from '../../api';
 import Modal from '../../components/Modal/Modal';
 import VoteModal from '../../components/VoteModal/VoteModal';
 import ServerClock from '../../components/ServerClock/ServerClock';
@@ -89,7 +89,7 @@ export default function PollDetail() {
   };
 
   // the VoteModal casts the vote itself; this just refreshes the page once it went through
-  const handleVoted = async ({ artist, amount, result }) => {
+  const handleVoted = async ({ artist, amount, result, currency }) => {
     setVoteModalOpen(false);
     const votedId = artist._id || artist.id;
     try {
@@ -102,7 +102,7 @@ export default function PollDetail() {
     setTimeout(() => setFlashId(null), 1600);
     setFeedback({
       isOpen: true,
-      message: `You cast ${amount.toLocaleString('en-US')} Sun(s) for ${artist.name}!\nRemaining: ${Number(result.remainingSuns).toLocaleString('en-US')}`,
+      message: `You cast ${amount.toLocaleString('en-US')} ${currency === 'suns' ? 'Sun(s)' : 'Star(s)'} for ${artist.name}!\nRemaining: ${Number(currency === 'suns' ? result.remainingSuns : result.remainingStars).toLocaleString('en-US')}`,
       type: 'success'
     });
   };
@@ -123,7 +123,15 @@ export default function PollDetail() {
   const podium = [1, 0, 2].map((i) => entries[i]).filter(Boolean); // 2nd, 1st, 3rd
   const leaderVotes = Number(artists[0]?.voteCount) || 0;
 
-  const voteBtn = (artist) => (
+  // an entry linked to an artist account links to that artist's profile
+  const nameOf = (artist) => (artist.profileUsername
+    ? <Link className="artist-profile-link" to={`/profile/${artist.profileUsername}`}>{artist.name}</Link>
+    : artist.name);
+
+  // artist accounts can look at polls but not vote
+  const canVote = !isArtistUser(getUser());
+
+  const voteBtn = (artist) => (!canVote ? null : (
     <button
       className="vote"
       onClick={() => openVoteModal(artist)}
@@ -132,7 +140,7 @@ export default function PollDetail() {
     >
       Cast Vote
     </button>
-  );
+  ));
 
   return (
     <div className="poll-detail">
@@ -181,7 +189,7 @@ export default function PollDetail() {
             <p className="goal-note">
               {goalReached ? 'Goal reached! Thank you for the support.' : `${(goal - total).toLocaleString('en-US')} more to reach the goal`}
             </p>
-            {soloArtist && (
+            {soloArtist && canVote && (
               <button
                 type="button"
                 className="btn-solid goal-vote"
@@ -214,7 +222,7 @@ export default function PollDetail() {
                   </div>
                   <div className="info">
                     <div>
-                      <h3>{artist.name}</h3>
+                      <h3>{nameOf(artist)}</h3>
                       <small><CountUp value={artist.voteCount} /> votes</small>
                     </div>
                     {voteBtn(artist)}
@@ -233,7 +241,7 @@ export default function PollDetail() {
                   >
                     <span className="n">{i + 4}</span>
                     <span className="av" style={bg(artist.imageUrl)} role="img" aria-label={artist.name} />
-                    <span className="nm">{artist.name}</span>
+                    <span className="nm">{nameOf(artist)}</span>
                     <span className="vt"><CountUp value={artist.voteCount} /></span>
                     {voteBtn(artist)}
                     <span
@@ -252,6 +260,7 @@ export default function PollDetail() {
         open={voteModalOpen}
         artist={selected}
         pollTitle={poll.title}
+        currency={goal > 0 ? 'suns' : 'stars'}
         onClose={() => setVoteModalOpen(false)}
         onVoted={handleVoted}
       />

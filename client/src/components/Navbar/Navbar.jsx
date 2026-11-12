@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser, isAdminUser } from '../../api';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { API, getJSON, img, getUser, saveUser, mergeUser, clearUser, isAdminUser, isArtistUser, isGroupAdminUser, isSystemAdminUser } from '../../api';
 import logoImg from '../../assets/juancast_logo.webp';
 import StarCurr from '../../assets/StarCurr.png';
 import SunCurr from '../../assets/SunCurr.png';
@@ -81,6 +81,10 @@ const LogoutIcon = () => (
 export default function Navbar() {
   const user = getUser();           // saved by your login page under "user"
   const loggedIn = Boolean(user?.email);
+  const navigate = useNavigate();
+  // artists don't vote, earn, hold or spend currency, or use the market: no Vote / Market tabs, balance, buffs or check-in
+  const isArtist = isArtistUser(user);
+  const navItems = isArtist ? NAV.filter((n) => n.key === 'home' || n.key === 'community') : NAV;
   const [, refresh] = useState(0);
   const [unread, setUnread] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -88,7 +92,7 @@ export default function Navbar() {
   const [dailyOpen, setDailyOpen] = useState(false);
   const [dailyWanted, setDailyWanted] = useState(false);
   const [tipKey, setTipKey] = useState(null); // powerup whose time-left tooltip was opened by tapping
-  const powerups = useActivePowerups(loggedIn ? user.email : '');
+  const powerups = useActivePowerups(loggedIn && !isArtist ? user.email : '');
   const startupState = useStartupState();
   const tutorialPending = useTutorialPending();
   const [condensed, setCondensed] = useState(false);
@@ -98,7 +102,7 @@ export default function Navbar() {
 
   // sliding white "bubble" behind the link of the current page
   const { pathname } = useLocation();
-  const active = NAV.find((n) =>
+  const active = navItems.find((n) =>
     n.href === '/' ? pathname === '/' : pathname === n.href || pathname.startsWith(`${n.href}/`)
   )?.key ?? null;
   const [bubble, setBubble] = useState(null);
@@ -194,15 +198,15 @@ export default function Navbar() {
   // phones: the balance + buffs get their own row under the top bar, so pages need to clear a taller bar (see styles/mobile.css)
   useEffect(() => {
     const root = document.documentElement;
-    if (loggedIn) root.dataset.navStatus = 'on'; else delete root.dataset.navStatus;
+    if (loggedIn && !isArtist) root.dataset.navStatus = 'on'; else delete root.dataset.navStatus;
     return () => { delete root.dataset.navStatus; };
-  }, [loggedIn]);
+  }, [loggedIn, isArtist]);
 
   const daily = dailyState(user);
 
   // right after a login, pop the daily check-in once if today's reward is still waiting
   useEffect(() => {
-    if (!loggedIn) return;
+    if (!loggedIn || isArtist) return;
     let flagged = false;
     try { flagged = sessionStorage.getItem(DAILY_PROMPT_KEY) === '1'; sessionStorage.removeItem(DAILY_PROMPT_KEY); } catch { /* ignore */ }
     // also on every fresh page load / refresh while logged in (once per load; admins skip it)
@@ -273,7 +277,7 @@ export default function Navbar() {
               style={{ width: bubble.width, transform: `translateX(${bubble.left}px)`, opacity: active ? 1 : 0 }}
             />
           )}
-          {NAV.map((n) => (
+          {navItems.map((n) => (
             <Link
               key={n.key}
               ref={(el) => { linkRefs.current[n.key] = el; }}
@@ -289,7 +293,7 @@ export default function Navbar() {
         </div>
         <span className="divider" aria-hidden="true" />
 
-        {loggedIn && (
+        {loggedIn && !isArtist && (
           <>
             {powerups.map((p, i) => (
               <button
@@ -298,7 +302,7 @@ export default function Navbar() {
                 className={`icon-btn pu-btn${i > 0 ? ' pu-secondary' : ''}`}
                 data-open={tipKey === p.key}
                 aria-label={`${p.name}${p.multiplier ? ` x${p.multiplier}` : ''}, ${clock(p.left)} left`}
-                onClick={() => setTipKey((k) => (k === p.key ? null : p.key))}
+                onClick={() => { setTipKey(null); navigate('/market?tab=powerups'); }}
               >
                 <span className="pu-pie" style={{ '--pct': `${p.pct}%` }} aria-hidden="true" />
                 {p.image ? <img className="pu-img" src={p.image} alt="" /> : <span className="pu-img pu-bolt"><BoltIcon /></span>}
@@ -317,9 +321,9 @@ export default function Navbar() {
               </button>
             ))}
             <span className="nav-balance" data-tour="balance" aria-label="Your balance">
-              <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+              <Link className="nb-link" to="/market?tab=suns" title="Suns"><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</Link>
               <i aria-hidden="true">/</i>
-              <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+              <Link className="nb-link" to="/market" title="Star Shop"><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</Link>
             </span>
           </>
         )}
@@ -362,12 +366,14 @@ export default function Navbar() {
                 </div>
                 <div className="sep" />
                 <Link role="menuitem" to={LINKS.profile}><UserIcon /> Profile</Link>
-                <button role="menuitem" type="button" onClick={() => { setOpen(false); setDailyOpen(true); }}>
-                  <CalendarIcon /> Daily Check-In
-                  {!daily.claimedToday && <span className="daily-dot" aria-label="Reward available" />}
-                </button>
-                <Link role="menuitem" to={LINKS.transactions}><TransactionsIcon /> Transactions</Link>
-                {isAdminUser(user) && <Link role="menuitem" to="/admin"><ShieldIcon /> Admin Dashboard</Link>}
+                {!isArtist && (
+                  <button role="menuitem" type="button" onClick={() => { setOpen(false); setDailyOpen(true); }}>
+                    <CalendarIcon /> Daily Check-In
+                    {!daily.claimedToday && <span className="daily-dot" aria-label="Reward available" />}
+                  </button>
+                )}
+                {!isArtist && <Link role="menuitem" to={LINKS.transactions}><TransactionsIcon /> Transactions</Link>}
+                {isAdminUser(user) && <Link role="menuitem" to="/admin"><ShieldIcon /> {isGroupAdminUser(user) ? 'Group Admin' : isSystemAdminUser(user) ? 'System Admin' : 'Admin Dashboard'}</Link>}
                 <Link role="menuitem" to={LINKS.settings}><SettingsIcon /> Settings</Link>
                 <div className="sep" />
                 <button role="menuitem" type="button" onClick={logout}><LogoutIcon /> Logout</button>
@@ -383,17 +389,17 @@ export default function Navbar() {
       </div>
 
       {/* phones only: the balance on a row of its own (the desktop pill above hides it on phones); the powerup icon sits in the top row beside the bell */}
-      {loggedIn && (
+      {loggedIn && !isArtist && (
         <div className="nav-status">
           <span className="ns-chip ns-balance" data-tour="balance" aria-label="Your balance">
-            <span><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</span>
+            <Link className="nb-link" to="/market?tab=suns" title="Suns"><img src={SunCurr} alt="Suns" />{Number(user?.suns ?? 0).toLocaleString()}</Link>
             <i aria-hidden="true" />
-            <span><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</span>
+            <Link className="nb-link" to="/market" title="Star Shop"><img src={StarCurr} alt="Stars" />{Number(user?.stars ?? 0).toLocaleString()}</Link>
           </span>
         </div>
       )}
     </nav>
-    {loggedIn && (
+    {loggedIn && !isArtist && (
       <DailyRewards
         open={dailyOpen}
         onClose={() => setDailyOpen(false)}

@@ -160,3 +160,13 @@
 .al-more:hover { background: rgba(255, 255, 255, .08); border-color: var(--accent); }
 .al-empty { margin: 0; color: var(--muted); font-size: 14px; }
 .al-empty a { color: var(--accent); font-weight: 700; }
+
+/* polls card on the artist profile */
+.apl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.apl-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 14px; color: var(--text); text-decoration: none; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); transition: background .2s, transform .2s; }
+.apl-item:hover { background: rgba(255, 255, 255, .13); transform: translateY(-2px); }
+.apl-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.apl-text strong { font-size: 14px; overflow-wrap: anywhere; }
+.apl-text small { color: var(--muted); font-size: 12px; }
+.apl-item em { flex: 0 0 auto; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-style: normal; font-weight: 800; color: var(--muted); background: rgba(255, 255, 255, .08); }
+.apl-item em.apl-live { color: #5fd38d; background: rgba(95, 211, 141, .18); }

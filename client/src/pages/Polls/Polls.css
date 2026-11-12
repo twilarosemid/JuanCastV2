@@ -24,6 +24,33 @@
 .polls-main { min-width: 0; } /* lets the swipe rows scroll instead of stretching the page */
 .polls-sidebar { position: sticky; top: 110px; align-self: start; display: flex; flex-direction: column; gap: 16px; }
 
+.polls-searchrow { display: flex; align-items: center; gap: 8px; }
+.polls-searchrow .polls-search { flex: 1; min-width: 0; }
+.type-dd { position: relative; flex: none; }
+.type-dd-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 14px 0 16px; border-radius: 999px;
+  background: rgba(8, 40, 112, .45); backdrop-filter: blur(14px); color: var(--text); border: 1px solid rgba(255, 255, 255, .12);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: border-color .25s, background .25s, color .25s;
+}
+.type-dd-btn svg { transition: transform .25s ease; }
+.type-dd-btn.open svg { transform: rotate(180deg); }
+.type-dd-btn.open, .type-dd-btn:focus-visible { outline: 0; border-color: var(--accent); background: rgba(8, 40, 112, .7); }
+.type-dd-btn.filtered { background: #fff; color: #0b1220; border-color: transparent; }
+.type-dd-menu {
+  position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; min-width: 140px; margin: 0; padding: 6px; list-style: none;
+  border-radius: 18px; background: rgba(8, 30, 90, .95); backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 14px 34px rgba(0, 0, 0, .35);
+  animation: ddIn .18s ease;
+}
+.type-dd-menu button {
+  display: block; width: 100%; padding: 10px 14px; border: 0; border-radius: 12px; text-align: left;
+  background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.type-dd-menu button:hover { background: rgba(255, 255, 255, .12); }
+.type-dd-menu button.on { background: #fff; color: #0b1220; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
+
 .polls-search { position: relative; }
 .polls-search svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; transition: color .25s; }
 .polls-search input {
@@ -257,3 +284,7 @@
 .goal-vote { flex: none; }
 @media (max-width: 560px) { .goal-vote { width: 100%; } }
 .goal-note { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: 13px; font-weight: 600; }
+
+/* artist name on a poll links to their profile */
+.artist-profile-link { color: inherit; text-decoration: none; }
+.artist-profile-link:hover { text-decoration: underline; text-underline-offset: 3px; }

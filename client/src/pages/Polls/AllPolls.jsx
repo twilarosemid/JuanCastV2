@@ -8,6 +8,12 @@ import './Polls.css';
 
 const TYPES = ['All', 'Minor', 'Major'];
 
+const ChevronIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
 const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
     strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -86,7 +92,8 @@ export default function AllPolls() {
 
   // sliding white bubbles (same look as the navbar)
   const groupBubble = useBubble(activeGroup, pollGroups.length);
-  const typeBubble = useBubble(activeType);
+  const [typeOpen, setTypeOpen] = useState(false);
+  const typeRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -98,6 +105,20 @@ export default function AllPolls() {
         .catch((err) => console.error('Error fetching poll groups:', err))
     ]).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!typeOpen) return undefined;
+    const onDown = (e) => { if (typeRef.current && !typeRef.current.contains(e.target)) setTypeOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setTypeOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [typeOpen]);
 
   const filteredPolls = polls.filter((poll) => {
     const matchesSearch = (poll.title || '').toLowerCase().includes(search.toLowerCase());
@@ -117,31 +138,46 @@ export default function AllPolls() {
   return (
     <div className="polls-page">
       <aside className="polls-sidebar rise" data-tour="polls-filters">
-        <div className="polls-search">
-          <SearchIcon />
-          <input
-            type="text"
-            placeholder="Search polls"
-            aria-label="Search polls"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <div className="polls-searchrow">
+          <div className="polls-search">
+            <SearchIcon />
+            <input
+              type="text"
+              placeholder="Search polls"
+              aria-label="Search polls"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-        <div className="seg" role="group" aria-label="Filter polls by type">
-          {typeBubble.style && <span className="seg-bubble" style={typeBubble.style} />}
-          {TYPES.map((type) => (
+          <div className="type-dd" ref={typeRef}>
             <button
-              key={type}
               type="button"
-              ref={typeBubble.setRef(type)}
-              className={activeType === type ? 'on' : ''}
-              aria-pressed={activeType === type}
-              onClick={() => setActiveType(type)}
+              className={`type-dd-btn ${activeType !== 'All' ? 'filtered' : ''} ${typeOpen ? 'open' : ''}`}
+              aria-haspopup="listbox"
+              aria-expanded={typeOpen}
+              aria-label={`Filter polls by type: ${activeType}`}
+              onClick={() => setTypeOpen((o) => !o)}
             >
-              {type}
+              <span>{activeType}</span>
+              <ChevronIcon />
             </button>
-          ))}
+            {typeOpen && (
+              <ul className="type-dd-menu" role="listbox" aria-label="Poll type">
+                {TYPES.map((type) => (
+                  <li key={type} role="option" aria-selected={activeType === type}>
+                    <button
+                      type="button"
+                      className={activeType === type ? 'on' : ''}
+                      onClick={() => { setActiveType(type); setTypeOpen(false); }}
+                    >
+                      {type}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="polls-groups">

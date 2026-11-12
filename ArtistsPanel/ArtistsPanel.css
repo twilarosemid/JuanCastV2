@@ -1,0 +1,17 @@
+.hart-group { margin: -6px 0 14px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.hart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; max-height: 560px; overflow-y: auto; padding: 4px 6px 4px 0; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
+.hart-card {
+  position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 18px; color: var(--text); text-decoration: none;
+  border: 1px solid rgba(255,255,255,.09); background: linear-gradient(135deg, var(--tint), var(--bg));
+  transition: transform .4s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .4s;
+}
+.hart-card:hover, .hart-card:focus-visible { transform: translateY(-6px); border-color: rgba(255,255,255,.3); box-shadow: 0 20px 40px rgba(0,0,0,.4); outline: 0; }
+.hart-img { position: absolute; inset: 0; background: center / cover no-repeat; transition: transform .7s cubic-bezier(.2,.7,.2,1); }
+.hart-card:hover .hart-img { transform: scale(1.08); }
+.hart-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(6,34,96,.95) 0%, rgba(6,34,96,.35) 42%, transparent 70%); pointer-events: none; }
+.hart-initial { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; padding-bottom: 30px; color: rgba(255,255,255,.35); font-size: 56px; font-weight: 900; }
+.hart-meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; flex-direction: column; gap: 2px; padding: 12px; }
+.hart-meta strong { font-size: 15px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.hart-meta small { color: rgba(244,247,255,.75); font-size: 12px; font-weight: 600; }
+.hart-card.skel { background: rgba(255,255,255,.07); animation: hartPulse 1.2s ease-in-out infinite; }
+@keyframes hartPulse { 50% { opacity: .55; } }

@@ -68,3 +68,37 @@
 .ep-textarea:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
 .ep-count { align-self: flex-end; }
 .ep-about .sl-input { min-height: 46px; }
+
+/* ---------- artists: ID card ---------- */
+.ep-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.ep-h2-gap { margin-top: 12px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, .08); }
+.ep-sub-note { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ep-idphoto { display: flex; align-items: center; gap: 16px; }
+.ep-idphoto-box { flex: 0 0 auto; display: grid; place-items: center; width: 94px; aspect-ratio: 9 / 16; overflow: hidden; border-radius: 12px; color: var(--muted); background: rgba(255, 255, 255, .08); border: 2px solid rgba(255, 255, 255, .25); }
+.ep-idphoto-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ep-idphoto-box svg { width: 50%; height: 50%; }
+.ep-idphoto-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ep-idphoto-side small { color: rgba(169, 182, 211, .8); font-size: 12px; }
+.ep-idphoto-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.ep-idphoto-btns .btn-ghost { min-height: 38px; padding: 0 16px; }
+.ep-rows { display: flex; flex-direction: column; gap: 8px; }
+.ep-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 38px; gap: 8px; align-items: center; }
+.ep-row input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 12px; font: inherit; font-size: 14px; color: var(--text); background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .14); }
+.ep-row input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+.ep-row-x { width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; font-size: 22px; line-height: 1; color: var(--text); background: rgba(255, 255, 255, .08); cursor: pointer; transition: background .2s, color .2s; }
+.ep-row-x:hover { background: rgba(255, 107, 133, .25); color: #ff8fa3; }
+.ep-quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.ep-quick button { min-height: 34px; padding: 0 12px; border-radius: 999px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--text); background: rgba(255, 255, 255, .07); border: 1px dashed rgba(255, 255, 255, .28); cursor: pointer; transition: background .2s, border-color .2s; }
+.ep-quick button:hover { background: rgba(255, 255, 255, .14); border-color: var(--gold); }
+.ep-quick .ep-quick-new { color: var(--gold); border-color: rgba(245, 197, 66, .55); }
+@media (max-width: 560px) {
+  .ep-row { grid-template-columns: minmax(0, 1fr) 38px; }
+  .ep-row-label { grid-column: 1; }
+  .ep-row-value { grid-column: 1; }
+  .ep-row-x { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+}
+
+/* cover photo picker */
+.ep-cover { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.ep-cover-box { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 5; overflow: hidden; border-radius: 14px; color: var(--muted); font-size: 13px; background: rgba(255, 255, 255, .08); border: 2px solid rgba(255, 255, 255, .25); }
+.ep-cover-box img { width: 100%; height: 100%; object-fit: cover; display: block; }

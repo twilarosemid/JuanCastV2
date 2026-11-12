@@ -5,6 +5,7 @@ import useUser from '../../hooks/useUser';
 import heroIcon from '../../assets/juancast_icon.webp';
 import './Login.css';
 import { resetStartupAd } from '../../startupAdGate';
+import pkg from '../../../package.json';
 
 const REMEMBER_KEY = 'juancast_remembered_email';
 
@@ -30,12 +31,13 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState(null); // date this account will be deleted, when it is waiting for deletion
 
   // already signed in: nothing to do here (skipped right after a login, which navigates itself)
   if (user?.email && !loading) return <Navigate to={back} replace />;
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  // restore = true: the person chose to keep an account that was waiting to be deleted
+  const doLogin = async (restore = false) => {
     setError('');
     setLoading(true);
 
@@ -43,18 +45,23 @@ export default function Login() {
       const res = await fetch(`${API}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, ...(restore ? { restore: true } : {}) })
       });
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.code === 'PENDING_DELETION') {
+          setPendingDeletion(data.deletionAt);
+          setLoading(false);
+          return;
+        }
         setError(data.message || data.error || 'Login failed.');
         setLoading(false);
         return;
       }
 
-      const isAdmin = Boolean(data.user?.isAdmin || data.user?.role === 'admin' || data.user?.role === 'superadmin');
-      saveUser({ ...data.user, isAdmin, role: data.user?.role || (isAdmin ? 'admin' : 'user') });
+      const isAdmin = Boolean(data.user?.isAdmin || data.user?.role === 'groupadmin' || data.user?.role === 'systemadmin' || data.user?.role === 'admin' || data.user?.role === 'superadmin');
+      saveUser({ ...data.user, isAdmin, role: data.user?.role || (isAdmin ? 'groupadmin' : 'user'), loginAt: Date.now() });
 
       // only the email is remembered, never the password
       if (rememberMe) localStorage.setItem(REMEMBER_KEY, email);
@@ -66,12 +73,14 @@ export default function Login() {
       // ask the navbar to pop the daily check-in once (admins skip it)
       if (!isAdmin) { try { sessionStorage.setItem('juancast_daily_prompt', '1'); } catch { /* ignore */ } }
 
-      navigate(back, { replace: true });
+      // admins only have the dashboard; everyone else goes back to where they were
+      navigate(isAdmin ? '/admin' : back, { replace: true });
     } catch {
       setError('Could not connect to the server.');
       setLoading(false);
     }
   };
+  const handleLogin = (e) => { e.preventDefault(); doLogin(false); };
 
   return (
     <main className="login-page">
@@ -81,6 +90,24 @@ export default function Login() {
         </div>
 
         <div className="login-body">
+          {pendingDeletion ? (
+            <>
+              <h1 className="login-title">Account Scheduled for Deletion</h1>
+              <p className="login-sub">
+                This account will be permanently deleted on{' '}
+                <b>{new Date(pendingDeletion).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</b>.
+                Restore it to keep your profile, followers and posts.
+              </p>
+              <button type="button" className="login-btn" disabled={loading} onClick={() => doLogin(true)}>
+                {loading ? 'Restoring...' : 'Restore my account'}
+              </button>
+              <p className="login-error" role="alert">{error}</p>
+              <p className="login-signup">
+                <button type="button" className="login-link" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit' }} onClick={() => { setPendingDeletion(null); setPassword(''); }}>Not now</button>
+              </p>
+            </>
+          ) : (
+          <>
           <h1 className="login-title">Account Login</h1>
           <p className="login-sub">Welcome back. Sign in to vote, spin and climb the rankings.</p>
 
@@ -137,6 +164,13 @@ export default function Login() {
           <p className="login-signup">
             Don't have an account? <Link to="/signup" className="login-link">Sign Up!</Link>
           </p>
+          </>
+          )}
+
+          <footer className="login-meta">
+            <span>Data Privacy | <Link to="/settings/terms" className="login-link">Learn More</Link></span>
+            <span>Version {pkg.version}</span>
+          </footer>
         </div>
       </div>
     </main>

@@ -2,6 +2,7 @@ import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } 
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useUser from '../../hooks/useUser';
+import { isArtistUser } from '../../api';
 import useStartupState from '../../hooks/useStartupState';
 import { markTutorialDone, setTutorialRunning, tutorialPending } from '../../tutorialGate';
 import './Tutorial.css';
@@ -11,7 +12,7 @@ const BLOCKED = ['/landing', '/login', '/signup', '/forgot-password', '/admin'];
 
 // Each step: an optional page to open, an optional [data-tour] target to spotlight (none = centered card).
 // A target that is missing or hidden (e.g. the desktop balance on a phone) falls back to the next match or a centered card.
-const STEPS = [
+const USER_STEPS = [
   { title: 'Welcome to JuanCast!', body: 'Let’s take a quick tour so you know where everything is and how to vote. It takes about a minute, and you can skip any time.', route: '/' },
   { target: 'balance', title: 'Suns and Stars', body: 'These are your two currencies. Stars are spent on votes, and Suns can be converted into Stars in the Market.' },
   { target: 'rankings', tight: true, title: 'Top Rankings', body: 'The artists leading the current poll. Every vote moves them up the board.' },
@@ -26,6 +27,19 @@ const STEPS = [
   { target: 'market-content', title: 'Spin and win', body: 'Try your luck on the spin wheel to earn Stars.', route: '/market?tab=spin' },
   { target: 'bell', title: 'Notifications', body: 'Replies, poll updates and rewards show up here. A badge tells you when something is new.', route: '/' },
   { target: 'avatar', title: 'Your account', body: 'Tap your picture for your Profile, your Daily Check-in rewards, Transactions and Settings. Check in every day to build your streak!' },
+  { title: 'You’re all set!', body: 'That’s the tour. Tip: you can replay it any time from Settings.' }
+];
+
+// Artist accounts don't vote, hold currency or use the market, so their tour skips all of that.
+const ARTIST_STEPS = [
+  { title: 'Welcome to JuanCast!', body: 'Let’s take a quick tour so you know where everything is. It takes about a minute, and you can skip any time.', route: '/' },
+  { target: 'rankings', tight: true, title: 'Top Rankings', body: 'The artists leading the current poll, moving up the board with every fan vote.' },
+  { target: 'polls-carousel', title: 'Live polls', body: 'The polls that are running right now. Tap one to see its artists and the ranking.' },
+  { target: 'community-tabs', title: 'Community', body: 'Chat with fans, open your Fanbase, read the latest Chika and watch Content.', route: '/community' },
+  { target: 'chat-composer', title: 'Join the chat', body: 'Write a post, share a photo and reply or like other posts.' },
+  { target: 'fanbase-list', title: 'Fanbase', body: 'Fanbases are artist boards. Subscribers unlock all posts and photos, and non-subscribers get a preview.', route: '/community?tab=fanbase' },
+  { target: 'bell', title: 'Notifications', body: 'Replies and updates show up here. A badge tells you when something is new.', route: '/' },
+  { target: 'avatar', title: 'Your account', body: 'Tap your picture for your Profile and Settings. Edit your profile there to change your photo, cover and ID card.' },
   { title: 'You’re all set!', body: 'That’s the tour. Tip: you can replay it any time from Settings.' }
 ];
 
@@ -128,6 +142,7 @@ const placeCard = (box, safe, w, h, vw, vh) => {
 
 function TutorialRunner() {
   const user = useUser();
+  const STEPS = isArtistUser(user) ? ARTIST_STEPS : USER_STEPS;
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const startupState = useStartupState();
@@ -150,11 +165,33 @@ function TutorialRunner() {
     return () => clearTimeout(id);
   }, [active, blocked, adDone, user]);
 
-  // replay from Settings
+  // replay from Settings: wait until any pop-up (startup ad, daily check-in, ...) is closed, then start
+  const startupRef = useRef(startupState);
+  startupRef.current = startupState;
   useEffect(() => {
-    const start = () => { if (email) { setStep(0); setActive(true); } };
+    let timer;
+    let giveUp;
+    const popupOpen = () => Boolean(document.querySelector('.modal-overlay')) || startupRef.current === 'checking' || startupRef.current === 'showing';
+    const begin = () => { setStep(0); setActive(true); };
+    const start = () => {
+      if (!email) return;
+      clearInterval(timer);
+      clearTimeout(giveUp);
+      if (!popupOpen()) { begin(); return; }
+      timer = setInterval(() => {
+        if (popupOpen()) return;
+        clearInterval(timer);
+        clearTimeout(giveUp);
+        begin();
+      }, 250);
+      giveUp = setTimeout(() => clearInterval(timer), 60000);
+    };
     window.addEventListener('juancast-start-tutorial', start);
-    return () => window.removeEventListener('juancast-start-tutorial', start);
+    return () => {
+      window.removeEventListener('juancast-start-tutorial', start);
+      clearInterval(timer);
+      clearTimeout(giveUp);
+    };
   }, [email]);
 
   useEffect(() => {

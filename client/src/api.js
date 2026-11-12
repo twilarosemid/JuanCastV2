@@ -12,19 +12,39 @@ export const img = (url = '') =>
 
 // Your old site saves the logged-in user under "juancast_user" (we also accept "user")
 export const USER_KEY = 'juancast_user';
-export const getUser = () => {
+// A login lasts 24 hours, then the person is logged out (loginAt is stamped when they log in)
+export const SESSION_MS = 24 * 60 * 60 * 1000;
+const readStoredUser = () => {
   try {
     return JSON.parse(localStorage.getItem(USER_KEY) || localStorage.getItem('user') || 'null');
   } catch {
     return null;
   }
 };
+export const getUser = () => {
+  const user = readStoredUser();
+  if (!user) return null;
+  if (!user.loginAt) {
+    // a session from before this rule: its 24 hours start now
+    user.loginAt = Date.now();
+    try { localStorage.setItem(USER_KEY, JSON.stringify(user)); } catch { /* ignore */ }
+    return user;
+  }
+  if (Date.now() - user.loginAt > SESSION_MS) {
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem('user');
+    setTimeout(() => window.dispatchEvent(new Event('juancast-user-updated')), 0); // not during a render
+    return null;
+  }
+  return user;
+};
 export const saveUser = (user) => {
+  const next = { ...user, loginAt: user.loginAt || readStoredUser()?.loginAt || Date.now() };
   try {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(USER_KEY, JSON.stringify(next));
   } catch {
     // storage full (big avatar image): keep everything except the avatar
-    try { localStorage.setItem(USER_KEY, JSON.stringify({ ...user, avatar: '' })); } catch { /* give up quietly */ }
+    try { localStorage.setItem(USER_KEY, JSON.stringify({ ...next, avatar: '' })); } catch { /* give up quietly */ }
   }
   window.dispatchEvent(new Event('juancast-user-updated'));
 };
@@ -58,8 +78,12 @@ export const castVote = async (rankingId, user, cost = VOTE_COST, currencyType =
 };
 
 // ---------- admin ----------
-export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'admin' || user?.role === 'superadmin');
+// Roles: user, artist, groupadmin (fanbase groups + artist profiles), systemadmin (website functions and content),
+// superadmin (everything, including accounts & roles)
+export const isAdminUser = (user) => Boolean(user?.isAdmin || user?.role === 'groupadmin' || user?.role === 'systemadmin' || user?.role === 'admin' || user?.role === 'superadmin');
 export const isSuperAdminUser = (user) => user?.role === 'superadmin';
+export const isSystemAdminUser = (user) => user?.role === 'systemadmin';
+export const isGroupAdminUser = (user) => isAdminUser(user) && !isSuperAdminUser(user) && !isSystemAdminUser(user);
 export const isArtistUser = (user) => user?.role === 'artist';
 
 // Calls an admin-only endpoint. Sends the admin token that the server hands out at login.

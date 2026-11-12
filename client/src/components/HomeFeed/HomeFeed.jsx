@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 import ChatPanel from '../ChatPanel/ChatPanel';
-import ChikaPanel from '../ChikaPanel/ChikaPanel';
+import ArtistsPanel from '../ArtistsPanel/ArtistsPanel';
 import Reveal from '../Reveal/Reveal';
 import './HomeFeed.css';
 
-// Community chat on the left, Latest Chika on the right (stacked on small screens)
+// Community chat on the left, the featured group's Artists on the right (stacked on small screens)
 export default function HomeFeed() {
   return (
     <div className="feed">
@@ -16,10 +16,7 @@ export default function HomeFeed() {
         <ChatPanel />
       </Reveal>
       <Reveal as="section" delay={120}>
-        <div className="section-head">
-          <h2 className="section-title" id="chika">Latest Chika</h2>
-        </div>
-        <ChikaPanel />
+        <ArtistsPanel />
       </Reveal>
     </div>
   );

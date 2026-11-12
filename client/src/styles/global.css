@@ -12,7 +12,7 @@ html, body { margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Montserrat', system-ui, sans-serif;
+  font-family: 'Montserrat', 'Noto Color Emoji', system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
 }
 .section-title {
   font-size: clamp(26px, 3.5vw, 40px);
@@ -69,3 +69,7 @@ body { -webkit-tap-highlight-color: transparent; }
 .btn-solid { background: linear-gradient(180deg, #fff, #e3f0ff); color: #06307f; }
 .btn-solid:not(:disabled):hover { box-shadow: 0 10px 24px rgba(245, 197, 66, .35); }
 ::selection { background: var(--gold); color: #06307f; }
+
+/* Emoji: Noto Color Emoji is loaded explicitly so newer joined emoji (e.g. black cat) render as one glyph
+   on devices whose built-in emoji font is too old and would split them into pieces. Form fields inherit it too. */
+button, input, textarea, select { font-family: inherit; }

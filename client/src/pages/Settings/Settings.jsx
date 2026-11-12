@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Route, Routes, useNavigate } from 'react-router-dom';
-import { API } from '../../api';
+import { API, clearUser } from '../../api';
+import Modal from '../../components/Modal/Modal';
 import useUser from '../../hooks/useUser';
 import { startTutorial } from '../../tutorialGate';
+import { markStartupSeen } from '../../startupAdGate';
 import Feedback from '../../components/Feedback/Feedback';
 import TermsBody from './TermsBody';
 import './Settings.css';
@@ -16,12 +18,14 @@ const Ico = {
   help: <svg {...svg}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01" /></svg>,
   flag: <svg {...svg}><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>,
   key: <svg {...svg}><circle cx="8" cy="15" r="4" /><path d="m11 12 9-9M16 7l3 3" /></svg>,
+  shield: <svg {...svg}><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>,
   back: <svg {...svg}><path d="m15 5-7 7 7 7" /></svg>,
   chev: <svg {...svg}><path d="m9 5 7 7-7 7" /></svg>,
   down: <svg {...svg}><path d="m6 9 6 6 6-6" /></svg>
 };
 
 const MENU = [
+  { label: 'Account & Security', icon: Ico.shield, to: 'account', needsLogin: true },
   { label: 'About Us', icon: Ico.info, soon: true },
   { label: 'Terms & Conditions', icon: Ico.doc, to: 'terms' },
   { label: 'Privacy Policy', icon: Ico.lock, soon: true },
@@ -58,7 +62,7 @@ function Home() {
         </header>
 
         <nav className="st-card rise" style={{ '--d': '80ms' }} aria-label="Settings">
-          {MENU.map((item) => {
+          {MENU.filter((item) => !item.needsLogin || user?.email).map((item) => {
             const inner = (
               <>
                 <span className="st-ico">{item.icon}</span>
@@ -74,12 +78,279 @@ function Home() {
 
         <div className="st-actions rise" style={{ '--d': '160ms' }}>
           {user?.email && (
-            <button type="button" className="st-btn" onClick={() => { navigate('/'); setTimeout(startTutorial, 300); }}>{Ico.help} Replay Tutorial</button>
+            <button type="button" className="st-btn" onClick={() => { markStartupSeen(); /* no startup ad when replaying */ navigate('/'); setTimeout(startTutorial, 300); }}>{Ico.help} Replay Tutorial</button>
           )}
-          <Link className="st-btn" to="/forgot-password">{Ico.key} Forgot Password</Link>
+          {user?.email
+            ? <Link className="st-btn" to="password">{Ico.key} Change Password</Link>
+            : <Link className="st-btn" to="/forgot-password">{Ico.key} Forgot Password</Link>}
         </div>
       </div>
     </main>
+  );
+}
+
+/* ---------- account: shared helper ---------- */
+const accountCall = async (method, path, payload) => {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: method === 'GET' ? undefined : JSON.stringify(payload)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.message || 'Something went wrong. Please try again.'), { data });
+  return data;
+};
+const offlineMessage = (err) => (err instanceof TypeError ? 'Cannot connect to the server. Please check your connection.' : err.message);
+
+/* ---------- Change password (2FA on: a code is emailed first) ---------- */
+function ChangePassword() {
+  const user = useUser();
+  const navigate = useNavigate();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [step, setStep] = useState('form');   // 'form' | 'code'
+  const [code, setCode] = useState('');
+  const [sentTo, setSentTo] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [fb, setFb] = useState({ open: false, type: 'success', message: '' });
+
+  if (!user?.email) {
+    return (
+      <Shell title="Change Password">
+        <section className="st-card st-form">
+          <p className="st-hint">Log in to change your password.</p>
+          <Link className="st-submit st-link-btn" to="/login">Log In</Link>
+        </section>
+      </Shell>
+    );
+  }
+
+  const send = async (withCode) => {
+    setError('');
+    if (next.length < 8) { setError('Your new password must be at least 8 characters.'); return; }
+    if (next !== confirm) { setError('The new passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      const data = await accountCall('POST', '/api/account/change-password', {
+        email: user.email, currentPassword: current, newPassword: next, ...(withCode ? { code: code.trim() } : {})
+      });
+      if (data.needsCode) { setStep('code'); setSentTo(data.sentTo || ''); setCode(''); return; }
+      setFb({ open: true, type: 'success', message: 'Your password was changed.' });
+    } catch (err) {
+      setError(offlineMessage(err));
+      if (err.data?.needsCode) setStep('code');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = (e) => { e.preventDefault(); if (!busy) send(step === 'code'); };
+  const resend = () => { setCode(''); send(false); };
+  const closeFeedback = () => {
+    const wasSuccess = fb.type === 'success';
+    setFb((cur) => ({ ...cur, open: false }));
+    if (wasSuccess) navigate('/settings');
+  };
+
+  return (
+    <Shell title="Change Password">
+      <form className="st-card st-form" onSubmit={submit}>
+        {step === 'form' ? (
+          <>
+            <label className="st-field">
+              <span>Current password</span>
+              <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} required />
+            </label>
+            <label className="st-field">
+              <span>New password</span>
+              <input type="password" autoComplete="new-password" minLength={8} value={next} onChange={(e) => setNext(e.target.value)} required />
+              <small className="st-hint">At least 8 characters.</small>
+            </label>
+            <label className="st-field">
+              <span>Confirm new password</span>
+              <input type="password" autoComplete="new-password" minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+            </label>
+          </>
+        ) : (
+          <>
+            <p className="st-hint">Your account has 2FA on. We sent a 6-digit code to <b>{sentTo || 'your email'}</b>. Enter it to finish changing your password.</p>
+            <label className="st-field">
+              <span>Verification code</span>
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="st-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus required />
+            </label>
+            <button type="button" className="st-linkbtn" onClick={resend} disabled={busy}>Send a new code</button>
+          </>
+        )}
+        {error && <p className="st-err" role="alert">{error}</p>}
+        <button type="submit" className="st-submit" disabled={busy || (step === 'form' ? !current || !next || !confirm : code.length !== 6)}>
+          {busy ? 'Please wait…' : step === 'form' ? 'Change Password' : 'Confirm'}
+        </button>
+      </form>
+      <Feedback state={fb} onClose={closeFeedback} />
+    </Shell>
+  );
+}
+
+/* ---------- One reusable password (+ emailed code) confirmation ---------- */
+function SecureModal({ title, intro, path, extra = {}, confirmLabel, danger, requireText, email, onClose, onSuccess }) {
+  const [password, setPassword] = useState('');
+  const [typed, setTyped] = useState('');
+  const [code, setCode] = useState('');
+  const [step, setStep] = useState('password');
+  const [sentTo, setSentTo] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const run = async (withCode) => {
+    setError('');
+    setBusy(true);
+    try {
+      const data = await accountCall('POST', path, { email, password, ...extra, ...(withCode ? { code: code.trim() } : {}) });
+      if (data.needsCode) { setStep('code'); setSentTo(data.sentTo || ''); setCode(''); return; }
+      onSuccess(data);
+    } catch (err) {
+      setError(offlineMessage(err));
+      if (err.data?.needsCode) setStep('code');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = (e) => { e.preventDefault(); if (!busy) run(step === 'code'); };
+  const ready = step === 'password' ? password && (!requireText || typed.trim() === requireText) : code.length === 6;
+
+  return (
+    <Modal open onClose={busy ? undefined : onClose} label={title}>
+      <form onSubmit={submit}>
+        <h3 className={danger ? 'error' : undefined}>{title}</h3>
+        {step === 'password' ? (
+          <>
+            <p>{intro}</p>
+            <label htmlFor="sm-pass">Your password</label>
+            <input id="sm-pass" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+            {requireText && (
+              <>
+                <label htmlFor="sm-type" style={{ marginTop: 12 }}>Type <b>{requireText}</b> to confirm</label>
+                <input id="sm-type" type="text" autoComplete="off" value={typed} onChange={(e) => setTyped(e.target.value)} />
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <p>We sent a 6-digit code to <b>{sentTo || 'your email'}</b>. Enter it to continue.</p>
+            <label htmlFor="sm-code">Verification code</label>
+            <input id="sm-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="st-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
+            <button type="button" className="st-linkbtn" onClick={() => { setCode(''); run(false); }} disabled={busy}>Send a new code</button>
+          </>
+        )}
+        {error && <p className="st-err" role="alert" style={{ margin: '12px 0 0' }}>{error}</p>}
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="submit" className={`btn-solid${danger ? ' st-danger' : ''}`} disabled={busy || !ready}>{busy ? 'Please wait…' : confirmLabel}</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ---------- Account & Security: 2FA, deactivate, delete ---------- */
+function Account() {
+  const user = useUser();
+  const navigate = useNavigate();
+  const [email] = useState(user?.email || '');     // kept even after we log out below
+  const [status, setStatus] = useState(null);      // { twoFactorEnabled, canDelete }
+  const [dialog, setDialog] = useState(null);
+  const [fb, setFb] = useState({ open: false, type: 'success', message: '', leave: false });
+
+  useEffect(() => {
+    if (!email) return;
+    accountCall('GET', `/api/account/status?email=${encodeURIComponent(email)}`).then(setStatus).catch(() => setStatus({ twoFactorEnabled: false, canDelete: true, failed: true }));
+  }, [email]);
+
+  if (!email) {
+    return (
+      <Shell title="Account & Security">
+        <section className="st-card st-form">
+          <p className="st-hint">Log in to manage your account.</p>
+          <Link className="st-submit st-link-btn" to="/login">Log In</Link>
+        </section>
+      </Shell>
+    );
+  }
+
+  const tfa = Boolean(status?.twoFactorEnabled);
+  const leave = (message) => { clearUser(); setDialog(null); setFb({ open: true, type: 'success', message, leave: true }); };
+  const closeFeedback = () => {
+    const leaving = fb.leave;
+    setFb((cur) => ({ ...cur, open: false }));
+    if (leaving) navigate('/', { replace: true });
+  };
+  const fmtDate = (value) => new Date(value).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const open2fa = () => setDialog({
+    title: tfa ? 'Turn off 2FA' : 'Turn on 2FA',
+    intro: tfa
+      ? 'Enter your password. We will email you a code to confirm turning 2FA off.'
+      : 'With 2FA on, we email you a 6-digit code before you can change your password or delete your account. Enter your password to start.',
+    path: '/api/account/2fa', extra: { enable: !tfa }, confirmLabel: tfa ? 'Turn off' : 'Turn on',
+    onSuccess: (data) => { setStatus((s) => ({ ...s, twoFactorEnabled: Boolean(data.twoFactorEnabled) })); setDialog(null); setFb({ open: true, type: 'success', message: data.message || 'Done.', leave: false }); }
+  });
+  const openDeactivate = () => setDialog({
+    title: 'Deactivate account',
+    intro: 'Your profile and posts are hidden from everyone. Nothing is deleted: log in again any time to turn your account back on.',
+    path: '/api/account/deactivate', confirmLabel: 'Deactivate',
+    onSuccess: (data) => leave(data.message)
+  });
+  const openDelete = () => setDialog({
+    title: 'Delete account', danger: true, requireText: 'DELETE',
+    intro: `Your account is hidden right away and permanently deleted after 30 days: profile, posts, vote history and followers all go. Log in before then to restore it.${tfa ? ' We will also email you a code.' : ''}`,
+    path: '/api/account/delete', confirmLabel: 'Delete my account',
+    onSuccess: (data) => leave(data.deletionAt ? `Your account is scheduled for deletion on ${fmtDate(data.deletionAt)}. Log in before then if you change your mind.` : data.message)
+  });
+
+  return (
+    <Shell title="Account & Security">
+      <section className="st-card">
+        <div className="st-intro"><h2>Security</h2><p>Extra protection for your account.</p></div>
+        <div className="st-opt">
+          <div className="st-opt-text">
+            <strong>Two-step verification (2FA)</strong>
+            <span>{status ? (tfa ? 'On: we email you a code before sensitive changes.' : 'Off: sensitive changes only need your password.') : 'Loading…'}</span>
+          </div>
+          <button type="button" className="st-pill" onClick={open2fa} disabled={!status || status.failed}>{tfa ? 'Turn off' : 'Turn on'}</button>
+        </div>
+        <div className="st-opt">
+          <div className="st-opt-text">
+            <strong>Password</strong>
+            <span>Change it any time. With 2FA on you will confirm with an emailed code.</span>
+          </div>
+          <Link className="st-pill" to="/settings/password">Change</Link>
+        </div>
+      </section>
+
+      <section className="st-card" style={{ marginTop: 18 }}>
+        <div className="st-intro"><h2>Your account</h2><p>Take a break or leave JuanCast.</p></div>
+        <div className="st-opt">
+          <div className="st-opt-text">
+            <strong>Deactivate account</strong>
+            <span>Hide your profile until you log in again.</span>
+          </div>
+          <button type="button" className="st-pill" onClick={openDeactivate} disabled={status?.canDelete === false}>Deactivate</button>
+        </div>
+        <div className="st-opt">
+          <div className="st-opt-text">
+            <strong>Delete account</strong>
+            <span>Removed permanently after 30 days. Log in before then to restore it.</span>
+          </div>
+          <button type="button" className="st-pill danger" onClick={openDelete} disabled={status?.canDelete === false}>Delete</button>
+        </div>
+        {status?.canDelete === false && <p className="st-hint st-pad">Admin accounts can’t be deactivated or deleted here.</p>}
+      </section>
+
+      {dialog && <SecureModal key={dialog.title} email={email} onClose={() => setDialog(null)} {...dialog} />}
+      <Feedback state={fb} onClose={closeFeedback} />
+    </Shell>
   );
 }
 
@@ -258,6 +529,8 @@ export default function Settings() {
       <Route path="share" element={<Share />} />
       <Route path="faq" element={<FAQ />} />
       <Route path="report" element={<Report />} />
+      <Route path="password" element={<ChangePassword />} />
+      <Route path="account" element={<Account />} />
       <Route path="*" element={<Home />} />
     </Routes>
   );

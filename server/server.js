@@ -74,11 +74,19 @@ app.get('/uploads/:filename', async (req, res, next) => {
 mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 8000 })
   .then(async () => {
     console.log("Connected to MongoDB Atlas!");
+    // a super admin transfer made from the dashboard outlives restarts
+    try {
+      const cfg = await SystemConfig.findOne({ key: 'superAdmin' }).lean();
+      if (cfg?.value) { transferredSuperAdmin = normalizeEmail(cfg.value); console.log(`Super admin (transferred): ${transferredSuperAdmin}`); }
+    } catch (error) {
+      console.error('Could not load the super admin setting:', error);
+    }
     // start the auto-syncs only once the database is reachable
     youtubeSync.start();
     instagramSync.start();
     facebookSync.start();
     xSync.start();
+    backfillFanVotes();
 
     // Phone is now optional: drop the old plain unique index (it treats every missing phone as a duplicate)
     try {
@@ -117,7 +125,19 @@ const userSchema = new mongoose.Schema({
   passwordResetExpiresAt: { type: Date },
   isVerified: { type: Boolean, default: false },
   isAdmin: { type: Boolean, default: false },
-  role: { type: String, enum: ['user', 'artist', 'admin', 'superadmin'], default: 'user' }
+  role: { type: String, enum: ['user', 'artist', 'groupadmin', 'systemadmin', 'admin', 'superadmin'], default: 'user' },
+  createdByAdmin: { type: Boolean, default: false }, // made from the dashboard (Add user), not by signing up
+  // 2FA by email: protects changing the password, turning 2FA off and deleting the account
+  twoFactorEnabled: { type: Boolean, default: false },
+  securityCodeHash: { type: String },
+  securityCodePurpose: { type: String },
+  securityCodeExpiresAt: { type: Date },
+  securityCodeSentAt: { type: Date },
+  securityCodeTries: { type: Number, default: 0 },
+  // deactivate (hidden until the next login) and delete (hidden, removed for good after 30 days)
+  deactivatedAt: { type: Date },
+  deletionRequestedAt: { type: Date },
+  deletionAt: { type: Date }
 });
 // Phone is optional: only enforce uniqueness when a phone number is actually stored.
 userSchema.index({ phone: 1 }, { unique: true, partialFilterExpression: { phone: { $type: 'string' } }, name: 'phone_unique_when_present' });
@@ -169,7 +189,11 @@ const resetDailySwerteSpins = async (email) => {
 
 // Super admins: set SUPERADMIN_EMAIL in .env / Render (comma separated) to add more.
 // gulfericdonato6@gmail.com is always a super admin, and its role can't be changed from the Accounts tab.
+// After a super admin transfers their rights (Accounts tab), the new owner is saved in the database
+// (SystemConfig) and replaces the list below, so the .env value no longer makes anyone a super admin.
+let transferredSuperAdmin = '';
 const getSuperAdminEmails = () => {
+  if (transferredSuperAdmin) return [transferredSuperAdmin];
   const configured = (process.env.SUPERADMIN_EMAIL || '')
     .split(',')
     .map((email) => normalizeEmail(email))
@@ -190,17 +214,22 @@ const getAdminEmails = () => {
 // Super admin is decided by email only, so nobody can become one by editing a database field.
 const isSuperAdmin = (user = {}) => Boolean(user) && getSuperAdminEmails().includes(normalizeEmail(user.email));
 
+// "Staff" = anyone who can open the dashboard (Group Admin or Super Admin)
 const resolveAdminStatus = (user = {}) => {
   if (!user) return false;
   const normalizedEmail = normalizeEmail(user.email);
   const role = String(user.role || '').trim().toLowerCase();
-  return Boolean(user.isAdmin) || role === 'admin' || role === 'superadmin' || getAdminEmails().includes(normalizedEmail);
+  return Boolean(user.isAdmin) || role === 'groupadmin' || role === 'systemadmin' || role === 'admin' || role === 'superadmin' || getAdminEmails().includes(normalizedEmail);
 };
 
-// The one role to show for an account: superadmin | admin | artist | user
+// The one role to show for an account: superadmin | systemadmin | groupadmin | artist | user
+//  - superadmin  : everything on the website, including accounts & roles
+//  - systemadmin : website functions and content (polls, events, ads, banners, reports...) but NOT account management
+//  - groupadmin  : fanbase groups + artist profiles. Accounts that used to be plain "admin" become Group Admins.
 const resolveRole = (user = {}) => {
   if (isSuperAdmin(user)) return 'superadmin';
-  if (resolveAdminStatus(user)) return 'admin';
+  if (String(user?.role || '').trim().toLowerCase() === 'systemadmin') return 'systemadmin';
+  if (resolveAdminStatus(user)) return 'groupadmin';
   return String(user?.role || '').trim().toLowerCase() === 'artist' ? 'artist' : 'user';
 };
 
@@ -210,12 +239,19 @@ const roleOfProfile = async (profile) => {
   return user ? resolveRole(user) : 'user';
 };
 
+// Artist accounts can't vote, earn / hold / spend Stars or Suns, or use the market. Every route that does any of that calls this.
+const isArtistEmail = async (email) => {
+  const user = await User.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(email))}$`, $options: 'i' } }).select('email isAdmin role').lean();
+  return Boolean(user) && resolveRole(user) === 'artist';
+};
+const ARTIST_BLOCKED = { message: 'Artist accounts cannot vote, earn or spend Stars and Suns, or use the market.' };
+
 // ---- ADMIN SESSION TOKENS ----
 // Signed with HMAC (built-in crypto, no extra package). Only admins receive one at login.
 // Set ADMIN_TOKEN_SECRET in .env / Render to use your own secret; otherwise one is derived from MONGO_URI.
 const ADMIN_TOKEN_SECRET = process.env.ADMIN_TOKEN_SECRET
   || crypto.createHash('sha256').update(`juancast-admin:${process.env.MONGO_URI || 'dev'}`).digest('hex');
-const ADMIN_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ADMIN_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // same 24 hours as a normal login
 const signToken = (body) => crypto.createHmac('sha256', ADMIN_TOKEN_SECRET).update(body).digest('base64url');
 
 const createAdminToken = (user) => {
@@ -223,8 +259,11 @@ const createAdminToken = (user) => {
   return `${body}.${signToken(body)}`;
 };
 
-// Put in front of any route that only admins may use
-const requireAdmin = async (req, res, next) => {
+// Put in front of any route that only staff may use. Pass the roles that are allowed:
+//   requireSystemAdmin: website functions and content (polls, events, ads, banners, reports, settings)
+//   requireSuperAdmin : changing roles (and everything a system admin can do)
+//   requireGroupAdmin : fanbase groups and artist profiles (super admins are allowed too, as a safety net)
+const staffGuard = (allowedRoles, deniedMessage) => async (req, res, next) => {
   try {
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -246,14 +285,22 @@ const requireAdmin = async (req, res, next) => {
     if (!user || !resolveAdminStatus(user)) {
       return res.status(403).json({ message: 'This account is not an admin.' });
     }
+    const role = resolveRole(user);
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ message: deniedMessage });
+    }
 
     req.adminUser = user;
+    req.staffRole = role;
     next();
   } catch (error) {
     console.error('Admin auth error:', error);
     res.status(401).json({ message: 'Admin login required. Please log in again.' });
   }
 };
+const requireSuperAdmin = staffGuard(['superadmin'], 'Only a super admin can do this.');
+const requireSystemAdmin = staffGuard(['systemadmin', 'superadmin'], 'Only a system admin can do this.');
+const requireGroupAdmin = staffGuard(['groupadmin', 'superadmin'], 'Only a group admin can do this.');
 
 // Put in front of any route that only artists may use (same signed token as admins; artists get one at login)
 const requireArtist = async (req, res, next) => {
@@ -351,7 +398,12 @@ const profileSchema = new mongoose.Schema({
     spotify: { type: String, default: '' },
     appleMusic: { type: String, default: '' },
     website: { type: String, default: '' }
-  }
+  },
+  // artist ID card (the artist profile opens like an ID)
+  stageName: { type: String, default: '', maxlength: 80 },
+  idPhoto: { type: String, default: '' },                 // 9:16 portrait on the ID card
+  idDetails: { type: [new mongoose.Schema({ label: { type: String, default: '' }, value: { type: String, default: '' } }, { _id: false })], default: [] }, // 2-column rows (Birthday, Position, ...)
+  idFacts: { type: [String], default: [] }                // the single-column facts list
 }, { timestamps: true });
 const Profile = mongoose.model('Profile', profileSchema);
 
@@ -405,9 +457,22 @@ const rankingSchema = new mongoose.Schema({
   youtubeStartTime: { type: Number, default: 0 }, 
   voteCount: { type: Number, default: 0 },
   position: { type: Number, default: 1 },
+  accountEmail: { type: String, default: '', index: true }, // OPTIONAL: the artist account this entry belongs to (links polls to the profile page)
+  fanbaseId: { type: String, default: '' },               // OPTIONAL: the fanbase this entry stands for (a whole group), so its votes count toward that fanbase's Top Fans
   createdAt: { type: Date, default: Date.now }
 });
 const Ranking = mongoose.model('Ranking', rankingSchema);
+
+// Every Stars vote, one row per vote: who voted for which poll entry. Used for the Top Fans leaderboard on fanbase pages.
+const fanVoteSchema = new mongoose.Schema({
+  email: { type: String, required: true, index: true },    // voter (lowercase)
+  username: { type: String, default: '' },
+  rankingId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+  stars: { type: Number, required: true, min: 1 },
+  backfilled: { type: Boolean, default: false },           // rebuilt from older vote history instead of recorded live
+  createdAt: { type: Date, default: Date.now }
+});
+const FanVote = mongoose.model('FanVote', fanVoteSchema);
 
 // --- ADD THIS MATH HELPER RIGHT BELOW THE SCHEMA ---
 // This ensures ranks are calculated independently for EACH category
@@ -486,6 +551,7 @@ app.get('/api/users/me', async (req, res) => {
     res.status(200).json({
       ...profile.toObject(),
       coverPhoto: normalizeImageUrl(profile.coverPhoto || ''),
+      idPhoto: normalizeImageUrl(profile.idPhoto || ''),
       role: await roleOfProfile(profile),
       totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
@@ -501,10 +567,13 @@ app.get('/api/users/profile/:username', async (req, res) => {
   try {
     const profile = await Profile.findOne({ username: { $regex: `^${escapeRegex(req.params.username)}$`, $options: 'i' } });
     if (!profile) return res.status(404).json({ message: "Profile not found." });
+    const owner = await User.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(profile.email))}$`, $options: 'i' } }).select('deactivatedAt deletionAt');
+    if (owner && (owner.deactivatedAt || owner.deletionAt)) return res.status(404).json({ message: "Profile not found." });
 
     res.status(200).json({
       ...profile.toObject(),
       coverPhoto: normalizeImageUrl(profile.coverPhoto || ''),
+      idPhoto: normalizeImageUrl(profile.idPhoto || ''),
       role: await roleOfProfile(profile),
       totalVotes: lifetimeVotes(profile),
       createdAt: profile.createdAt || profile._id.getTimestamp()
@@ -571,7 +640,7 @@ const publicUser = (profile) => ({
   createdAt: profile.createdAt || profile._id.getTimestamp()
 });
 
-// Edit profile: name (7-day cooldown), @username (30-day cooldown), avatar
+// Edit profile: name (7-day cooldown), @username (30-day cooldown), avatar. Artists have no cooldowns.
 app.put('/api/users/update-profile', async (req, res) => {
   try {
     const { email, fullName, username, avatar } = req.body;
@@ -583,12 +652,14 @@ app.put('/api/users/update-profile', async (req, res) => {
     const DAY = 24 * 60 * 60 * 1000;
     const now = new Date();
     const daysLeft = (last, days) => Math.ceil((days * DAY - (now - last)) / DAY);
+    // artists are not locked by the name / @username cooldowns
+    const isArtistAccount = (await roleOfProfile(profile)) === 'artist';
 
     const nextName = typeof fullName === 'string' ? fullName.trim() : profile.fullName;
     if (!nextName) return res.status(400).json({ message: 'Full name is required.' });
     if (nextName.length > 80) return res.status(400).json({ message: 'Full name is too long.' });
     if (nextName !== profile.fullName) {
-      if (profile.lastNameChange && now - profile.lastNameChange < 7 * DAY) {
+      if (!isArtistAccount && profile.lastNameChange && now - profile.lastNameChange < 7 * DAY) {
         return res.status(429).json({ message: `You can change your name again in ${daysLeft(profile.lastNameChange, 7)} day(s).` });
       }
       profile.fullName = nextName;
@@ -601,7 +672,7 @@ app.put('/api/users/update-profile', async (req, res) => {
     }
     let oldUsername = null;
     if (nextUsername !== profile.username) {
-      if (profile.lastUsernameChange && now - profile.lastUsernameChange < 30 * DAY) {
+      if (!isArtistAccount && profile.lastUsernameChange && now - profile.lastUsernameChange < 30 * DAY) {
         return res.status(429).json({ message: `You can change your @username again in ${daysLeft(profile.lastUsernameChange, 30)} day(s).` });
       }
       const taken = await Profile.findOne({
@@ -649,6 +720,7 @@ app.post('/api/users/daily-claim', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ message: "Email is required." });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
 
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!profile) return res.status(404).json({ message: "User profile not found." });
@@ -741,6 +813,7 @@ app.post('/api/users/redeem-promo', async (req, res) => {
     const email = normalizeEmail(req.body?.email);
     const code = cleanPromoCode(req.body?.code);
     if (!email) return res.status(400).json({ message: 'Email is required.' });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
     if (!code) return res.status(400).json({ message: 'Enter a promo code.' });
 
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
@@ -797,7 +870,7 @@ app.post('/api/users/redeem-promo', async (req, res) => {
   }
 });
 
-app.get('/api/admin/promos', requireAdmin, async (req, res) => {
+app.get('/api/admin/promos', requireSystemAdmin, async (req, res) => {
   try {
     const promos = await PromoCode.find().sort({ createdAt: -1 }).limit(500).lean();
     res.json(promos.map(publicPromo));
@@ -807,7 +880,7 @@ app.get('/api/admin/promos', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/promos', requireAdmin, async (req, res) => {
+app.post('/api/admin/promos', requireSystemAdmin, async (req, res) => {
   try {
     const code = cleanPromoCode(req.body?.code) || randomPromoCode();
     if (!PROMO_CODE_PATTERN.test(code)) {
@@ -834,7 +907,7 @@ app.post('/api/admin/promos', requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/admin/promos/:id', requireAdmin, async (req, res) => {
+app.put('/api/admin/promos/:id', requireSystemAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid promo code.' });
     const promo = await PromoCode.findByIdAndUpdate(req.params.id, { active: Boolean(req.body?.active) }, { new: true });
@@ -846,7 +919,7 @@ app.put('/api/admin/promos/:id', requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/admin/promos/:id', requireAdmin, async (req, res) => {
+app.delete('/api/admin/promos/:id', requireSystemAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid promo code.' });
     const promo = await PromoCode.findByIdAndDelete(req.params.id);
@@ -863,6 +936,7 @@ app.post('/api/users/convert-suns', async (req, res) => {
     const email = normalizeEmail(req.body.email || '');
     const sunsToConvert = Number(req.body.suns);
     if (!email) return res.status(400).json({ message: 'Email is required.' });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
     if (!Number.isSafeInteger(sunsToConvert) || sunsToConvert < 1) {
       return res.status(400).json({ message: 'Enter a whole number of Suns to convert.' });
     }
@@ -948,6 +1022,7 @@ app.post('/api/users/swerte-spin', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email || '');
     if (!email) return res.status(400).json({ message: 'Email is required.' });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
 
     const profile = await resetDailySwerteSpins(email);
     if (!profile) return res.status(404).json({ message: 'User profile not found.' });
@@ -992,6 +1067,7 @@ app.post('/api/users/market-spin-bonus', async (req, res) => {
     const email = normalizeEmail(req.body.email || '');
     const rewardId = typeof req.body.rewardId === 'string' ? req.body.rewardId.trim() : '';
     if (!email) return res.status(400).json({ message: 'Email is required.' });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
     if (!rewardId || rewardId.length > 160) return res.status(400).json({ message: 'A valid reward ID is required.' });
 
     const profile = await resetDailySpins(email);
@@ -1067,6 +1143,7 @@ app.post('/api/users/spin', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email || '');
     if (!email) return res.status(400).json({ message: 'Email is required.' });
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
 
     const profile = await resetDailySpins(email);
     if (!profile) return res.status(404).json({ message: 'User profile not found.' });
@@ -1168,7 +1245,7 @@ const notificationSchema = new mongoose.Schema({
   recipient: { type: String, required: true, index: true },
   actor: { type: String, required: true },
   actorAvatar: { type: String, default: '' },
-  type: { type: String, enum: ['like', 'reply', 'follow', 'mail'], required: true },
+  type: { type: String, enum: ['like', 'reply', 'follow', 'mail', 'artist_post'], required: true },
   subject: { type: String, default: '' },
   sourceId: { type: String, default: '' },
   postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null },
@@ -1177,11 +1254,12 @@ const notificationSchema = new mongoose.Schema({
   isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+notificationSchema.index({ recipient: 1, createdAt: -1 }); // the bell list: newest first for one user
 const Notification = mongoose.model('Notification', notificationSchema);
 
 const normalizeHandle = (value = '') => String(value).replace(/^@/, '').trim().toLowerCase();
 
-const createNotification = async ({ recipient, actor, actorAvatar = '', type, postId = null, replyIndex = null, preview = '' }) => {
+const createNotification = async ({ recipient, actor, actorAvatar = '', type, postId = null, replyIndex = null, preview = '', subject = '', sourceId = '' }) => {
   if (!recipient || !actor || normalizeHandle(recipient) === normalizeHandle(actor)) return;
   await Notification.create({
     recipient: normalizeHandle(recipient),
@@ -1190,7 +1268,9 @@ const createNotification = async ({ recipient, actor, actorAvatar = '', type, po
     type,
     postId,
     replyIndex,
-    preview
+    preview,
+    subject,
+    sourceId
   });
 };
 
@@ -1238,8 +1318,16 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 
 app.get('/api/posts', async (req, res) => {
   try {
-    const posts = await Post.find().sort({ createdAt: -1 });
-    res.status(200).json(posts);
+    const [posts, hidden] = await Promise.all([Post.find().sort({ createdAt: -1 }), hiddenHandles()]);
+    if (!hidden.size) return res.status(200).json(posts);
+    const isHidden = (handle) => hidden.has(String(handle || '').trim().toLowerCase());
+    res.status(200).json(posts
+      .filter((post) => !isHidden(post.user))
+      .map((post) => {
+        const item = post.toObject();
+        item.replies = (item.replies || []).filter((reply) => !isHidden(reply.user));
+        return item;
+      }));
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch posts" });
   }
@@ -1350,7 +1438,7 @@ app.get('/api/chika', async (req, res) => {
   }
 });
 
-app.post('/api/chika', requireAdmin, upload.single('image'), async (req, res) => {
+app.post('/api/chika', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, description, url } = req.body;
     if (!title || !description) {
@@ -1369,7 +1457,7 @@ app.post('/api/chika', requireAdmin, upload.single('image'), async (req, res) =>
   }
 });
 
-app.put('/api/chika/:id', requireAdmin, upload.single('image'), async (req, res) => {
+app.put('/api/chika/:id', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const article = await Chika.findById(req.params.id);
     if (!article) {
@@ -1389,7 +1477,7 @@ app.put('/api/chika/:id', requireAdmin, upload.single('image'), async (req, res)
   }
 });
 
-app.delete('/api/chika/:id', requireAdmin, async (req, res) => {
+app.delete('/api/chika/:id', requireSystemAdmin, async (req, res) => {
   try {
     const removed = await Chika.findByIdAndDelete(req.params.id);
     if (!removed) {
@@ -1418,7 +1506,7 @@ app.get('/api/poll-groups', async (req, res) => {
   }
 });
 
-app.post('/api/poll-groups', requireAdmin, upload.single('image'), async (req, res) => {
+app.post('/api/poll-groups', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: 'Group name is required.' });
@@ -1434,7 +1522,7 @@ app.post('/api/poll-groups', requireAdmin, upload.single('image'), async (req, r
   }
 });
 
-app.delete('/api/poll-groups/:id', requireAdmin, async (req, res) => {
+app.delete('/api/poll-groups/:id', requireSystemAdmin, async (req, res) => {
   try {
     await PollGroup.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: 'Group deleted.' });
@@ -1460,7 +1548,7 @@ app.get('/api/polls', async (req, res) => {
   }
 });
 
-app.post('/api/polls', requireAdmin, upload.single('image'), async (req, res) => {
+app.post('/api/polls', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     // 1. Extract the new fields from req.body
     const { title, fromDate, toDate, group, type, description, goal } = req.body;
@@ -1492,7 +1580,7 @@ app.post('/api/polls', requireAdmin, upload.single('image'), async (req, res) =>
   }
 });
 
-app.put('/api/polls/:id', requireAdmin, upload.single('image'), async (req, res) => {
+app.put('/api/polls/:id', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const poll = await Poll.findById(req.params.id);
     if (!poll) {
@@ -1532,7 +1620,7 @@ app.put('/api/polls/:id', requireAdmin, upload.single('image'), async (req, res)
   }
 });
 
-app.delete('/api/polls/:id', requireAdmin, async (req, res) => {
+app.delete('/api/polls/:id', requireSystemAdmin, async (req, res) => {
   try {
     const removed = await Poll.findByIdAndDelete(req.params.id);
     if (!removed) {
@@ -1561,26 +1649,59 @@ app.delete('/api/polls/:id', requireAdmin, async (req, res) => {
 
 
 // Rankings API Routes
+// Optional link from a poll entry to an artist account. Empty = not linked. Otherwise it must be a real artist account.
+const resolveLinkedAccount = async (raw) => {
+  const email = normalizeEmail(raw || '');
+  if (!email) return { email: '' };
+  const owner = await findArtistOwner(email);
+  if (!owner) return { error: 'The linked account must be an artist account.' };
+  return { email: normalizeEmail(owner.user.email) };
+};
+
+// Optional link from a poll entry to a whole fanbase (group). Empty = not linked.
+const resolveLinkedFanbase = async (raw) => {
+  const id = String(raw || '').trim();
+  if (!id) return { id: '' };
+  if (!mongoose.isValidObjectId(id) || !(await Fanbase.exists({ _id: id }))) return { error: 'Choose an existing fanbase.' };
+  return { id };
+};
+
 app.get('/api/rankings', async (req, res) => {
   try {
     await updateRankingPositions(); // Auto-sort by category before sending
     const rankings = await Ranking.find().sort({ voteCount: -1, createdAt: 1 });
-    res.status(200).json(rankings.map(item => serializeImage(item.toObject())));
+    // entries linked to an artist account also carry that account's @username, so the poll page can link to the profile
+    const linkedEmails = [...new Set(rankings.map((r) => normalizeEmail(r.accountEmail)).filter(Boolean))];
+    const usernameByEmail = new Map();
+    await Promise.all(linkedEmails.map(async (email) => {
+      const profile = await findProfileByEmail(email);
+      if (profile?.username) usernameByEmail.set(email, profile.username);
+    }));
+    res.status(200).json(rankings.map((item) => ({
+      ...serializeImage(item.toObject()),
+      profileUsername: usernameByEmail.get(normalizeEmail(item.accountEmail)) || ''
+    })));
   } catch (error) {
     console.error('Error fetching rankings:', error);
     res.status(500).json({ error: 'Failed to fetch rankings' });
   }
 });
 
-app.post('/api/rankings', requireAdmin, upload.single('image'), async (req, res) => {
+app.post('/api/rankings', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const { name, position, youtubeUrl, youtubeStartTime, group, category } = req.body; 
     
     if (!name) {
       return res.status(400).json({ message: 'Ranking name is required.' });
     }
+    const linked = await resolveLinkedAccount(req.body.accountEmail);
+    if (linked.error) return res.status(400).json({ message: linked.error });
+    const linkedFanbase = await resolveLinkedFanbase(req.body.fanbaseId);
+    if (linkedFanbase.error) return res.status(400).json({ message: linkedFanbase.error });
     const ranking = await Ranking.create({
       name,
+      accountEmail: linked.email,
+      fanbaseId: linkedFanbase.id,
       group: group || '',             // <-- CAPTURE GROUP
       category: category || '',       // <-- CAPTURE CATEGORY
       youtubeUrl: youtubeUrl || '',
@@ -1612,6 +1733,7 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
     if (!email) {
       return res.status(400).json({ message: "Login required to vote." });
     }
+    if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
 
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } });
     if (!profile) {
@@ -1621,6 +1743,16 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
     const ranking = await Ranking.findById(req.params.id);
     if (!ranking) {
       return res.status(404).json({ message: 'Ranking not found.' });
+    }
+
+    // fan projects (polls with a goal) only take Suns; regular polls only take Stars
+    const normPoll = (v) => String(v || '').trim().toLowerCase();
+    const polls = await Poll.find();
+    const votedPoll = polls.find((p) => normPoll(p.title) === normPoll(ranking.category) && normPoll(p.group) === normPoll(ranking.group));
+    if (votedPoll) {
+      const isFanProject = Number(votedPoll.goal) > 0;
+      if (isFanProject && currencyType !== 'suns') return res.status(400).json({ message: 'Fan projects only accept Suns.' });
+      if (!isFanProject && currencyType !== 'stars') return res.status(400).json({ message: 'Polls only accept Stars.' });
     }
 
     if (typeof profile.stars !== 'number') profile.stars = 100;
@@ -1651,6 +1783,15 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
     ranking.voteCount = Number(ranking.voteCount || 0) + cost;
     await ranking.save();
 
+    // remember who voted, for the Top Fans leaderboard (only Stars count; a hiccup here must never fail the vote itself)
+    if (currencyType === 'stars') {
+      try {
+        await FanVote.create({ email: normalizeEmail(profile.email), username: profile.username || '', rankingId: ranking._id, stars: cost });
+      } catch (error) {
+        console.error('Could not record the vote for Top Fans:', error);
+      }
+    }
+
     await updateRankingPositions(); // Recalculate ranks safely within categories
 
     const updatedTarget = await Ranking.findById(req.params.id);
@@ -1666,7 +1807,7 @@ app.post('/api/rankings/:id/vote', async (req, res) => {
   }
 });
 
-app.put('/api/rankings/:id', requireAdmin, upload.single('image'), async (req, res) => {
+app.put('/api/rankings/:id', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const ranking = await Ranking.findById(req.params.id);
     if (!ranking) {
@@ -1680,6 +1821,16 @@ app.put('/api/rankings/:id', requireAdmin, upload.single('image'), async (req, r
     if (req.body.category !== undefined) ranking.category = req.body.category;
     if (req.body.youtubeUrl !== undefined) ranking.youtubeUrl = req.body.youtubeUrl;
     if (req.body.youtubeStartTime !== undefined) ranking.youtubeStartTime = Number(req.body.youtubeStartTime) || 0;
+    if (req.body.accountEmail !== undefined) {
+      const linked = await resolveLinkedAccount(req.body.accountEmail);
+      if (linked.error) return res.status(400).json({ message: linked.error });
+      ranking.accountEmail = linked.email;
+    }
+    if (req.body.fanbaseId !== undefined) {
+      const linkedFanbase = await resolveLinkedFanbase(req.body.fanbaseId);
+      if (linkedFanbase.error) return res.status(400).json({ message: linkedFanbase.error });
+      ranking.fanbaseId = linkedFanbase.id;
+    }
 
     if (req.file) {
       ranking.imageUrl = normalizeImageUrl(`/uploads/${req.file.filename}`);
@@ -1694,9 +1845,10 @@ app.put('/api/rankings/:id', requireAdmin, upload.single('image'), async (req, r
   }
 });
 
-app.delete('/api/rankings/:id', requireAdmin, async (req, res) => {
+app.delete('/api/rankings/:id', requireSystemAdmin, async (req, res) => {
   try {
     await Ranking.findByIdAndDelete(req.params.id);
+    if (mongoose.isValidObjectId(req.params.id)) await FanVote.deleteMany({ rankingId: req.params.id });
     await updateRankingPositions();
     res.status(200).json({ message: 'Ranking deleted.' });
   } catch (error) {
@@ -1884,10 +2036,31 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password." });
     }
 
+    // scheduled for deletion: the person decides (restore it, or leave it); deactivated: logging in turns it back on
+    let reactivated = false;
+    if (user.deletionAt) {
+      if (!req.body.restore) {
+        return res.status(403).json({
+          code: 'PENDING_DELETION',
+          deletionAt: user.deletionAt,
+          message: 'This account is scheduled for permanent deletion.'
+        });
+      }
+      user.deletionAt = undefined;
+      user.deletionRequestedAt = undefined;
+      user.deactivatedAt = undefined;
+      await user.save();
+      reactivated = true;
+    } else if (user.deactivatedAt) {
+      user.deactivatedAt = undefined;
+      await user.save();
+      reactivated = true;
+    }
+
     const normalizedUserEmail = normalizeEmail(user.email);
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(normalizedUserEmail)}$`, $options: 'i' } });
     const role = resolveRole(user);
-    const isAdmin = role === 'admin' || role === 'superadmin';
+    const isAdmin = role === 'groupadmin' || role === 'systemadmin' || role === 'superadmin';
 
     if (isAdmin && (!user.isAdmin || user.role !== role || user.email !== normalizedUserEmail)) {
       user.email = normalizedUserEmail;
@@ -1900,6 +2073,7 @@ app.post('/api/login', async (req, res) => {
     
 res.status(200).json({ 
         message: "Login successful!", 
+        reactivated,
         user: {
           id: user._id,
           email: normalizedUserEmail,
@@ -1923,17 +2097,18 @@ res.status(200).json({
 // Your banner routes or app.listen should come AFTER that closing line.
 
 // ---- ADMIN: ACCOUNTS & ROLES ----
-// Roles: user, artist, admin, superadmin.
-//  - any admin can list accounts and switch someone between user and artist
-//  - only a super admin can make or remove admins
+// Roles: user, artist, groupadmin (Group Admin), superadmin.
+//  - a Group Admin can list and edit ARTIST accounts, and create new artist accounts (nothing else)
+//  - only a super admin can list everyone, change roles, or make / remove Group Admins and System Admins
+//  - the list only shows accounts made from the dashboard (and anyone with a role); people who signed up themselves are left out
 //  - super admins / built-in admins (SUPERADMIN_EMAIL, ADMIN_EMAIL) are fixed and can't be changed here
-const ASSIGNABLE_ROLES = ['user', 'artist', 'admin'];
+const ASSIGNABLE_ROLES = ['user', 'artist', 'groupadmin', 'systemadmin'];
 const CI = { locale: 'en', strength: 2 }; // case-insensitive matching for old accounts with mixed-case emails
 
 const adminClause = () => ({
   $or: [
     { isAdmin: true },
-    { role: { $in: ['admin', 'superadmin'] } },
+    { role: { $in: ['groupadmin', 'systemadmin', 'admin', 'superadmin'] } },
     { email: { $in: getAdminEmails().map((e) => new RegExp(`^${escapeRegex(e)}$`, 'i')) } }
   ]
 });
@@ -1952,10 +2127,11 @@ const accountView = (user, profile) => ({
   createdAt: profile?.createdAt || user._id.getTimestamp()
 });
 
-app.get('/api/admin/accounts', requireAdmin, async (req, res) => {
+app.get('/api/admin/accounts', requireGroupAdmin, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim().slice(0, 80);
-    const roleFilter = String(req.query.role || '').trim().toLowerCase();
+    let roleFilter = String(req.query.role || '').trim().toLowerCase();
+    if (req.staffRole !== 'superadmin') roleFilter = 'artist'; // group admins only manage artist profiles
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
@@ -1965,10 +2141,12 @@ app.get('/api/admin/accounts', requireAdmin, async (req, res) => {
       const matched = await Profile.find({ $or: [{ username: rx }, { fullName: rx }, { email: rx }] }).select('email').limit(500).lean();
       and.push({ $or: [{ email: rx }, { email: { $in: matched.map((p) => p.email) } }] });
     }
-    if (roleFilter === 'admin') and.push(adminClause());
+    if (roleFilter === 'admin' || roleFilter === 'groupadmin' || roleFilter === 'systemadmin') and.push(roleFilter === 'systemadmin' ? { role: 'systemadmin' } : adminClause());
     else if (roleFilter === 'artist') and.push({ role: 'artist' }, { $nor: [adminClause()] });
     else if (roleFilter === 'user') and.push({ $nor: [adminClause(), { role: 'artist' }] });
-    const filter = and.length ? { $and: and } : {};
+    // people who signed up on their own (plain users) are not listed: only accounts made from the dashboard, and anyone with a role
+    and.push({ $or: [{ createdByAdmin: true }, { role: { $nin: ['user', null] } }, adminClause()] });
+    const filter = { $and: and };
 
     const [total, users] = await Promise.all([
       User.countDocuments(filter).collation(CI),
@@ -1985,6 +2163,7 @@ app.get('/api/admin/accounts', requireAdmin, async (req, res) => {
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
       canManageAdmins: isSuperAdmin(req.adminUser),
+      staffRole: req.staffRole,
       you: String(req.adminUser._id)
     });
   } catch (error) {
@@ -1997,7 +2176,7 @@ app.get('/api/admin/accounts', requireAdmin, async (req, res) => {
 // It is marked verified straight away, so the person can log in with the email and password set here.
 const ACCOUNT_USERNAME_RE = /^[A-Za-z0-9_.]{3,24}$/;
 const ACCOUNT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-app.post('/api/admin/accounts', requireAdmin, async (req, res) => {
+app.post('/api/admin/accounts', requireGroupAdmin, async (req, res) => {
   let createdUser = null;
   try {
     const body = req.body || {};
@@ -2012,8 +2191,11 @@ app.post('/api/admin/accounts', requireAdmin, async (req, res) => {
     if (!ACCOUNT_EMAIL_RE.test(email)) return res.status(400).json({ message: 'Enter a valid email address.' });
     if (!fullName) return res.status(400).json({ message: 'Enter the person’s full name.' });
     if (!ACCOUNT_USERNAME_RE.test(username)) return res.status(400).json({ message: 'Username must be 3–24 characters: letters, numbers, "_" or ".".' });
-    if (!ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ message: 'Role must be user, artist or admin.' });
-    if ((role === 'admin' || getAdminEmails().includes(email)) && !isSuperAdmin(req.adminUser)) {
+    if (!ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ message: 'Role must be user, artist, group admin or system admin.' });
+    if (req.staffRole !== 'superadmin' && role !== 'artist') {
+      return res.status(403).json({ message: 'Group admins can only create artist accounts.' });
+    }
+    if ((role === 'groupadmin' || role === 'systemadmin' || getAdminEmails().includes(email)) && !isSuperAdmin(req.adminUser)) {
       return res.status(403).json({ message: 'Only a super admin can create admin accounts.' });
     }
     if (password && password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
@@ -2041,7 +2223,8 @@ app.post('/api/admin/accounts', requireAdmin, async (req, res) => {
     }
     user.isVerified = true;
     user.role = role;
-    user.isAdmin = role === 'admin';
+    user.isAdmin = role === 'groupadmin' || role === 'systemadmin';
+    user.createdByAdmin = true;
     await user.save();
 
     const profile = await new Profile({ email, fullName, username, birthdate, gender: gender || undefined }).save();
@@ -2059,11 +2242,11 @@ app.post('/api/admin/accounts', requireAdmin, async (req, res) => {
   }
 });
 
-app.put('/api/admin/accounts/:id/role', requireAdmin, async (req, res) => {
+app.put('/api/admin/accounts/:id/role', requireSuperAdmin, async (req, res) => {
   try {
     const nextRole = String(req.body?.role || '').trim().toLowerCase();
     if (!ASSIGNABLE_ROLES.includes(nextRole)) {
-      return res.status(400).json({ message: 'Role must be user, artist or admin.' });
+      return res.status(400).json({ message: 'Role must be user, artist, group admin or system admin.' });
     }
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: 'Invalid account.' });
@@ -2078,12 +2261,12 @@ app.put('/api/admin/accounts/:id/role', requireAdmin, async (req, res) => {
     if (getAdminEmails().includes(normalizeEmail(target.email))) {
       return res.status(403).json({ message: 'This account’s role is set in the server settings (SUPERADMIN_EMAIL / ADMIN_EMAIL) and can’t be changed here.' });
     }
-    if ((resolveAdminStatus(target) || nextRole === 'admin') && !isSuperAdmin(req.adminUser)) {
-      return res.status(403).json({ message: 'Only a super admin can add or remove admins.' });
+    if ((resolveAdminStatus(target) || nextRole === 'groupadmin' || nextRole === 'systemadmin') && !isSuperAdmin(req.adminUser)) {
+      return res.status(403).json({ message: 'Only a super admin can add or remove group admins.' });
     }
 
     target.role = nextRole;
-    target.isAdmin = nextRole === 'admin';
+    target.isAdmin = nextRole === 'groupadmin' || nextRole === 'systemadmin';
     await target.save();
 
     const profile = await Profile.findOne({ email: normalizeEmail(target.email) }).collation(CI).select('email username fullName createdAt bio socialLinks coverPhoto').lean();
@@ -2094,13 +2277,65 @@ app.put('/api/admin/accounts/:id/role', requireAdmin, async (req, res) => {
   }
 });
 
+// Small key/value store for server-wide settings that must survive restarts (e.g. who the super admin is)
+const SystemConfig = mongoose.model('SystemConfig', new mongoose.Schema({
+  key: { type: String, required: true, unique: true },
+  value: { type: String, default: '' },
+  updatedBy: { type: String, default: '' },
+  updatedAt: { type: Date, default: Date.now }
+}));
+
+// Super admin only: hand the super admin rights to another account.
+// The caller must type their own email as confirmation. Everyone who was a super admin before becomes a System Admin,
+// so they keep dashboard access but can no longer manage accounts and roles.
+app.post('/api/admin/transfer-superadmin', requireSuperAdmin, async (req, res) => {
+  try {
+    const { targetId, confirmEmail } = req.body || {};
+    const me = req.adminUser;
+    if (normalizeEmail(confirmEmail) !== normalizeEmail(me.email)) {
+      return res.status(400).json({ message: 'Type your own email address exactly to confirm.' });
+    }
+    if (!mongoose.isValidObjectId(targetId)) return res.status(400).json({ message: 'Invalid account.' });
+    const target = await User.findById(targetId);
+    if (!target) return res.status(404).json({ message: 'Account not found.' });
+    if (String(target._id) === String(me._id)) return res.status(400).json({ message: 'You are already the super admin.' });
+    if (!target.isVerified) return res.status(400).json({ message: 'That account has not been verified yet.' });
+
+    const targetEmail = normalizeEmail(target.email);
+    const previous = getSuperAdminEmails().filter((email) => email !== targetEmail);
+
+    await SystemConfig.findOneAndUpdate(
+      { key: 'superAdmin' },
+      { $set: { value: targetEmail, updatedBy: normalizeEmail(me.email), updatedAt: new Date() } },
+      { upsert: true }
+    );
+    transferredSuperAdmin = targetEmail;
+
+    if (target.role === 'artist') target.role = 'user'; // a super admin can't also be an artist
+    target.isAdmin = true;
+    await target.save();
+    for (const email of previous) {
+      await User.updateMany({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } }, { $set: { role: 'systemadmin', isAdmin: true } });
+    }
+
+    console.log(`Super admin transferred: ${normalizeEmail(me.email)} -> ${targetEmail}`);
+    res.json({ message: `${targetEmail} is now the super admin.`, newSuperAdmin: targetEmail });
+  } catch (error) {
+    console.error('Error transferring super admin:', error);
+    res.status(500).json({ message: 'Failed to transfer super admin rights.' });
+  }
+});
+
 // Admin: edit someone's "about" section (name, bio, links, remove the cover photo).
-app.put('/api/admin/accounts/:id/about', requireAdmin, async (req, res) => {
+app.put('/api/admin/accounts/:id/about', requireGroupAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid account.' });
     const target = await User.findById(req.params.id);
     if (!target) return res.status(404).json({ message: 'Account not found.' });
     const isSelf = String(target._id) === String(req.adminUser._id);
+    if (req.staffRole !== 'superadmin' && resolveRole(target) !== 'artist') {
+      return res.status(403).json({ message: 'Group admins can only edit artist profiles.' });
+    }
     if (resolveAdminStatus(target) && !isSelf && !isSuperAdmin(req.adminUser)) {
       return res.status(403).json({ message: 'Only a super admin can edit an admin’s profile.' });
     }
@@ -2213,30 +2448,30 @@ app.get('/api/videos', async (req, res) => {
 });
 
 // admin: check the YouTube channel right now (POST /api/videos/sync)
-app.post('/api/videos/sync', requireAdmin, async (req, res) => {
+app.post('/api/videos/sync', requireSystemAdmin, async (req, res) => {
   const result = await youtubeSync.sync();
   res.status(result.error ? 502 : 200).json(result);
 });
 
 // admin: check the Instagram account right now (POST /api/videos/sync-instagram)
-app.post('/api/videos/sync-instagram', requireAdmin, async (req, res) => {
+app.post('/api/videos/sync-instagram', requireSystemAdmin, async (req, res) => {
   const result = await instagramSync.sync();
   res.status(result.error ? 502 : 200).json(result);
 });
 
 // admin: check the Facebook Page right now (POST /api/videos/sync-facebook)
-app.post('/api/videos/sync-facebook', requireAdmin, async (req, res) => {
+app.post('/api/videos/sync-facebook', requireSystemAdmin, async (req, res) => {
   const result = await facebookSync.sync();
   res.status(result.error ? 502 : 200).json(result);
 });
 
 // admin: check the X account right now (POST /api/videos/sync-x)
-app.post('/api/videos/sync-x', requireAdmin, async (req, res) => {
+app.post('/api/videos/sync-x', requireSystemAdmin, async (req, res) => {
   const result = await xSync.sync();
   res.status(result.error ? 502 : 200).json(result);
 });
 
-app.post('/api/videos', requireAdmin, upload.single('image'), async (req, res) => {
+app.post('/api/videos', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const { title, subtitle, group, platform, youtubeUrl } = req.body;
     const newVideo = await Video.create({
@@ -2254,7 +2489,7 @@ app.post('/api/videos', requireAdmin, upload.single('image'), async (req, res) =
   }
 });
 
-app.put('/api/videos/:id', requireAdmin, upload.single('image'), async (req, res) => {
+app.put('/api/videos/:id', requireSystemAdmin, upload.single('image'), async (req, res) => {
   try {
     const video = await Video.findById(req.params.id);
     if (!video) return res.status(404).json({ message: 'Video not found.' });
@@ -2275,7 +2510,7 @@ app.put('/api/videos/:id', requireAdmin, upload.single('image'), async (req, res
 });
 
 // DELETE: remove a Content/video (admin only)
-app.delete('/api/videos/:id', requireAdmin, async (req, res) => {
+app.delete('/api/videos/:id', requireSystemAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid video ID.' });
     const deleted = await Video.findByIdAndDelete(req.params.id);
@@ -2385,6 +2620,41 @@ const parseSocialLinks = (value, keys = FANBASE_SOCIAL_KEYS) => {
   return { links };
 };
 const parseFanbaseSocialLinks = (value) => parseSocialLinks(value, FANBASE_SOCIAL_KEYS);
+// ----- artist ID card -----
+const ID_DETAILS_MAX = 60;
+const ID_FACTS_MAX = 60;
+const parseJsonList = (value) => {
+  try { return { list: typeof value === 'string' ? JSON.parse(value) : value }; } catch { return { list: null }; }
+};
+// [{ label, value }] -> cleaned rows (empty rows are dropped)
+const parseIdDetails = (value) => {
+  const { list } = parseJsonList(value);
+  if (!Array.isArray(list)) return { error: 'The ID details are not valid.' };
+  const rows = [];
+  for (const row of list) {
+    const label = String(row?.label ?? '').trim().slice(0, 40);
+    const val = String(row?.value ?? '').trim().slice(0, 140);
+    if (!label && !val) continue;
+    if (!label) return { error: 'Every ID detail needs a label (for example Birthday).' };
+    rows.push({ label, value: val });
+  }
+  if (rows.length > ID_DETAILS_MAX) return { error: `You can add up to ${ID_DETAILS_MAX} ID details.` };
+  return { rows };
+};
+// ['fact', ...] -> cleaned lines
+const parseIdFacts = (value) => {
+  const { list } = parseJsonList(value);
+  if (!Array.isArray(list)) return { error: 'The facts are not valid.' };
+  const facts = list.map((line) => String(line ?? '').trim().slice(0, 400)).filter(Boolean);
+  if (facts.length > ID_FACTS_MAX) return { error: `You can add up to ${ID_FACTS_MAX} facts.` };
+  return { facts };
+};
+const idCardOf = (profile) => ({
+  stageName: profile?.stageName || '',
+  idPhoto: normalizeImageUrl(profile?.idPhoto || ''),
+  idDetails: (profile?.idDetails || []).map((row) => ({ label: row.label || '', value: row.value || '' })),
+  idFacts: [...(profile?.idFacts || [])]
+});
 const linksOf = (profile) => Object.fromEntries(PROFILE_LINK_KEYS.map((key) => [key, profile?.socialLinks?.[key] || '']));
 const dropOtherFeatured = (keepId) => Fanbase.updateMany({ _id: { $ne: keepId }, featured: true }, { $set: { featured: false } });
 
@@ -2399,7 +2669,26 @@ app.get('/api/fanbases', async (req, res) => {
   }
 });
 
-app.get('/api/admin/fanbases', requireAdmin, async (req, res) => {
+// Artist accounts for the "Linked artist account" dropdown when adding/editing a poll artist (system admins)
+app.get('/api/admin/artist-accounts', requireSystemAdmin, async (req, res) => {
+  try {
+    const artistUsers = await User.find({ role: 'artist' }).select('email role isAdmin').sort({ email: 1 });
+    const artists = artistUsers.filter((artist) => resolveRole(artist) === 'artist');
+    const profiles = await Promise.all(artists.map((artist) => findProfileByEmail(artist.email)));
+    res.status(200).json({
+      artists: profiles.filter(Boolean).map((profile) => ({
+        email: normalizeEmail(profile.email),
+        name: profile.stageName || profile.fullName || profile.username,
+        username: profile.username
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching artist accounts:', error);
+    res.status(500).json({ message: 'Failed to load artist accounts.' });
+  }
+});
+
+app.get('/api/admin/fanbases', requireGroupAdmin, async (req, res) => {
   try {
     const [fanbases, artistUsers] = await Promise.all([
       Fanbase.find().sort({ createdAt: 1 }),
@@ -2433,7 +2722,7 @@ app.get('/api/admin/fanbases', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/fanbases', requireAdmin, fanbaseUpload, async (req, res) => {
+app.post('/api/fanbases', requireGroupAdmin, fanbaseUpload, async (req, res) => {
   try {
     const name = String(req.body.name || '').trim();
     const price = Number(req.body.price ?? 500);
@@ -2462,7 +2751,7 @@ app.post('/api/fanbases', requireAdmin, fanbaseUpload, async (req, res) => {
   }
 });
 
-app.put('/api/fanbases/:id', requireAdmin, fanbaseUpload, async (req, res) => {
+app.put('/api/fanbases/:id', requireGroupAdmin, fanbaseUpload, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
     const fanbase = await Fanbase.findById(req.params.id);
@@ -2525,6 +2814,22 @@ app.get('/api/fanbases/featured', async (req, res) => {
   }
 });
 
+// the artists of the featured group fanbase (Home page "Artists" section)
+app.get('/api/fanbases/featured/artists', async (req, res) => {
+  try {
+    const fanbase = await Fanbase.findOne({ featured: true });
+    if (!fanbase) return res.status(200).json({ fanbase: null, artists: [] });
+    const members = await getFanbaseMemberProfiles(fanbase);
+    res.status(200).json({
+      fanbase: serializeFanbase(fanbase),
+      artists: members.map(({ email, username, name, stageName, avatar, idPhoto }) => ({ email, username, name: stageName || name, avatar: avatar || idPhoto || '' }))
+    });
+  } catch (error) {
+    console.error('Error fetching featured fanbase artists:', error);
+    res.status(500).json({ message: 'Failed to load the featured artists.' });
+  }
+});
+
 // one artist's board. Without a subscription only the newest post comes back (the rest is locked on the client).
 app.get('/api/fanbases/:id/board', async (req, res) => {
   try {
@@ -2582,8 +2887,13 @@ app.put('/api/dev/fanbase-subscription', async (req, res) => {
       profile.fanbaseSubscriptions = profile.fanbaseSubscriptions.filter((id) => id !== fanbaseId);
       fanbase.subscriberCount = Math.max(0, (fanbase.subscriberCount || 0) - 1);
     }
+    // subscribing a group automatically puts it on the fan's "Your Artists" row (this ignores the 12-group picker limit).
+    // Unsubscribing leaves it there: the fan may still want to follow the group for free and can remove it with the picker.
+    if (subscribed && !(profile.fanbases || []).includes(fanbaseId)) {
+      profile.fanbases = [...(profile.fanbases || []), fanbaseId];
+    }
     await Promise.all([profile.save(), fanbase.save()]);
-    res.status(200).json({ email: profile.email, fanbase: fanbase.name, subscribed: (profile.fanbaseSubscriptions || []).includes(fanbaseId), subscriberCount: fanbase.subscriberCount });
+    res.status(200).json({ email: profile.email, fanbase: fanbase.name, subscribed: (profile.fanbaseSubscriptions || []).includes(fanbaseId), inYourArtists: (profile.fanbases || []).includes(fanbaseId), subscriberCount: fanbase.subscriberCount });
   } catch (error) {
     console.error('Dev subscription error:', error);
     res.status(500).json({ message: 'Failed to change the subscription.' });
@@ -2626,8 +2936,232 @@ app.put('/api/users/fanbases', async (req, res) => {
   }
 });
 
+// ---- fanbase merch (Merch tab on the fanbase page; managed by Group Admins) ----
+const MERCH_MAX_IMAGES = 5;
+const fanbaseMerchSchema = new mongoose.Schema({
+  fanbaseId: { type: String, required: true, index: true },
+  name: { type: String, required: true, trim: true, maxlength: 80 },
+  price: { type: Number, default: 0, min: 0 },            // Php
+  description: { type: String, default: '', trim: true, maxlength: 1000 }, // only shown in the pop-up
+  link: { type: String, default: '' },                     // where fans buy it
+  images: { type: [String], default: [] },                 // first one is the cover
+  createdAt: { type: Date, default: Date.now }
+});
+const FanbaseMerch = mongoose.model('FanbaseMerch', fanbaseMerchSchema);
+const merchUpload = upload.array('images', MERCH_MAX_IMAGES);
+const serializeMerch = (doc) => {
+  const item = doc.toObject ? doc.toObject() : doc;
+  return { ...item, images: (item.images || []).map(normalizeImageUrl) };
+};
+// "shop.com/x" -> "https://shop.com/x"; only http(s) links are kept; '' means no link
+const cleanMerchLink = (value) => {
+  let url = String(value || '').trim().slice(0, 500);
+  if (!url) return { link: '' };
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = `https://${url}`;
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return { error: 'The link must start with http:// or https://.' };
+    return { link: parsed.toString() };
+  } catch {
+    return { error: 'Enter a valid link for this product.' };
+  }
+};
+const readMerchFields = (body, current = {}) => {
+  const name = String(body.name ?? current.name ?? '').trim();
+  const description = String(body.description ?? current.description ?? '').trim();
+  const price = Number(body.price ?? current.price ?? 0);
+  if (!name || name.length > 80) return { error: 'Product names must be between 1 and 80 characters.' };
+  if (description.length > 1000) return { error: 'The description can be up to 1000 characters.' };
+  if (!Number.isFinite(price) || price < 0 || price > 1000000) return { error: 'Enter a price between 0 and 1,000,000.' };
+  const linked = cleanMerchLink(body.link ?? current.link ?? '');
+  if (linked.error) return { error: linked.error };
+  return { fields: { name, description, price: Math.round(price * 100) / 100, link: linked.link } };
+};
+const discardUploaded = (files) => (files || []).forEach((file) => removeStoredImage(`/uploads/${file.filename}`));
+
+// everyone: the products on a fanbase's Merch tab
+app.get('/api/fanbases/:id/merch', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
+    const items = await FanbaseMerch.find({ fanbaseId: String(req.params.id) }).sort({ createdAt: 1 });
+    res.status(200).json(items.map(serializeMerch));
+  } catch (error) {
+    console.error('Error loading merch:', error);
+    res.status(500).json({ message: 'Failed to load the merch.' });
+  }
+});
+
+app.post('/api/fanbases/:id/merch', requireGroupAdmin, merchUpload, async (req, res) => {
+  const files = req.files || [];
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) { discardUploaded(files); return res.status(400).json({ message: 'Invalid fanbase ID.' }); }
+    const fanbase = await Fanbase.findById(req.params.id).select('_id');
+    if (!fanbase) { discardUploaded(files); return res.status(404).json({ message: 'Fanbase not found.' }); }
+    const parsed = readMerchFields(req.body);
+    if (parsed.error) { discardUploaded(files); return res.status(400).json({ message: parsed.error }); }
+    const item = await FanbaseMerch.create({
+      fanbaseId: String(fanbase._id),
+      ...parsed.fields,
+      images: files.map((file) => normalizeImageUrl(`/uploads/${file.filename}`))
+    });
+    res.status(201).json(serializeMerch(item));
+  } catch (error) {
+    discardUploaded(files);
+    console.error('Error creating merch:', error);
+    res.status(500).json({ message: 'Failed to add the product.' });
+  }
+});
+
+// keepImages = JSON list of the existing pictures to keep; anything not listed is removed, new uploads are added after them
+app.put('/api/fanbases/:id/merch/:itemId', requireGroupAdmin, merchUpload, async (req, res) => {
+  const files = req.files || [];
+  try {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.itemId)) { discardUploaded(files); return res.status(400).json({ message: 'Invalid ID.' }); }
+    const item = await FanbaseMerch.findOne({ _id: req.params.itemId, fanbaseId: String(req.params.id) });
+    if (!item) { discardUploaded(files); return res.status(404).json({ message: 'Product not found.' }); }
+    const parsed = readMerchFields(req.body, item);
+    if (parsed.error) { discardUploaded(files); return res.status(400).json({ message: parsed.error }); }
+
+    let keep = item.images || [];
+    if (req.body.keepImages !== undefined) {
+      let wanted;
+      try { wanted = typeof req.body.keepImages === 'string' ? JSON.parse(req.body.keepImages) : req.body.keepImages; } catch { wanted = null; }
+      if (!Array.isArray(wanted)) { discardUploaded(files); return res.status(400).json({ message: 'Pictures to keep must be a list.' }); }
+      const wantedSet = new Set(wanted.map((url) => normalizeImageUrl(String(url))));
+      keep = (item.images || []).filter((url) => wantedSet.has(normalizeImageUrl(url)));
+    }
+    if (keep.length + files.length > MERCH_MAX_IMAGES) { discardUploaded(files); return res.status(400).json({ message: `A product can have up to ${MERCH_MAX_IMAGES} pictures.` }); }
+
+    const dropped = (item.images || []).filter((url) => !keep.includes(url));
+    Object.assign(item, parsed.fields);
+    item.images = [...keep, ...files.map((file) => normalizeImageUrl(`/uploads/${file.filename}`))];
+    await item.save();
+    dropped.forEach(removeStoredImage);
+    res.status(200).json(serializeMerch(item));
+  } catch (error) {
+    discardUploaded(files);
+    console.error('Error updating merch:', error);
+    res.status(500).json({ message: 'Failed to update the product.' });
+  }
+});
+
+app.delete('/api/fanbases/:id/merch/:itemId', requireGroupAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.itemId)) return res.status(400).json({ message: 'Invalid ID.' });
+    const deleted = await FanbaseMerch.findOneAndDelete({ _id: req.params.itemId, fanbaseId: String(req.params.id) });
+    if (!deleted) return res.status(404).json({ message: 'Product not found.' });
+    (deleted.images || []).forEach(removeStoredImage);
+    res.status(200).json({ message: 'Product deleted.' });
+  } catch (error) {
+    console.error('Error deleting merch:', error);
+    res.status(500).json({ message: 'Failed to delete the product.' });
+  }
+});
+
+// ---- Top Fans: fans ranked by the Stars they spent voting for a fanbase's artists or for the whole group ----
+const TOP_FANS_LIMIT = 10;
+const keyOf = (value) => String(value || '').trim().toLowerCase();
+// The poll entries that belong to a fanbase: an entry linked to one of its artists, an entry linked to the fanbase itself
+// (Admin > Artists > "Linked fanbase"), or, when it is not linked to any fanbase, an entry named exactly like the fanbase.
+const rankingsOfFanbase = async (fanbase) => {
+  const members = new Set([...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])].map(normalizeEmail));
+  const nameKey = keyOf(fanbase.name);
+  const all = await Ranking.find().select('name accountEmail fanbaseId');
+  return all.filter((r) => (
+    String(r.fanbaseId || '') === String(fanbase._id)
+    || (r.accountEmail && members.has(normalizeEmail(r.accountEmail)))
+    || (!r.fanbaseId && keyOf(r.name) === nameKey)
+  ));
+};
+
+// profile pictures are stored inside the profile as data: URLs; serve them as a real (cacheable) image so lists stay small
+app.get('/api/avatar/:username', async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ username: { $regex: `^${escapeRegex(String(req.params.username).replace(/^@/, ''))}$`, $options: 'i' } }).select('avatar');
+    const avatar = profile?.avatar || '';
+    const match = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(avatar);
+    if (!match) return avatar ? res.redirect(normalizeImageUrl(avatar)) : res.status(404).end();
+    const body = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]));
+    res.set({ 'Content-Type': match[1], 'Cache-Control': 'public, max-age=300' });
+    res.send(body);
+  } catch (error) {
+    res.status(500).end();
+  }
+});
+
+app.get('/api/fanbases/:id/top-fans', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
+    const fanbase = await Fanbase.findById(req.params.id);
+    if (!fanbase) return res.status(404).json({ message: 'Fanbase not found.' });
+
+    const rankingIds = (await rankingsOfFanbase(fanbase)).map((r) => r._id);
+    const totals = rankingIds.length ? await FanVote.aggregate([
+      { $match: { rankingId: { $in: rankingIds } } },
+      { $group: { _id: '$email', stars: { $sum: '$stars' }, first: { $min: '$createdAt' } } },
+      { $sort: { stars: -1, first: 1 } }   // a tie goes to whoever got there first
+    ]) : [];
+
+    const me = normalizeEmail(req.query.email || '');
+    const myIndex = me ? totals.findIndex((row) => row._id === me) : -1;
+    const shown = totals.slice(0, TOP_FANS_LIMIT);
+    const wanted = myIndex >= TOP_FANS_LIMIT ? [...shown, totals[myIndex]] : shown;
+    const profiles = await Promise.all(wanted.map((row) => findProfileByEmail(row._id)));
+    const rows = wanted.map((row, n) => {
+      const profile = profiles[n];
+      const rank = totals.indexOf(row) + 1;
+      const avatar = profile?.avatar || '';
+      return {
+        rank,
+        username: profile?.username || 'fan',
+        name: profile?.fullName || '',
+        avatar: !avatar ? '' : /^data:/i.test(avatar) ? `/api/avatar/${encodeURIComponent(profile.username)}` : normalizeImageUrl(avatar),
+        stars: row.stars,
+        isYou: Boolean(me) && row._id === me
+      };
+    });
+    res.status(200).json({
+      fans: rows.filter((row) => row.rank <= TOP_FANS_LIMIT),
+      you: myIndex >= TOP_FANS_LIMIT ? rows[rows.length - 1] : null,   // not in the top list: shown under it
+      fanCount: totals.length,
+      totalStars: totals.reduce((sum, row) => sum + row.stars, 0)
+    });
+  } catch (error) {
+    console.error('Error loading top fans:', error);
+    res.status(500).json({ message: 'Failed to load Top Fans.' });
+  }
+});
+
+// One-time catch-up: votes made before Top Fans existed are rebuilt from each fan's saved vote history ("Vote · <artist>" rows).
+// Runs only while there are no recorded votes yet, and only reads history older than this start-up, so nothing is counted twice.
+const backfillFanVotes = async () => {
+  try {
+    if ((await FanVote.estimatedDocumentCount()) > 0) return;
+    const cutoff = new Date();
+    const rankingByKey = new Map((await Ranking.find().select('name category')).map((r) => [`${keyOf(r.name)}|${keyOf(r.category)}`, r._id]));
+    let batch = [];
+    let total = 0;
+    const flush = async () => { if (batch.length) { await FanVote.insertMany(batch, { ordered: false }); total += batch.length; batch = []; } };
+    const cursor = Profile.find({ 'transactions.category': 'voting' }).select('email username transactions').lean().cursor();
+    for await (const profile of cursor) {
+      for (const tx of profile.transactions || []) {
+        if (tx.category !== 'voting' || !String(tx.description || '').startsWith('Vote · ') || new Date(tx.createdAt) >= cutoff) continue;
+        const stars = (tx.changes || []).filter((c) => c.currency === 'Stars' && c.direction === 'debit').reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        const rankingId = rankingByKey.get(`${keyOf(String(tx.description).slice('Vote · '.length))}|${keyOf(tx.details)}`);
+        if (!stars || !rankingId) continue;
+        batch.push({ email: normalizeEmail(profile.email), username: profile.username || '', rankingId, stars, backfilled: true, createdAt: tx.createdAt });
+        if (batch.length >= 500) await flush();
+      }
+    }
+    await flush();
+    if (total) console.log(`[top fans] rebuilt ${total} earlier vote(s) from vote history.`);
+  } catch (error) {
+    console.error('Could not rebuild earlier votes for Top Fans:', error);
+  }
+};
+
 // ---- fanbases belong to their artist ----
-app.put('/api/fanbases/:id/featured', requireAdmin, async (req, res) => {
+app.put('/api/fanbases/:id/featured', requireGroupAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
     const fanbase = await Fanbase.findById(req.params.id);
@@ -2642,12 +3176,15 @@ app.put('/api/fanbases/:id/featured', requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/fanbases/:id', requireAdmin, async (req, res) => {
+app.delete('/api/fanbases/:id', requireGroupAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid fanbase ID.' });
     const deleted = await Fanbase.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: 'Fanbase not found.' });
     await FanbasePost.deleteMany({ fanbaseId: String(deleted._id) });
+    const merchGone = await FanbaseMerch.find({ fanbaseId: String(deleted._id) });
+    merchGone.forEach((item) => (item.images || []).forEach(removeStoredImage));
+    await FanbaseMerch.deleteMany({ fanbaseId: String(deleted._id) });
     await Profile.updateMany({}, { $pull: { fanbases: String(deleted._id), fanbaseSubscriptions: String(deleted._id) } });
     res.status(200).json({ message: 'Fanbase deleted.' });
   } catch (error) {
@@ -2657,7 +3194,7 @@ app.delete('/api/fanbases/:id', requireAdmin, async (req, res) => {
 });
 
 // ---- admin: board posts ----
-app.get('/api/fanbase-posts', requireAdmin, async (req, res) => {
+app.get('/api/fanbase-posts', requireGroupAdmin, async (req, res) => {
   try {
     const fanbases = await Fanbase.find();
     const posts = (await Promise.all(fanbases.map(getFanbaseBoardPosts))).flat()
@@ -2669,7 +3206,7 @@ app.get('/api/fanbase-posts', requireAdmin, async (req, res) => {
   }
 });
 
-app.delete('/api/fanbase-posts/:id', requireAdmin, async (req, res) => {
+app.delete('/api/fanbase-posts/:id', requireGroupAdmin, async (req, res) => {
   try {
     const source = String(req.query.source || 'fanbase');
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid post ID.' });
@@ -2699,6 +3236,17 @@ const imageUpload = multer({
 });
 // turns a multer/image error into a normal JSON message
 const withImage = (field) => (req, res, next) => imageUpload.single(field)(req, res, (err) => {
+  if (!err) return next();
+  res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'That image is too big (max 8 MB).' : (err.message || 'Upload failed.') });
+});
+
+// the artist page takes two optional images at once: "cover" (old banner) and "idPhoto" (9:16 ID card portrait)
+const profileImagesUpload = multer({
+  storage: dbStorage,
+  limits: { fileSize: 8 * 1024 * 1024, files: 2 },
+  fileFilter: (req, file, cb) => (/^image\//.test(file.mimetype || '') ? cb(null, true) : cb(new Error('Only image files are allowed.')))
+}).fields([{ name: 'cover', maxCount: 1 }, { name: 'idPhoto', maxCount: 1 }]);
+const withProfileImages = (req, res, next) => profileImagesUpload(req, res, (err) => {
   if (!err) return next();
   res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'That image is too big (max 8 MB).' : (err.message || 'Upload failed.') });
 });
@@ -2816,18 +3364,20 @@ const getFanbaseBoardPosts = async (fanbase) => {
 const getFanbaseMemberProfiles = async (fanbase) => {
   const emails = [...new Set([...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])].map(normalizeEmail))];
   const members = await Promise.all(emails.map(findArtistOwner));
-  return members.filter(Boolean).map(({ profile }) => ({
+  return members.filter((m) => m && !m.user.deactivatedAt && !m.user.deletionAt).map(({ profile }) => ({
     email: normalizeEmail(profile.email),
     username: profile.username,
     name: profile.fullName || profile.username,
     avatar: normalizeImageUrl(profile.avatar || ''),
-    bio: profile.bio || ''
+    bio: profile.bio || '',
+    socialLinks: linksOf(profile),
+    ...idCardOf(profile)
   }));
 };
 
 // Which fanbases an artist belongs to (as a member or legacy owner)
 const getArtistFanbases = (artistEmail) => {
-  const email = normalizeEmail(artistEmail);
+  const email = new RegExp(`^${escapeRegex(normalizeEmail(artistEmail))}$`, 'i'); // case-insensitive: older groups may store mixed-case emails
   return Fanbase.find({ $or: [{ memberEmails: email }, { ownerEmail: email }] }).sort({ createdAt: 1 });
 };
 
@@ -2866,8 +3416,37 @@ app.get('/api/artists/:username/posts', async (req, res) => {
   }
 });
 
+// The polls an artist is in, for their profile card. An entry counts when it is linked to this account, or (for older
+// entries nobody linked yet) when its name exactly matches the artist's full name, stage name or username.
+app.get('/api/artists/:username/polls', async (req, res) => {
+  try {
+    const artist = await Profile.findOne({ username: { $regex: `^${escapeRegex(String(req.params.username).replace(/^@/, ''))}$`, $options: 'i' } });
+    if (!artist) return res.status(404).json({ message: 'Artist not found.' });
+    const email = normalizeEmail(artist.email);
+    const names = new Set([artist.fullName, artist.stageName, artist.username].map((n) => String(n || '').trim().toLowerCase()).filter(Boolean));
+    const [rankings, polls] = await Promise.all([Ranking.find(), Poll.find()]);
+    const mine = rankings.filter((r) => (r.accountEmail ? normalizeEmail(r.accountEmail) === email : names.has(String(r.name || '').trim().toLowerCase())));
+    const norm = (v) => String(v || '').trim().toLowerCase();
+    const seen = new Set();
+    const result = [];
+    mine.forEach((r) => {
+      polls.filter((p) => norm(p.title) === norm(r.category) && norm(p.group) === norm(r.group)).forEach((p) => {
+        const id = String(p._id);
+        if (seen.has(id)) return;
+        seen.add(id);
+        result.push({ pollId: id, title: p.title, group: p.group || '', imageUrl: normalizeImageUrl(p.imageUrl), fromDate: p.fromDate, toDate: p.toDate, rank: r.position, votes: r.voteCount || 0 });
+      });
+    });
+    result.sort((a, b) => new Date(b.toDate) - new Date(a.toDate));
+    res.status(200).json({ polls: result });
+  } catch (error) {
+    console.error('Error loading artist polls:', error);
+    res.status(500).json({ message: 'Failed to load polls.' });
+  }
+});
+
 // artist: change own cover photo / bio
-app.put('/api/artist/profile', requireArtist, withImage('cover'), async (req, res) => {
+app.put('/api/artist/profile', requireArtist, withProfileImages, async (req, res) => {
   try {
     const profile = req.artistProfile;
     if (req.body.bio !== undefined) {
@@ -2880,20 +3459,83 @@ app.put('/api/artist/profile', requireArtist, withImage('cover'), async (req, re
       if (parsed.error) return res.status(400).json({ message: parsed.error });
       profile.socialLinks = parsed.links;
     }
-    if (req.file) {
+    if (req.body.stageName !== undefined) {
+      const stageName = String(req.body.stageName).trim();
+      if (stageName.length > 80) return res.status(400).json({ message: 'Stage name can be up to 80 characters.' });
+      profile.stageName = stageName;
+    }
+    if (req.body.idDetails !== undefined) {
+      const parsed = parseIdDetails(req.body.idDetails);
+      if (parsed.error) return res.status(400).json({ message: parsed.error });
+      profile.idDetails = parsed.rows;
+    }
+    if (req.body.idFacts !== undefined) {
+      const parsed = parseIdFacts(req.body.idFacts);
+      if (parsed.error) return res.status(400).json({ message: parsed.error });
+      profile.idFacts = parsed.facts;
+    }
+    const coverFile = req.files?.cover?.[0];
+    if (coverFile) {
       if (profile.coverPhoto) removeStoredImage(profile.coverPhoto);
-      profile.coverPhoto = `/uploads/${req.file.filename}`;
+      profile.coverPhoto = `/uploads/${coverFile.filename}`;
     } else if (toBool(req.body.removeCover)) {
       if (profile.coverPhoto) removeStoredImage(profile.coverPhoto);
       profile.coverPhoto = '';
     }
+    const idFile = req.files?.idPhoto?.[0];
+    if (idFile) {
+      if (profile.idPhoto) removeStoredImage(profile.idPhoto);
+      profile.idPhoto = `/uploads/${idFile.filename}`;
+    } else if (toBool(req.body.removeIdPhoto)) {
+      if (profile.idPhoto) removeStoredImage(profile.idPhoto);
+      profile.idPhoto = '';
+    }
     await profile.save();
-    res.status(200).json({ coverPhoto: normalizeImageUrl(profile.coverPhoto || ''), bio: profile.bio || '', socialLinks: linksOf(profile) });
+    res.status(200).json({ coverPhoto: normalizeImageUrl(profile.coverPhoto || ''), bio: profile.bio || '', socialLinks: linksOf(profile), ...idCardOf(profile) });
   } catch (error) {
     console.error('Error updating artist profile:', error);
     res.status(500).json({ message: 'Failed to update your artist profile.' });
   }
 });
+
+// tell everyone who has this artist on their "Your Artists" row that a new post is up.
+// One notification per person, even if the artist is in several of that person's groups.
+// Never throws: a notification problem must not make the post itself fail.
+const notifyArtistFollowers = async (artist, post) => {
+  try {
+    const fanbases = await getArtistFanbases(artist.email);
+    if (!fanbases.length) { console.log(`[notify] @${artist.username} is not a member of any group, so nobody was notified.`); return; }
+    const idsToFanbase = new Map(fanbases.map((fb) => [String(fb._id), fb]));
+    const fans = await Profile.find({ fanbases: { $in: [...idsToFanbase.keys()] } }).select('username fanbases email');
+    const artistHandle = normalizeHandle(artist.username);
+    const photos = (post.images || []).length;
+    const text = String(post.text || '').trim();
+    const preview = text ? text.slice(0, 200) : `Shared ${photos} photo${photos === 1 ? '' : 's'}`;
+    // profile photos are saved as base64 data URLs (hundreds of KB). Copying one into every follower's notification would make
+    // the bell slow to load, so only a short URL is kept; otherwise the menu shows its icon.
+    const actorAvatar = /^data:/i.test(artist.avatar || '') ? '' : (artist.avatar || '');
+    const docs = fans
+      .filter((fan) => fan.username && normalizeHandle(fan.username) !== artistHandle)
+      .map((fan) => {
+        // open the first of the fan's groups that this artist belongs to
+        const fanbaseId = (fan.fanbases || []).find((id) => idsToFanbase.has(String(id)));
+        return {
+          recipient: normalizeHandle(fan.username),
+          actor: `@${artist.username}`,
+          actorAvatar,
+          type: 'artist_post',
+          subject: artistDisplayName(artist),
+          postId: post._id,                 // the ArtistPost, so the click can jump straight to it
+          sourceId: String(fanbaseId || ''), // the group board it appears on
+          preview
+        };
+      });
+    if (docs.length) await Notification.insertMany(docs, { ordered: false });
+    console.log(`[notify] @${artist.username} posted: ${docs.length} follower(s) notified (groups: ${fanbases.map((fb) => fb.name).join(', ')}).`);
+  } catch (error) {
+    console.error('Error notifying followers of a new artist post:', error);
+  }
+};
 
 // artist: publish a post (text and/or up to 10 photos)
 app.post('/api/artist/posts', requireArtist, withImages, async (req, res) => {
@@ -2906,6 +3548,7 @@ app.post('/api/artist/posts', requireArtist, withImages, async (req, res) => {
     if (!text && !images.length) return res.status(400).json({ message: 'Add some text or a photo.' });
     const created = await ArtistPost.create({ artistEmail: normalizeEmail(req.artistProfile.email), text, images, imageUrl: images[0] || '' });
     res.status(201).json(serializeArtistPost(created, req.artistProfile));
+    notifyArtistFollowers(req.artistProfile, created); // after the reply, so publishing stays fast
   } catch (error) {
     console.error('Error creating artist post:', error);
     discardUploads();
@@ -2993,7 +3636,7 @@ app.get('/api/banners', async (req, res) => {
 });
 
 // POST: Upload and save a new banner
-app.post('/api/banners', requireAdmin, (req, res) => {
+app.post('/api/banners', requireSystemAdmin, (req, res) => {
   upload.single('image')(req, res, async (uploadError) => {
     if (uploadError) {
       console.error('Banner upload error:', uploadError);
@@ -3036,7 +3679,7 @@ app.post('/api/banners', requireAdmin, (req, res) => {
 });
 
 // DELETE: Remove a banner from Admin Dashboard
-app.delete('/api/banners/:id', requireAdmin, async (req, res) => {
+app.delete('/api/banners/:id', requireSystemAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({
@@ -3119,7 +3762,7 @@ app.get('/api/ads', async (req, res) => {
 });
 
 // GET (admin): every ad, including paused ones
-app.get('/api/ads/all', requireAdmin, async (req, res) => {
+app.get('/api/ads/all', requireSystemAdmin, async (req, res) => {
   try {
     const ads = await Ad.find().sort({ createdAt: 1 });
     return res.status(200).json(ads.map((ad) => serializeImage(ad.toObject())));
@@ -3130,7 +3773,7 @@ app.get('/api/ads/all', requireAdmin, async (req, res) => {
 });
 
 // POST (admin): upload a new ad
-app.post('/api/ads', requireAdmin, imageOnly, async (req, res) => {
+app.post('/api/ads', requireSystemAdmin, imageOnly, async (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'Please select an image to upload.' });
   try {
     const ad = await Ad.create({
@@ -3149,7 +3792,7 @@ app.post('/api/ads', requireAdmin, imageOnly, async (req, res) => {
 });
 
 // PUT (admin): edit link / alt text, pause or resume, or swap the image
-app.put('/api/ads/:id', requireAdmin, imageOnly, async (req, res) => {
+app.put('/api/ads/:id', requireSystemAdmin, imageOnly, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       if (req.file) unlinkUpload(req.file.path, () => {});
@@ -3178,7 +3821,7 @@ app.put('/api/ads/:id', requireAdmin, imageOnly, async (req, res) => {
 });
 
 // DELETE (admin)
-app.delete('/api/ads/:id', requireAdmin, async (req, res) => {
+app.delete('/api/ads/:id', requireSystemAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: 'Invalid ad ID.' });
@@ -3248,7 +3891,7 @@ app.post('/api/reports', upload.single('file'), async (req, res) => {
   }
 });
 
-app.put('/api/reports/:id/resolve', requireAdmin, async (req, res) => {
+app.put('/api/reports/:id/resolve', requireSystemAdmin, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ message: 'Report not found.' });
@@ -3295,7 +3938,7 @@ app.put('/api/reports/:id/resolve', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/reports/:id/messages', requireAdmin, async (req, res) => {
+app.post('/api/reports/:id/messages', requireSystemAdmin, async (req, res) => {
   try {
     const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
     if (!message) return res.status(400).json({ message: 'A message is required.' });
@@ -3338,7 +3981,7 @@ app.post('/api/reports/:id/messages', requireAdmin, async (req, res) => {
 });
 
 // Optional GET route if you want to view reports later in your Admin Dashboard
-app.get('/api/reports', requireAdmin, async (req, res) => {
+app.get('/api/reports', requireSystemAdmin, async (req, res) => {
   try {
     const reports = await Report.find({ resolved: { $ne: true } }).sort({ createdAt: -1 });
     res.status(200).json(reports.map((report) => ({
@@ -3376,7 +4019,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.put('/api/settings', requireAdmin, async (req, res) => {
+app.put('/api/settings', requireSystemAdmin, async (req, res) => {
   try {
     let settings = await Settings.findOne();
     if (!settings) settings = await Settings.create({});
@@ -3402,6 +4045,249 @@ app.put('/api/settings', requireAdmin, async (req, res) => {
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
+
+// ===================== ACCOUNT: change password, 2FA, deactivate, delete =====================
+// There is no login token for normal users, so every action here proves who you are with the CURRENT PASSWORD.
+// With 2FA on, a 6-digit code sent to the account email is needed as well (change password, turn 2FA off, delete).
+const DELETE_GRACE_DAYS = 30;
+const CODE_TTL_MS = 10 * 60 * 1000;
+const CODE_COOLDOWN_MS = 30 * 1000;
+const CODE_MAX_TRIES = 5;
+const STAFF_ROLES = ['groupadmin', 'systemadmin', 'admin', 'superadmin'];
+
+const findAccount = (email) => User.findOne({ email: { $regex: `^${escapeRegex(normalizeEmail(email))}$`, $options: 'i' } });
+const isStaffAccount = (user) => Boolean(user.isAdmin) || STAFF_ROLES.includes(resolveRole(user));
+const maskEmail = (email = '') => String(email).replace(/^(.{2})(.*)(@.*)$/, (m, a, b, c) => `${a}${'*'.repeat(Math.min(b.length, 6))}${c}`);
+const hashCode = (code) => crypto.createHash('sha256').update(String(code)).digest('hex');
+
+// @handles (lowercase) of accounts that are deactivated or waiting to be deleted: hidden from the community
+const hiddenHandles = async () => {
+  const users = await User.find({ $or: [{ deactivatedAt: { $ne: null } }, { deletionAt: { $ne: null } }] }).select('email').lean();
+  if (!users.length) return new Set();
+  const profiles = await Profile.find({ email: { $in: users.map((u) => normalizeEmail(u.email)) } }).collation(CI).select('username').lean();
+  return new Set(profiles.map((p) => `@${String(p.username || '').toLowerCase()}`));
+};
+
+// a few wrong passwords in a row pause these actions for a while
+const passwordFails = new Map();
+const lockedOut = (key) => { const f = passwordFails.get(key); return Boolean(f && f.count >= 6 && Date.now() - f.at < 15 * 60 * 1000); };
+const noteFail = (key) => { const f = passwordFails.get(key); passwordFails.set(key, { count: (f && Date.now() - f.at < 15 * 60 * 1000 ? f.count : 0) + 1, at: Date.now() }); };
+
+// loads the account and checks the current password; sends the error and returns null when it can't go on
+const authenticate = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const password = typeof req.body.currentPassword === 'string' ? req.body.currentPassword : (typeof req.body.password === 'string' ? req.body.password : '');
+  if (!email || !password) { res.status(400).json({ message: 'Your email and current password are required.' }); return null; }
+  if (lockedOut(email)) { res.status(429).json({ message: 'Too many wrong passwords. Please try again in 15 minutes.' }); return null; }
+  const user = await findAccount(email);
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    noteFail(email);
+    res.status(400).json({ message: 'Your current password is not correct.' });
+    return null;
+  }
+  passwordFails.delete(email);
+  return user;
+};
+
+const sendSecurityCode = async (user, purpose, action) => {
+  if (user.securityCodeSentAt && Date.now() - new Date(user.securityCodeSentAt).getTime() < CODE_COOLDOWN_MS) {
+    return 'Please wait a few seconds before asking for another code.';
+  }
+  const code = String(crypto.randomInt(100000, 1000000));
+  user.securityCodeHash = hashCode(code);
+  user.securityCodePurpose = purpose;
+  user.securityCodeExpiresAt = new Date(Date.now() + CODE_TTL_MS);
+  user.securityCodeSentAt = new Date();
+  user.securityCodeTries = 0;
+  await user.save();
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Your JuanCast security code',
+      text: `Your 6-digit code to ${action} is: ${code}\n\nIt expires in 10 minutes. If this wasn't you, someone may know your password: change it right away.`
+    });
+  } catch (error) {
+    console.error('Error sending the security code:', error);
+    return 'Could not send the code to your email. Please try again later.';
+  }
+  return '';
+};
+
+// '' when the code is right (and used up), otherwise what to tell the person
+const checkSecurityCode = async (user, purpose, code) => {
+  const given = String(code || '').trim();
+  if (!user.securityCodeHash || user.securityCodePurpose !== purpose || !user.securityCodeExpiresAt || user.securityCodeExpiresAt < new Date()) {
+    return 'That code has expired. Ask for a new one.';
+  }
+  if ((user.securityCodeTries || 0) >= CODE_MAX_TRIES) return 'Too many wrong attempts. Ask for a new code.';
+  const a = Buffer.from(hashCode(given));
+  const b = Buffer.from(user.securityCodeHash);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    user.securityCodeTries = (user.securityCodeTries || 0) + 1;
+    await user.save();
+    return 'That code is not correct.';
+  }
+  user.securityCodeHash = undefined;
+  user.securityCodePurpose = undefined;
+  user.securityCodeExpiresAt = undefined;
+  user.securityCodeTries = 0;
+  await user.save();
+  return '';
+};
+
+// no code sent yet: email one and tell the page to ask for it. Returns true only when a right code came with the request.
+const requireCode = async (req, res, user, purpose, action) => {
+  const code = String(req.body.code || '').trim();
+  if (!code) {
+    const problem = await sendSecurityCode(user, purpose, action);
+    if (problem) { res.status(429).json({ message: problem }); return false; }
+    res.status(200).json({ needsCode: true, sentTo: maskEmail(user.email), message: `We sent a 6-digit code to ${maskEmail(user.email)}.` });
+    return false;
+  }
+  const problem = await checkSecurityCode(user, purpose, code);
+  if (problem) { res.status(400).json({ needsCode: true, message: problem }); return false; }
+  return true;
+};
+
+// 2FA on/off + whether this account is waiting to be deleted
+app.get('/api/account/status', async (req, res) => {
+  try {
+    const user = await findAccount(req.query.email);
+    if (!user) return res.status(404).json({ message: 'Account not found.' });
+    res.status(200).json({ twoFactorEnabled: Boolean(user.twoFactorEnabled), canDelete: !isStaffAccount(user) });
+  } catch (error) {
+    console.error('Error reading account status:', error);
+    res.status(500).json({ message: 'Could not load your account settings.' });
+  }
+});
+
+// Change password. 2FA off: changes right away. 2FA on: a code is emailed first (call again with the code).
+app.post('/api/account/change-password', async (req, res) => {
+  try {
+    const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
+    if (newPassword.length < 8) return res.status(400).json({ message: 'Your new password must be at least 8 characters.' });
+    const user = await authenticate(req, res);
+    if (!user) return;
+    if (await bcrypt.compare(newPassword, user.password)) return res.status(400).json({ message: 'Your new password must be different from your current one.' });
+
+    if (user.twoFactorEnabled && !(await requireCode(req, res, user, 'password', 'change your password'))) return;
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetTokenHash = undefined;
+    user.passwordResetExpiresAt = undefined;
+    user.otp = undefined;
+    await user.save();
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Your JuanCast password was changed',
+      text: 'The password for your JuanCast account was just changed. If this was not you, use "Forgot password?" on the login page right away.'
+    }).catch(() => {});
+    res.status(200).json({ message: 'Your password was changed.' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Could not change your password. Please try again later.' });
+  }
+});
+
+// Turn 2FA on or off. Both need the current password and a code emailed to the account.
+app.post('/api/account/2fa', async (req, res) => {
+  try {
+    const enable = req.body.enable === true || req.body.enable === 'true';
+    const user = await authenticate(req, res);
+    if (!user) return;
+    if (enable === Boolean(user.twoFactorEnabled)) return res.status(200).json({ twoFactorEnabled: enable, message: `2FA is already ${enable ? 'on' : 'off'}.` });
+    if (!(await requireCode(req, res, user, 'twofa', enable ? 'turn on 2-step verification' : 'turn off 2-step verification'))) return;
+    user.twoFactorEnabled = enable;
+    await user.save();
+    res.status(200).json({ twoFactorEnabled: enable, message: enable ? '2FA is on.' : '2FA is off.' });
+  } catch (error) {
+    console.error('Error changing 2FA:', error);
+    res.status(500).json({ message: 'Could not update 2FA. Please try again later.' });
+  }
+});
+
+// Deactivate: hidden from everyone until you log in again.
+app.post('/api/account/deactivate', async (req, res) => {
+  try {
+    const user = await authenticate(req, res);
+    if (!user) return;
+    if (isStaffAccount(user)) return res.status(403).json({ message: 'Admin accounts can’t be deactivated here. Ask a super admin.' });
+    user.deactivatedAt = new Date();
+    await user.save();
+    res.status(200).json({ message: 'Your account is deactivated. Log in any time to turn it back on.' });
+  } catch (error) {
+    console.error('Error deactivating account:', error);
+    res.status(500).json({ message: 'Could not deactivate your account. Please try again later.' });
+  }
+});
+
+// Delete: hidden now, removed for good after 30 days. Logging in during those days offers to restore it.
+app.post('/api/account/delete', async (req, res) => {
+  try {
+    const user = await authenticate(req, res);
+    if (!user) return;
+    if (isStaffAccount(user)) return res.status(403).json({ message: 'Admin accounts can’t be deleted here. Ask a super admin.' });
+    if (user.twoFactorEnabled && !(await requireCode(req, res, user, 'delete', 'delete your account'))) return;
+    const now = new Date();
+    user.deletionRequestedAt = now;
+    user.deletionAt = new Date(now.getTime() + DELETE_GRACE_DAYS * 24 * 60 * 60 * 1000);
+    user.deactivatedAt = now;
+    await user.save();
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'Your JuanCast account is scheduled for deletion',
+      text: `Your JuanCast account will be permanently deleted on ${user.deletionAt.toDateString()}.\n\nChanged your mind? Log in before then and choose "Restore my account". After that date nothing can be recovered.`
+    }).catch(() => {});
+    res.status(200).json({ deletionAt: user.deletionAt, message: `Your account will be permanently deleted on ${user.deletionAt.toDateString()}.` });
+  } catch (error) {
+    console.error('Error scheduling account deletion:', error);
+    res.status(500).json({ message: 'Could not delete your account. Please try again later.' });
+  }
+});
+
+// Removes an account and what it owns. Run for accounts whose 30 days are over.
+const purgeAccount = async (user) => {
+  const email = normalizeEmail(user.email);
+  const emailRx = { $regex: `^${escapeRegex(email)}$`, $options: 'i' };
+  const profile = await findProfileByEmail(user.email);
+  if (profile) {
+    const handleRx = { $regex: `^@${escapeRegex(profile.username)}$`, $options: 'i' };
+    await Post.deleteMany({ user: handleRx });
+    await Post.updateMany({ 'replies.user': handleRx }, { $pull: { replies: { user: handleRx } } });
+    await Post.updateMany({ likes: handleRx }, { $pull: { likes: handleRx } });
+    await ArtistPost.updateMany({ 'replies.user': handleRx }, { $pull: { replies: { user: handleRx } } });
+    await ArtistPost.updateMany({ likes: handleRx }, { $pull: { likes: handleRx } });
+    await Profile.updateMany({ followers: handleRx }, { $pull: { followers: handleRx } });
+    await Profile.updateMany({ following: handleRx }, { $pull: { following: handleRx } });
+    await Notification.deleteMany({ $or: [{ recipient: normalizeHandle(profile.username) }, { actor: handleRx }] });
+    [profile.avatar, profile.coverPhoto, profile.idPhoto].filter((u) => /^\/uploads\//.test(String(u || ''))).forEach(removeStoredImage);
+    await Profile.deleteOne({ _id: profile._id });
+  }
+  await ArtistPost.deleteMany({ artistEmail: emailRx });
+  await FanVote.deleteMany({ email: emailRx });
+  await Fanbase.updateMany({ memberEmails: emailRx }, { $pull: { memberEmails: emailRx } });
+  await Fanbase.updateMany({ ownerEmail: emailRx }, { $set: { ownerEmail: '' } });
+  await Ranking.updateMany({ accountEmail: emailRx }, { $set: { accountEmail: '' } });
+  await User.deleteOne({ _id: user._id });
+};
+
+const purgeDueAccounts = async () => {
+  try {
+    const due = await User.find({ deletionAt: { $ne: null, $lte: new Date() } });
+    for (const user of due) {
+      if (isStaffAccount(user)) { user.deletionAt = undefined; user.deletionRequestedAt = undefined; await user.save(); continue; }
+      try { await purgeAccount(user); console.log(`Deleted account ${normalizeEmail(user.email)} after the ${DELETE_GRACE_DAYS}-day wait.`); }
+      catch (error) { console.error('Could not delete account', user.email, error); }
+    }
+  } catch (error) {
+    console.error('Error checking accounts due for deletion:', error);
+  }
+};
+setTimeout(purgeDueAccounts, 20 * 1000);
+setInterval(purgeDueAccounts, 6 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });

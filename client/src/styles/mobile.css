@@ -202,7 +202,7 @@
   .modal.dr-modal::before, .modal.rw-modal::before, .modal.cm-wide::before { display: none; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .btn-solid, .modal-actions .btn-ghost { width: 100%; }
-  .modal.dr-modal { max-height: 94dvh; border-radius: 26px 26px 0 0; }
+  .modal.dr-modal { max-height: 94dvh; overflow: hidden; border-radius: 26px 26px 0 0; }
   .dr-banner { border-radius: 26px 26px 0 0; }
   .dr-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .modal.rw-modal { height: 94dvh; border-radius: 26px 26px 0 0; }
