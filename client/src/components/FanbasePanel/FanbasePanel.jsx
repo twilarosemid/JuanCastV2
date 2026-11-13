@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { API, getJSON, getUser, img } from '../../api';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { API, getJSON, getUser, img, normalizeHandle } from '../../api';
 import Modal from '../Modal/Modal';
+import ArtistIdModal from '../ArtistIdCard/ArtistIdCard';
 import PhotoCarousel from '../PhotoCarousel/PhotoCarousel';
+import { pollStatus, STATUS_LABEL, timeLeftText } from '../../utils/pollTime';
 import './FanbasePanel.css';
 
 const bg = (url) => (url ? { backgroundImage: `url("${img(url)}")` } : undefined);
@@ -59,7 +61,7 @@ function PostCard({ post, onClick, focused = false, startIndex = 0 }) {
   return (
     <article id={`fb-post-${post._id}`} className={`fb-post${images.length ? ' has-photo' : ''}${onClick ? ' clickable' : ''}${focused ? ' focused' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter') onClick(); } : undefined}>
-      {images.length > 1 && <PhotoCarousel images={images} ratio="4 / 3" initialIndex={startIndex} />}
+      {images.length > 1 && <PhotoCarousel images={images} ratio="1 / 1" initialIndex={startIndex} />}
       {images.length === 1 && <span className="fb-post-photo" style={bg(images[0])} role="img" aria-label="Post photo" />}
       <div className="fb-post-main">
         {artistPath
@@ -176,13 +178,182 @@ function FeaturedCard({ post, fanbase, onOpen }) {
   );
 }
 
-function Board({ id, onBack }) {
+// Merch tab: every product shows its picture, name and price. The description only opens in a pop-up when you click it.
+function MerchTab({ fanbaseId }) {
+  const [state, setState] = useState({ loading: true, error: false, items: [] });
+  const [openItem, setOpenItem] = useState(null); // kept after closing so the pop-up can animate out
+  const [open, setOpen] = useState(false);
+  const [shot, setShot] = useState(0);            // which picture is big in the pop-up
+
+  useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: false, items: [] });
+    getJSON(`/api/fanbases/${fanbaseId}/merch`)
+      .then((items) => { if (alive) setState({ loading: false, error: false, items: Array.isArray(items) ? items : [] }); })
+      .catch(() => { if (alive) setState({ loading: false, error: true, items: [] }); });
+    return () => { alive = false; };
+  }, [fanbaseId]);
+
+  const show = (item) => { setOpenItem(item); setShot(0); setOpen(true); };
+  const pics = openItem?.images || [];
+
+  if (state.loading) return <div className="feed-empty">Loading…</div>;
+  if (state.error) return <div className="feed-empty">Could not load the merch.</div>;
+  if (!state.items.length) return <div className="feed-empty">No merch yet.</div>;
+
+  return (
+    <>
+      <div className="fb-merch-grid">
+        {state.items.map((item, i) => (
+          <button key={item._id} type="button" className="fb-merch-card" style={{ '--i': i }} onClick={() => show(item)} aria-haspopup="dialog" aria-label={`${item.name}, Php ${peso(item.price)}. Open details`}>
+            <span className="fb-merch-img" style={bg(item.images?.[0])} />
+            {!item.images?.[0] && <span className="fb-merch-noimg" aria-hidden="true">🛍️</span>}
+            <span className="fb-merch-meta">
+              <strong>{item.name}</strong>
+              <span className="fb-merch-price">Php {peso(item.price)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} label={openItem ? `${openItem.name} details` : 'Merch details'} className="fb-merch-modal">
+        {openItem && (
+          <div className="fb-merch-pop">
+            <button type="button" className="fb-merch-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
+            {pics.length > 0 && <div className="fb-merch-big" style={bg(pics[shot] || pics[0])} role="img" aria-label={openItem.name} />}
+            {pics.length > 1 && (
+              <div className="fb-merch-thumbs">
+                {pics.map((url, n) => (
+                  <button key={`${url}-${n}`} type="button" className={n === shot ? 'on' : ''} style={bg(url)} onClick={() => setShot(n)} aria-label={`Show picture ${n + 1} of ${pics.length}`} />
+                ))}
+              </div>
+            )}
+            <h3>{openItem.name}</h3>
+            <div className="fb-merch-price big">Php {peso(openItem.price)}</div>
+            {openItem.description
+              ? <p className="fb-merch-desc">{openItem.description}</p>
+              : <p className="fb-merch-desc dim">No description yet.</p>}
+            {openItem.link && (
+              <a className="fb-subscribe fb-merch-buy" href={openItem.link} target="_blank" rel="noopener noreferrer">Buy now ↗</a>
+            )}
+          </div>
+        )}
+      </Modal>
+    </>
+  );
+}
+
+// Top Fans: the top 3 sit on the fanbase banner with a gold / silver / bronze ring (like TikTok). Tap them to see the top 100.
+const RING = { 1: 'gold', 2: 'silver', 3: 'bronze' };
+// Polls this artist / group is in. Each one opens that poll's page. Live polls come first, finished ones last.
+const POLL_ORDER = { ending: 0, ongoing: 0, soon: 1, ended: 2 };
+function PollLinks({ polls = [] }) {
+  if (!polls.length) return null;
+  const now = new Date();
+  const list = polls
+    .map((p) => ({ ...p, status: pollStatus(p, now) }))
+    .sort((a, b) => POLL_ORDER[a.status] - POLL_ORDER[b.status])
+    .slice(0, 3);
+  return (
+    <div className="fb-polls" role="list" aria-label="Polls this artist is in">
+      {list.map((p) => (
+        <Link key={p._id} role="listitem" to={`/polls/${p._id}`} className={`fb-poll ${p.status}`}>
+          <span className="fb-poll-dot" aria-hidden="true" />
+          <span className="fb-poll-text">
+            <small>{p.status === 'ended' ? 'Past poll' : 'Existing poll'} · {STATUS_LABEL[p.status]}{p.status !== 'ended' ? ` · ${timeLeftText(p, now)}` : ''}</small>
+            <strong>{p.displayTitle || p.title}</strong>
+          </span>
+          <span className="fb-poll-go" aria-hidden="true">›</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// Top Fans data for one fanbase, loaded once and shared by the badge in the bar and the Leaderboard tab.
+function useTopFans(fanbaseId) {
+  const [state, setState] = useState({ loading: true, error: false, data: null });
+  const email = getUser()?.email || '';
+
+  useEffect(() => {
+    let alive = true;
+    setState({ loading: true, error: false, data: null });
+    getJSON(`/api/fanbases/${fanbaseId}/top-fans${email ? `?email=${encodeURIComponent(email)}` : ''}`)
+      .then((data) => { if (alive) setState({ loading: false, error: false, data }); })
+      .catch(() => { if (alive) setState({ loading: false, error: true, data: null }); });
+    return () => { alive = false; };
+  }, [fanbaseId, email]);
+
+  return state;
+}
+
+// Top 3 fans as stacked profile pictures next to the price: #1 in front, #3 furthest back, with gold / silver / bronze outlines.
+// Tapping the stack opens the leaderboard view.
+function TopFans({ topFans, onOpen }) {
+  const fans = (topFans.data?.fans || []).slice(0, 3);
+  if (topFans.loading || topFans.error || fans.length === 0) return null;
+  return (
+    <button type="button" className="fb-top3" onClick={onOpen} aria-label={`Leaderboard. Top fans: ${fans.map((f) => `#${f.rank} @${f.username}`).join(', ')}`}>
+      {fans.map((fan) => (
+        <span key={fan.rank} className={`fb-top3-fan ${RING[fan.rank]}`} style={{ zIndex: 4 - fan.rank }} title={`#${fan.rank} @${fan.username}`}>
+          <span className="fb-top3-pic" style={bg(fan.avatar)}>{!fan.avatar && (fan.username || '?').charAt(0).toUpperCase()}</span>
+        </span>
+      ))}
+    </button>
+  );
+}
+
+// Leaderboard view: the top 100 fans, shown inside the fanbase page in place of the tab content.
+function LeaderboardView({ fanbase, topFans, onBack }) {
+  const { fans = [], you = null, fanCount = 0, totalStars = 0 } = topFans.data || {};
+  const Row = ({ fan }) => (
+    <li className={`fb-fan${fan.isYou ? ' you' : ''}${fan.rank <= 3 ? ` top${fan.rank}` : ''}`}>
+      <span className="fb-fan-rank" aria-label={`Rank ${fan.rank}`}>{fan.rank}</span>
+      <span className="fb-fan-pic" style={bg(fan.avatar)} aria-hidden="true">{!fan.avatar && (fan.username || '?').charAt(0).toUpperCase()}</span>
+      <span className="fb-fan-name">
+        <Link to={`/profile/${encodeURIComponent(fan.username)}`}>@{fan.username}</Link>
+        {fan.isYou && <small className="fb-fan-you">You</small>}
+      </span>
+      <span className="fb-fan-stars"><StarIcon />{nf(fan.stars)}</span>
+    </li>
+  );
+
+  return (
+    <section className="fb-fans" aria-label="Leaderboard">
+      <div className="fb-fans-head">
+        <h3>Top 100 Fans</h3>
+        <p>Ranked by the Stars spent voting for {fanbase.name}&apos;s artists or for the whole group{fanCount ? ` · ${nf(fanCount)} ${fanCount === 1 ? 'fan' : 'fans'} · ${nf(totalStars)} Stars` : ''}.</p>
+      </div>
+      {fans.length === 0 ? <div className="feed-empty">No fans on the leaderboard yet.</div> : (
+        <ol className="fb-fan-list">
+          {fans.map((fan) => <Row key={`${fan.rank}-${fan.username}`} fan={fan} />)}
+          {you && (
+            <>
+              <li className="fb-fan-gap" aria-hidden="true">⋯</li>
+              <Row fan={you} />
+            </>
+          )}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function Board({ id, onBack, focusPost = '', focusBy = '' }) {
   const user = getUser();
+  const location = useLocation();
   const [state, setState] = useState({ loading: true, error: '', data: null });
-  const [tab, setTab] = useState('board');
+  const [tab, setTabRaw] = useState('board');
+  const [showLb, setShowLb] = useState(false); // the leaderboard view (opened from the top-3 pictures); picking any tab leaves it
+  const setTab = useCallback((t) => { setShowLb(false); setTabRaw(t); }, []);
+  const topFans = useTopFans(id);
+  const [idMember, setIdMember] = useState(null); // artist whose ID card pop-up is open (kept after closing so it can animate out)
+  const [idOpen, setIdOpen] = useState(false);
   const [soon, setSoon] = useState(false);
   const [lightbox, setLightbox] = useState(null); // index into the Media photos
   const [focus, setFocus] = useState(null);       // { postId, index }: a post to scroll to on the Board
+  const [reloadKey, setReloadKey] = useState(0);   // bumped to load the board again (a notification's post is newer than what we loaded)
+  const retried = useRef('');
 
   useEffect(() => {
     let alive = true;
@@ -195,15 +366,35 @@ function Board({ id, onBack }) {
       .then((data) => { if (alive) setState({ loading: false, error: '', data }); })
       .catch((err) => { if (alive) setState({ loading: false, error: err?.message || 'Could not load this board.', data: null }); });
     return () => { alive = false; };
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // opened from a notification: ?post=<artist post id>, or (older notifications without one) ?by=<artist handle> = that artist's newest post.
+  // Once the board has loaded, jump to the post and highlight it. location.key makes tapping the same notification again work too.
+  useEffect(() => {
+    if ((!focusPost && !focusBy) || state.loading || !state.data) return;
+    const list = state.data.posts || [];
+    const target = focusPost
+      ? list.find((p) => p._id === `artist-${focusPost}`)
+      : list.find((p) => normalizeHandle(p.authorUsername) === normalizeHandle(focusBy));
+    console.info('[notification] opening post', { focusPost, focusBy, found: Boolean(target), postsOnBoard: list.length, locked: state.data.locked });
+    if (!target) {
+      // the board was loaded before that post existed: load it once more (once per tap, so a locked or deleted post cannot loop)
+      if (retried.current !== location.key) { retried.current = location.key; setReloadKey((k) => k + 1); }
+      return;
+    }
+    setTab('board');
+    setFocus({ postId: target._id, index: 0 });
+  }, [focusPost, focusBy, state.loading, state.data, location.key]);
 
   // after "View Post": scroll to that post on the Board, highlight it for a moment, then let go
   useEffect(() => {
     if (!focus || tab !== 'board') return undefined;
-    const el = document.getElementById(`fb-post-${focus.postId}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const go = () => document.getElementById(`fb-post-${focus.postId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    go();
+    // photos and avatars keep loading after the first scroll and push the post around, so aim again twice
+    const again = [setTimeout(go, 400), setTimeout(go, 1000)];
     const timer = setTimeout(() => setFocus(null), 2600);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); again.forEach(clearTimeout); };
   }, [focus, tab]);
 
   if (state.loading) {
@@ -218,14 +409,14 @@ function Board({ id, onBack }) {
     );
   }
 
-  const { fanbase, locked, total, posts, members = [], previewPhotos = [], photoTotal = 0 } = state.data;
+  const { fanbase, locked, total, posts, members = [], previewPhotos = [], photoTotal = 0, polls = [] } = state.data;
   const photos = posts.flatMap((p) => photosOf(p).map((url, n) => ({ key: `${p._id}-${n}`, url, postId: p._id, index: n })));
   const viewPost = (photo) => {
     setLightbox(null);
     setTab('board');
     setFocus({ postId: photo.postId, index: photo.index });
   };
-  const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar']];
+  const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar'], ['merch', 'Merch']];
 
   return (
     <div className="fb-board">
@@ -238,19 +429,22 @@ function Board({ id, onBack }) {
         </div>
       </header>
 
+      <PollLinks polls={polls} />
+
       <div className="fb-bar">
         <nav className="fb-tabs" aria-label="Fanbase sections">
           {TABS.map(([key, label]) => (
-            <button key={key} type="button" className={tab === key ? 'on' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{label}</button>
+            <button key={key} type="button" className={!showLb && tab === key ? 'on' : ''} aria-current={!showLb && tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{label}</button>
           ))}
         </nav>
         <div className="fb-sub">
+          <TopFans topFans={topFans} onOpen={() => setShowLb(true)} />
           <span className="fb-price">Php {peso(fanbase.price)}<small>/month</small></span>
           <button type="button" className="fb-subscribe" disabled={!locked} onClick={() => setSoon(true)}>{locked ? 'Subscribe' : 'Subscribed'}</button>
         </div>
       </div>
 
-      {tab === 'board' && (
+      {!showLb && tab === 'board' && (
         <div className="fb-body open">
           <div className="fb-feed">
             {posts.length === 0 && <div className="feed-empty">No posts yet.</div>}
@@ -289,7 +483,7 @@ function Board({ id, onBack }) {
         </div>
       )}
 
-      {tab === 'media' && (
+      {!showLb && tab === 'media' && (
         locked ? <LockedBlock count={0} /> : photos.length ? (
           <div className="fb-media-grid">
             {photos.map((p, i) => (
@@ -299,7 +493,7 @@ function Board({ id, onBack }) {
         ) : <div className="feed-empty">No photos yet.</div>
       )}
 
-      {tab === 'about' && (
+      {!showLb && tab === 'about' && (
         <div className="fb-about">
           <section className="fb-about-section">
             <h3>About the group</h3>
@@ -307,14 +501,16 @@ function Board({ id, onBack }) {
             {members.length ? (
               <div className="fb-member-grid">
                 {members.map((member, i) => (
-                  <Link className="fb-card fb-member-card" key={member.email} style={{ '--i': i }} to={`/profile/${encodeURIComponent(member.username)}`}>
-                    <span className="fb-card-img" style={bg(member.avatar)} />
-                    {!member.avatar && <span className="fb-member-initial" aria-hidden="true">{(member.name || member.username || '?').charAt(0).toUpperCase()}</span>}
+                  <div className="fb-card fb-member-card" key={member.email} style={{ '--i': i }} role="button" tabIndex={0} onClick={() => { setIdMember(member); setIdOpen(true); }} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setIdMember(member); setIdOpen(true); } }} aria-haspopup="dialog" aria-label={`View ${(member.stageName || member.name)}'s ID`}>
+                    <span className="fb-card-img" style={bg(member.idPhoto || member.avatar)} />
+                    {!(member.idPhoto || member.avatar) && <span className="fb-member-initial" aria-hidden="true">{((member.stageName || member.name) || member.username || '?').charAt(0).toUpperCase()}</span>}
                     <span className="fb-card-meta">
-                      <strong>{member.name}</strong>
-                      <small>@{member.username}</small>
+                      <strong>{(member.stageName || member.name)}</strong>
+                      {member.username
+                        ? <Link to={`/profile/${encodeURIComponent(member.username)}`} className="fb-member-handle" onClick={(e) => e.stopPropagation()} title="View profile">@{member.username}</Link>
+                        : <small>@{member.username}</small>}
                     </span>
-                  </Link>
+                  </div>
                 ))}
               </div>
             ) : <p className="fb-about-empty">Artist profiles will appear here when the group members are selected.</p>}
@@ -333,11 +529,18 @@ function Board({ id, onBack }) {
         </div>
       )}
 
-      {tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
+      {!showLb && tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
+
+      {!showLb && tab === 'merch' && <MerchTab fanbaseId={fanbase._id} />}
+
+      {showLb && <LeaderboardView fanbase={fanbase} topFans={topFans} onBack={() => setShowLb(false)} />}
+
 
       {lightbox !== null && photos[lightbox] && (
         <Lightbox photos={photos} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} onViewPost={viewPost} />
       )}
+
+      {idMember && <ArtistIdModal open={idOpen} onClose={() => setIdOpen(false)} profile={idMember} />}
 
       <Modal open={soon} onClose={() => setSoon(false)} label="Subscribe" role="alertdialog">
         <div className="center">
@@ -354,6 +557,8 @@ export default function FanbasePanel() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const artistId = params.get('artist');
+  const postParam = params.get('post') || '';
+  const byParam = params.get('by') || '';
   const user = getUser();
 
   const [loading, setLoading] = useState(true);
@@ -386,7 +591,7 @@ export default function FanbasePanel() {
     return () => { alive = false; };
   }, [artistId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (artistId) return <Board id={artistId} onBack={back} />;
+  if (artistId) return <Board id={artistId} onBack={back} focusPost={postParam} focusBy={byParam} />;
 
   const byId = new Map(fanbases.map((f) => [f._id, f]));
   const mine = mineIds.map((id) => byId.get(id)).filter(Boolean);
@@ -425,13 +630,13 @@ export default function FanbasePanel() {
   return (
     <div className="fb-home">
       {featured?.post && (
-        <section className="fb-sec">
+        <section className="fb-sec" data-tour="fanbase-featured">
           <h3 className="fb-h">Featured</h3>
           <FeaturedCard post={featured.post} fanbase={featured.fanbase} onOpen={featured.fanbase ? () => open(featured.fanbase._id) : undefined} />
         </section>
       )}
 
-      <section className="fb-sec">
+      <section className="fb-sec" data-tour="fanbase-mine">
         <h3 className="fb-h">Your artists</h3>
         <div className="fb-grid">
           {mine.map((f, i) => <ArtistCard key={f._id} fanbase={f} onOpen={open} index={i} />)}
@@ -442,7 +647,7 @@ export default function FanbasePanel() {
         </div>
       </section>
 
-      <section className="fb-sec">
+      <section className="fb-sec" data-tour="fanbase-explore">
         <h3 className="fb-h">Explore artists</h3>
         {others.length === 0
           ? <div className="feed-empty">{fanbases.length === 0 ? 'No artists yet.' : 'You have added every artist.'}</div>
