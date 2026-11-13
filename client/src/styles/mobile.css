@@ -316,13 +316,21 @@
 
 
 
-/* ================= BOARD POSTS: desktop card design on every screen size ================= */
-/* Phones use the same card as desktop (avatar on the left, content beside it).
-   The title, the description and the photo have no margin around them. */
-.board .post-body > .bd-post-title,
-.board .post-body > .post-text,
+/* ================= BOARD POSTS: same layout on every screen size ================= */
+/* Avatar + @name on the top row; the title, description and photo sit underneath, starting at the card's left edge
+   (no indent beside the avatar). The card keeps its padding and the normal spacing between the parts. */
+.board .post {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr); column-gap: 12px; row-gap: 0; align-items: center;
+}
+.board .post-body { display: contents; }
+.board .post .who-av { grid-column: 1; grid-row: 1; align-self: center; }
+.board .post-body > * { grid-column: 1 / -1; min-width: 0; }
+.board .post-body > .post-head { grid-column: 2; grid-row: 1; align-self: center; }
+.board .post-body > .post-head time { flex-basis: auto; }
+.board .post-body > .bd-post-title { margin: 12px 0 0; }
+.board .post-body > .post-text { margin: 6px 0 0; }
 .board .post-body > .bd-photo.single,
-.board .post-body > .bd-carousel { margin: 0; }
+.board .post-body > .bd-carousel { margin-top: 12px; }
 @media (max-width: 760px) {
   .chat .post { transform: none !important; }
 }
