@@ -630,13 +630,13 @@ export default function FanbasePanel() {
   return (
     <div className="fb-home">
       {featured?.post && (
-        <section className="fb-sec">
+        <section className="fb-sec" data-tour="fanbase-featured">
           <h3 className="fb-h">Featured</h3>
           <FeaturedCard post={featured.post} fanbase={featured.fanbase} onOpen={featured.fanbase ? () => open(featured.fanbase._id) : undefined} />
         </section>
       )}
 
-      <section className="fb-sec" data-tour="fanbase-list">
+      <section className="fb-sec" data-tour="fanbase-mine">
         <h3 className="fb-h">Your artists</h3>
         <div className="fb-grid">
           {mine.map((f, i) => <ArtistCard key={f._id} fanbase={f} onOpen={open} index={i} />)}
@@ -647,7 +647,7 @@ export default function FanbasePanel() {
         </div>
       </section>
 
-      <section className="fb-sec">
+      <section className="fb-sec" data-tour="fanbase-explore">
         <h3 className="fb-h">Explore artists</h3>
         {others.length === 0
           ? <div className="feed-empty">{fanbases.length === 0 ? 'No artists yet.' : 'You have added every artist.'}</div>

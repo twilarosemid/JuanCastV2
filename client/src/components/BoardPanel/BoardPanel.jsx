@@ -701,6 +701,7 @@ export default function BoardPanel({ compact = false }) {
               id={`post-${post._id}`}
               className={`post rise${post.pinned ? ' pinned' : ''}${focusId === post._id && !compact ? ' focus' : ''}`}
               style={{ '--d': `${Math.min(i, 8) * 60}ms` }}
+              data-tour={i === 0 ? 'board-post' : undefined}
             >
               <WhoLink name={post.user} className="who-av"><Avatar src={post.avatar} name={post.user} /></WhoLink>
               <div className="post-body">
@@ -743,7 +744,7 @@ export default function BoardPanel({ compact = false }) {
                   </>
                 )}
 
-                <div className="post-actions" data-tour={i === 0 ? 'board-actions' : undefined}>
+                <div className="post-actions">
                   <button type="button" className={`act like ${liked ? 'liked' : ''}`} onClick={() => toggleLike(post)} aria-pressed={liked} aria-label="Like">
                     <span className={popId === post._id ? 'pop' : ''}><HeartIcon filled={liked} /></span>
                     {likes.length}
