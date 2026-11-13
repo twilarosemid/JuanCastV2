@@ -153,6 +153,26 @@ const ShareItems = ({ post, ref_, copyLink, shareTo, shareNative }) => (
 
 // Photos keep their own size and shape (nothing is cropped). One photo fills the post's width at its natural height;
 // several photos become a swipeable row, one photo per swipe.
+// post text cut to a few lines with "See more" (like a Facebook post); the button only shows when the text is really longer
+function PostText({ text }) {
+  const [more, setMore] = useState(false);
+  const [long, setLong] = useState(false);
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    if (more) return undefined;
+    const check = () => { const el = ref.current; if (el) setLong(el.scrollHeight > el.clientHeight + 1); };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [text, more]);
+  return (
+    <>
+      <p ref={ref} className={`post-text${more ? '' : ' clamp'}`}>{text}</p>
+      {long && !more && <button type="button" className="see-more" onClick={() => setMore(true)}>See more</button>}
+    </>
+  );
+}
+
 function Photos({ images, onOpen }) {
   const [index, setIndex] = useState(0);
   if (!images.length) return null;
@@ -780,7 +800,7 @@ export default function BoardPanel({ compact = false }) {
                 ) : (
                   <>
                     {post.title && <h3 className="bd-post-title">{post.title}</h3>}
-                    {post.text && <p className="post-text">{post.text}</p>}
+                    {post.text && <PostText text={post.text} />}
                     <Photos images={post.images || []} onOpen={(images, index) => setLightbox({ images, index })} />
                   </>
                 )}

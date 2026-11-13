@@ -286,3 +286,8 @@
 .reply-act.heart > span { display: grid; place-items: center; }
 .reply-act.heart > span.pop { animation: heartPop .6s cubic-bezier(.34, 1.56, .64, 1); }
 .reply-act .heart-count { font-variant-numeric: tabular-nums; }
+
+/* ---------- Facebook-style post: text cut to a few lines + "See more" ---------- */
+.post-text.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
+.see-more { display: block; margin: 4px 0 0; padding: 4px 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.see-more:hover { color: var(--text); text-decoration: underline; }

@@ -314,3 +314,32 @@
   .market-page .mk-main::-webkit-scrollbar { display: none; }
 }
 
+
+
+/* ================= BOARD POSTS (phones): Facebook-style ================= */
+/* Avatar + name on one line, the text and the photo use the full width, the photo runs edge to edge of the card,
+   and the cards run edge to edge of the screen (no side margin). */
+@media (max-width: 760px) {
+  .community-page .chat-scroll { margin: 0 -5vw; gap: 10px; }
+  .chat .post {
+    display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 10px; row-gap: 0; align-items: center;
+    padding: 12px 0 6px; border-radius: 0; border-left: 0; border-right: 0; transform: none !important;
+  }
+  .chat .post-body { display: contents; }
+  .chat .post .who-av { grid-column: 1; grid-row: 1; margin-left: 12px; align-self: center; }
+  .chat .post .who-av .chat-av { width: 40px; height: 40px; }
+  .chat .post-body > * { grid-column: 1 / -1; padding-left: 12px; padding-right: 12px; }
+  .chat .post-body > .post-head { grid-column: 2; grid-row: 1; padding: 0 12px 0 0; align-self: center; }
+  .chat .post-body > .post-head time { flex-basis: 100%; margin: 0; }
+  .chat .post-body > .bd-post-title { margin: 10px 0 0; }
+  .chat .post-body > .post-text { margin-top: 6px; font-size: 15px; line-height: 1.5; }
+  .chat .post-body > .see-more { padding-top: 2px; }
+  /* photos: full card width, no rounded corners, taller on a phone */
+  .chat .post-body > .bd-photo.single,
+  .chat .post-body > .bd-carousel { padding-left: 0; padding-right: 0; margin-top: 10px; }
+  .chat .bd-photo img { border-radius: 0; width: 100%; max-height: 78vh; object-fit: cover; }
+  .chat .post-body > .post-actions { margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.1); }
+  .chat .post-body > .post-actions .act { flex: 1 1 0; justify-content: center; }
+  /* comments under a post line up with the post text again */
+  .chat .post-body > .comments, .chat .post-body > [class*="comment"] { padding-left: 12px; padding-right: 12px; }
+}

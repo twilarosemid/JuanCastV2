@@ -35,11 +35,12 @@
 .nt-ico { display: grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; overflow: hidden; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; }
 .nt-ico svg { width: 20px; height: 20px; }
 .nt-ico img { width: 100%; height: 100%; object-fit: cover; }
-.nt-ico.like { background: rgba(255, 107, 133, .25); color: #ff6b85; }
-.nt-ico.reply { background: rgba(47, 123, 255, .25); color: #8fb8ff; }
-.nt-ico.follow { background: rgba(95, 211, 141, .22); color: #5fd38d; }
-.nt-ico.mail { background: rgba(250, 204, 21, .22); color: #facc15; }
-.nt-ico.artist_post { background: rgba(167, 139, 250, .25); color: #c4b5fd; }
+.nt-ico.nt-t-like { background: rgba(255, 107, 133, .25); color: #ff6b85; }
+.nt-ico.nt-t-reply { background: rgba(47, 123, 255, .25); color: #8fb8ff; }
+.nt-ico.nt-t-follow { background: rgba(95, 211, 141, .22); color: #5fd38d; }
+.nt-ico.nt-t-mail { background: rgba(250, 204, 21, .22); color: #facc15; }
+.nt-ico.nt-t-poll { background: rgba(251, 191, 36, .25); color: #fbbf24; }
+.nt-ico.nt-t-artist_post { background: rgba(167, 139, 250, .25); color: #c4b5fd; }
 /* a profile photo replaces the icon but keeps the type colour as a ring */
 .nt-ico:has(img) { background: rgba(255, 255, 255, .12); }
 

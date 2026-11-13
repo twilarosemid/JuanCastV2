@@ -95,7 +95,7 @@ export default function NotificationsMenu({ visible, onClose, user, onUnreadChan
     if (n.type === 'like') return <>{who} {n.subject === 'comment' ? 'hearted your comment' : 'liked your post'}</>;
     if (n.type === 'reply') return <>{who} {n.subject === 'comment' ? 'replied to your comment' : 'replied to your post'}</>;
     if (n.type === 'follow') return <>{who} started following you</>;
-    if (n.type === 'poll') return <><strong>{n.subject}</strong> is in a poll: {clip(n.preview, 60)}</>;
+    if (n.type === 'poll') return <><strong>{n.subject}</strong> is in a poll</>;
     if (n.type === 'artist_post') return <><strong>{n.subject || n.actor}</strong> shared a new post</>;
     return <strong>{n.subject || 'Message from JuanCast'}</strong>;
   };
@@ -138,7 +138,7 @@ export default function NotificationsMenu({ visible, onClose, user, onUnreadChan
               const Ico = ICONS[n.type] || MailSvg;
               return (
                 <button type="button" key={idOf(n)} className={`nt-item${n.isRead ? '' : ' unread'}`} onClick={() => openItem(n)}>
-                  <span className={`nt-ico ${n.type}`}>
+                  <span className={`nt-ico nt-t-${n.type}`}>
                     {n.actorAvatar && n.type !== 'mail' ? <img src={img(n.actorAvatar)} alt="" /> : <Ico />}
                   </span>
                   <span className="nt-body">

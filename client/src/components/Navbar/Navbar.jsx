@@ -107,27 +107,32 @@ export default function Navbar() {
   )?.key ?? null;
   const [bubble, setBubble] = useState(null);
   const linkRefs = useRef({});
-  const moveBubble = () => {
+  // snap = true when the bar itself changed shape (log out, scroll shrink, resize): the bubble jumps with it, no slide.
+  // Only a change of page slides the bubble to the new link.
+  const moveBubble = (snap = true) => {
     const el = linkRefs.current[active];
-    if (el) setBubble({ left: el.offsetLeft, width: el.offsetWidth });
+    if (!el) return;
+    setBubble((old) => (old && old.left === el.offsetLeft && old.width === el.offsetWidth ? old : { left: el.offsetLeft, width: el.offsetWidth, snap }));
   };
+  const snapBubble = () => moveBubble(true);
   const navKeys = navItems.map((n) => n.key).join(',');
   const linksRef = useRef(null);
-  // re-measure whenever the page, the signed-in state or the set of links changes (logging out reshapes the bar)
-  useLayoutEffect(moveBubble, [active, loggedIn, isArtist, navKeys]);
+  // the page changed: slide to the new link
+  useLayoutEffect(() => { moveBubble(false); }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  // signed in / out or the set of links changed: the bar reshapes, so jump straight to the right place
+  useLayoutEffect(() => { moveBubble(true); }, [loggedIn, isArtist, navKeys]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    window.addEventListener('resize', moveBubble);
-    document.fonts?.ready.then(moveBubble); // re-measure once the font has loaded
+    window.addEventListener('resize', snapBubble);
+    document.fonts?.ready.then(snapBubble); // re-measure once the font has loaded
     // the bar can change size by itself (balance chips come and go, the bar shrinks when scrolled): follow every link
     let ro;
     if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(moveBubble);
+      ro = new ResizeObserver(snapBubble);
       if (linksRef.current) ro.observe(linksRef.current);
       Object.values(linkRefs.current).forEach((el) => { if (el) ro.observe(el); });
     }
-    const late = setTimeout(moveBubble, 350); // after the bar's own width transition ends
-    return () => { window.removeEventListener('resize', moveBubble); ro?.disconnect(); clearTimeout(late); };
-  }, [active, loggedIn, isArtist, navKeys]);
+    return () => { window.removeEventListener('resize', snapBubble); ro?.disconnect(); };
+  }, [active, loggedIn, isArtist, navKeys]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // re-read the saved user when it changes (login, logout, vote balance)
   useEffect(() => {
@@ -284,7 +289,7 @@ export default function Navbar() {
         <div className="links" ref={linksRef}>
           {bubble && (
             <span
-              className="bubble"
+              className={`bubble${bubble.snap ? ' snap' : ''}`}
               style={{ width: bubble.width, transform: `translateX(${bubble.left}px)`, opacity: active ? 1 : 0 }}
             />
           )}
