@@ -35,6 +35,7 @@ const NAV_SUPER = [
     { key: 'artists', label: 'Artists', desc: 'The artists who receive votes, and the homepage ranking.' },
     { key: 'chika', label: 'Chika', desc: 'News and updates shown in the Chika section.' },
     { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' },
+    { key: 'fanprojects', label: 'Fan projects', desc: 'Fan project requests from the Polls page. Approve them to show in the Gallery, or decline them.' },
   ] },
   { group: 'Community', items: [
     { key: 'board', label: 'Community Board', desc: 'Write posts for the Community Board and control the comments: pin, lock, remove and mute.' },
@@ -2049,6 +2050,87 @@ function PromosTab({ ctx }) {
   );
 }
 
+const FP_STATUS = { pending: 'For Approval', approved: 'Approved', rejected: 'Declined' };
+const fpDay = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '');
+
+function FanProjectsTab({ ctx }) {
+  const { notify, fail, askConfirm } = ctx;
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending');
+
+  useEffect(() => {
+    let alive = true;
+    adminFetch('/api/admin/fan-projects')
+      .then((data) => { if (alive) setItems(Array.isArray(data) ? data : []); })
+      .catch((err) => { if (alive) fail(err); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [fail]);
+
+  const setStatus = async (item, status) => {
+    try {
+      const next = await adminFetch(`/api/admin/fan-projects/${item._id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      setItems((list) => list.map((p) => (p._id === item._id ? next : p)));
+      notify(`${item.artistName}: ${FP_STATUS[status]}.`);
+    } catch (err) { fail(err); }
+  };
+
+  const remove = (item) => askConfirm({
+    title: `Delete the ${item.artistName} request?`,
+    body: 'It is removed from the Gallery and from the person’s History.',
+    confirmLabel: 'Delete',
+    tone: 'danger',
+    run: async () => {
+      await adminFetch(`/api/admin/fan-projects/${item._id}`, { method: 'DELETE' });
+      setItems((list) => list.filter((p) => p._id !== item._id));
+      notify('Request deleted.');
+    }
+  });
+
+  const shown = items.filter((p) => filter === 'all' || p.status === filter);
+  const count = (key) => items.filter((p) => p.status === key).length;
+
+  return (
+    <div className="ad-stack">
+      <div className="ad-card">
+        <div className="ad-list-head">
+          <h2>Fan project requests <span className="ad-count">{shown.length}</span></h2>
+          <select className="ad-input" style={{ width: 'auto' }} value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter requests">
+            <option value="pending">For Approval ({count('pending')})</option>
+            <option value="approved">Approved ({count('approved')})</option>
+            <option value="rejected">Declined ({count('rejected')})</option>
+            <option value="all">All ({items.length})</option>
+          </select>
+        </div>
+        {loading ? <p className="ad-empty">Loading…</p> : shown.length === 0 ? <p className="ad-empty">Nothing here.</p> : shown.map((p) => (
+          <div className="ad-item" key={p._id}>
+            <div className="ad-item-body">
+              <div className="ad-item-title">
+                <span>{p.artistName}</span>
+                <span className={`ad-status ${p.status === 'approved' ? 'live' : 'paused'}`}>{FP_STATUS[p.status]}</span>
+              </div>
+              <div className="ad-item-sub">{p.projectType} · Initiative by {p.initiative}</div>
+              <div className="ad-item-sub">Poll {fpDay(p.pollStart)} - {fpDay(p.pollEnd)} · Target {fpDay(p.targetDate)}</div>
+              <div className="ad-item-sub">{p.reason}</div>
+              <div className="ad-item-sub">{p.name} · {p.email} · {p.cellphone} · Submitted {fpDay(p.createdAt)}</div>
+            </div>
+            <div className="ad-item-actions">
+              {p.status !== 'approved' && <button type="button" className="ad-btn" onClick={() => setStatus(p, 'approved')}>Approve</button>}
+              {p.status !== 'rejected' && <button type="button" className="ad-btn" onClick={() => setStatus(p, 'rejected')}>Decline</button>}
+              <button type="button" className="ad-btn danger" onClick={() => remove(p)}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ the dashboard */
 function Dashboard({ user }) {
   const navigate = useNavigate();
@@ -2492,6 +2574,7 @@ function Dashboard({ user }) {
             {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
             {tab === 'artistprofiles' && <AccountsTab key="artistprofiles" ctx={ctx} groupMode />}
             {tab === 'promos' && <PromosTab key="promos" ctx={ctx} />}
+            {tab === 'fanprojects' && <FanProjectsTab key="fanprojects" ctx={ctx} />}
           </section>
         </div>
       </div>

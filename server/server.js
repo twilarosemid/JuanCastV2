@@ -4419,29 +4419,40 @@ app.get('/api/reports', requireSystemAdmin, async (req, res) => {
 });
 
 // ==========================================
-// FAN PROJECTS (entry form, gallery, history)
+// FAN PROJECTS (request form, gallery, history)
 // ==========================================
+const FAN_PROJECT_TYPES = ['LED Billboard Ad', 'Fan Project Budget', 'Fan Project Goods/Items', 'Charity Event'];
 const fanProjectSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 120 },
   email: { type: String, required: true, trim: true, lowercase: true },
   cellphone: { type: String, required: true, trim: true, maxlength: 40 },
   artistName: { type: String, required: true, trim: true, maxlength: 160 },
-  projectType: { type: String, required: true, trim: true, maxlength: 120 },
+  projectType: { type: String, required: true, enum: FAN_PROJECT_TYPES },
+  reason: { type: String, required: true, trim: true, maxlength: 1500 },
+  initiative: { type: String, required: true, trim: true, maxlength: 160 },
   targetDate: { type: Date, required: true },
+  pollStart: { type: Date, required: true },
+  pollEnd: { type: Date, required: true },
   submittedBy: { type: String, default: '' },
-  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' }
+  // pending = "For Approval" until a system admin approves or declines it
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
 }, { timestamps: true });
 const FanProject = mongoose.model('FanProject', fanProjectSchema);
 
-// never send the email or cellphone to the public gallery
+// the public gallery never gets the email or the cellphone number
 const publicFanProject = (item) => ({
   _id: item._id,
   artistName: item.artistName,
   projectType: item.projectType,
+  reason: item.reason,
+  initiative: item.initiative,
   targetDate: item.targetDate,
-  submittedBy: item.submittedBy || 'A fan',
+  pollStart: item.pollStart,
+  pollEnd: item.pollEnd,
   createdAt: item.createdAt
 });
+
+app.get('/api/fan-projects/types', (req, res) => res.status(200).json(FAN_PROJECT_TYPES));
 
 app.post('/api/fan-projects', async (req, res) => {
   try {
@@ -4450,10 +4461,14 @@ app.post('/api/fan-projects', async (req, res) => {
     const email = normalizeEmail(req.body.email || '');
     const cellphone = clean(req.body.cellphone, 40);
     const artistName = clean(req.body.artistName, 160);
-    const projectType = clean(req.body.projectType, 120);
-    const targetDate = new Date(req.body.targetDate);
-    if (!name || !email || !cellphone || !artistName || !projectType) {
+    const projectType = clean(req.body.projectType, 60);
+    const reason = clean(req.body.reason, 1500);
+    const initiative = clean(req.body.initiative, 160);
+    if (!name || !email || !cellphone || !artistName || !projectType || !reason || !initiative) {
       return res.status(400).json({ message: 'Please fill in every field.' });
+    }
+    if (!FAN_PROJECT_TYPES.includes(projectType)) {
+      return res.status(400).json({ message: 'Pick a project type from the list.' });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ message: 'Enter a valid email address.' });
@@ -4461,18 +4476,24 @@ app.post('/api/fan-projects', async (req, res) => {
     if (!/^[0-9+()\-\s]{7,20}$/.test(cellphone)) {
       return res.status(400).json({ message: 'Enter a valid cellphone number.' });
     }
-    if (Number.isNaN(targetDate.getTime())) {
-      return res.status(400).json({ message: 'Pick a valid target date.' });
+    const targetDate = new Date(req.body.targetDate);
+    const pollStart = new Date(req.body.pollStart);
+    const pollEnd = new Date(req.body.pollEnd);
+    if ([targetDate, pollStart, pollEnd].some((d) => Number.isNaN(d.getTime()))) {
+      return res.status(400).json({ message: 'Pick the target date and the poll start and end dates.' });
+    }
+    if (pollEnd < pollStart) {
+      return res.status(400).json({ message: 'The poll end date can’t be before its start date.' });
     }
     const profile = await findProfileByEmail(email);
     const entry = await FanProject.create({
-      name, email, cellphone, artistName, projectType, targetDate,
+      name, email, cellphone, artistName, projectType, reason, initiative, targetDate, pollStart, pollEnd,
       submittedBy: profile?.username || name
     });
-    res.status(201).json({ message: 'Entry submitted. Thank you!', entry: { ...publicFanProject(entry), status: entry.status } });
+    res.status(201).json({ message: 'Request submitted. It is now waiting for approval.', entry: { ...publicFanProject(entry), status: entry.status } });
   } catch (error) {
     console.error('Error saving fan project:', error);
-    res.status(500).json({ message: 'Failed to submit your entry.' });
+    res.status(500).json({ message: 'Failed to submit your request.' });
   }
 });
 
@@ -4491,7 +4512,7 @@ app.get('/api/fan-projects/mine', async (req, res) => {
     const email = normalizeEmail(req.query.email || '');
     if (!email) return res.status(400).json({ message: 'Log in to see your history.' });
     const items = await FanProject.find({ email }).sort({ createdAt: -1 }).limit(200);
-    res.status(200).json(items.map((item) => ({ ...publicFanProject(item), name: item.name, status: item.status })));
+    res.status(200).json(items.map((item) => ({ ...publicFanProject(item), status: item.status })));
   } catch (error) {
     console.error('Error loading fan project history:', error);
     res.status(500).json({ message: 'Failed to load your history.' });
@@ -4511,10 +4532,10 @@ app.put('/api/admin/fan-projects/:id/status', requireSystemAdmin, async (req, re
     const status = String(req.body.status || '');
     if (!['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ message: 'Invalid status.' });
     const entry = await FanProject.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    if (!entry) return res.status(404).json({ message: 'Entry not found.' });
+    if (!entry) return res.status(404).json({ message: 'Request not found.' });
     res.status(200).json(entry);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update the entry.' });
+    res.status(500).json({ message: 'Failed to update the request.' });
   }
 });
 
@@ -4523,7 +4544,7 @@ app.delete('/api/admin/fan-projects/:id', requireSystemAdmin, async (req, res) =
     await FanProject.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: 'Deleted.' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete the entry.' });
+    res.status(500).json({ message: 'Failed to delete the request.' });
   }
 });
 
