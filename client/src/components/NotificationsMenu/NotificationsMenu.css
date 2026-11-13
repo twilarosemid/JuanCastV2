@@ -40,6 +40,7 @@
 .nt-ico.nt-t-follow { background: rgba(95, 211, 141, .22); color: #5fd38d; }
 .nt-ico.nt-t-mail { background: rgba(250, 204, 21, .22); color: #facc15; }
 .nt-ico.nt-t-poll { background: rgba(251, 191, 36, .25); color: #fbbf24; }
+.nt-ico.nt-t-poll:has(img) { border-radius: 12px; background: rgba(255, 255, 255, .12); }
 .nt-ico.nt-t-artist_post { background: rgba(167, 139, 250, .25); color: #c4b5fd; }
 /* a profile photo replaces the icon but keeps the type colour as a ring */
 .nt-ico:has(img) { background: rgba(255, 255, 255, .12); }

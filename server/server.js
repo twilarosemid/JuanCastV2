@@ -1313,7 +1313,15 @@ app.get('/api/notifications', async (req, res) => {
     const username = normalizeHandle(req.query.username);
     if (!username) return res.status(400).json({ message: 'Username is required.' });
     const notifications = await Notification.find({ recipient: username }).sort({ createdAt: -1 }).limit(50);
-    res.status(200).json(notifications);
+    // a poll notification shows the poll's own photo (looked up now, so older ones get it too and a changed photo follows)
+    const pollIds = [...new Set(notifications.filter((n) => n.type === 'poll' && mongoose.isValidObjectId(n.sourceId)).map((n) => n.sourceId))];
+    const polls = pollIds.length ? await Poll.find({ _id: { $in: pollIds } }).select('imageUrl') : [];
+    const pollImage = new Map(polls.map((poll) => [String(poll._id), normalizeImageUrl(poll.imageUrl)]));
+    res.status(200).json(notifications.map((n) => {
+      const item = n.toObject();
+      if (item.type === 'poll') item.actorAvatar = pollImage.get(String(item.sourceId)) || '';
+      return item;
+    }));
   } catch (error) {
     console.error('Error fetching notifications:', error);
     res.status(500).json({ message: 'Failed to fetch notifications.' });
