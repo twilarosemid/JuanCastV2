@@ -1,0 +1,4 @@
+.subpage { min-height: 100vh; padding: 130px 5vw 80px; }
+.subpage-inner { max-width: 1200px; margin: 0 auto; }
+.subpage-title { font-size: clamp(30px, 4vw, 48px); font-weight: 800; margin: 0 0 12px; }
+.subpage-note { color: var(--muted); font-size: 16px; margin: 0; }

@@ -1,0 +1,20 @@
+/* Tall 1:2 ad pinned to the right edge of the screen: it stays put while the page scrolls.
+   Width follows the viewport but never taller than the screen, so it is always fully visible. */
+:root { --ad-w: clamp(200px, min(22vw, calc((100vh - 150px) / 2)), 360px); }
+
+.ad-slot {
+  position: fixed; top: 110px; right: 5vw; z-index: 5; width: var(--ad-w);
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.ad-slot-frame {
+  position: relative; width: 100%; aspect-ratio: 1 / 2; overflow: hidden; border-radius: 18px;
+  background: rgba(8, 40, 112, .4); border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .35);
+}
+.ad-slot-item { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
+.ad-slot-item.on { opacity: 1; pointer-events: auto; }
+.ad-slot-item a { display: block; width: 100%; height: 100%; }
+.ad-slot-item a:focus-visible { outline: 3px solid rgba(47, 123, 255, .8); outline-offset: -3px; border-radius: 18px; }
+.ad-slot-item img { display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+
+@media (prefers-reduced-motion: reduce) { .ad-slot-item { transition: none; } }

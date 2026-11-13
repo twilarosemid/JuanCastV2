@@ -1,0 +1,43 @@
+/* the image is the whole popup: no card chrome around it */
+.modal.sa-modal {
+  width: auto; max-width: 100%; margin: 0 auto; padding: 0; background: transparent; border: 0; box-shadow: none;
+  touch-action: none; overscroll-behavior: contain;
+}
+.sa-wrap {
+  position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto; line-height: 0;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  touch-action: none; /* the popup stays put: no panning or dragging */
+}
+.sa-wrap a { display: block; -webkit-user-drag: none; user-drag: none; }
+.sa-wrap img {
+  display: block; width: auto; height: auto; max-width: min(100%, 520px); max-height: 80vh; max-height: 80dvh; margin: 0 auto;
+  border-radius: 18px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+  -webkit-user-drag: none; user-drag: none; pointer-events: none; /* clicks go to the link/wrapper, so the image itself can't be dragged */
+}
+.sa-close {
+  position: absolute; z-index: 1; top: -14px; right: -14px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: #fff; color: #0b1220; font: inherit; font-size: 24px; font-weight: 800; line-height: 1; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .4); transition: transform .2s;
+}
+.sa-close:hover { transform: scale(1.08) rotate(90deg); }
+.sa-close:focus-visible { outline: 3px solid rgba(47, 123, 255, .8); outline-offset: 2px; }
+
+/* phones: a compact, centred popup with breathing room on every side, never edge to edge.
+   Also cancels the generic bottom-sheet styles from mobile.css (scrolling, grab handle, slide-up). */
+@media (max-width: 560px) {
+  .modal-overlay:has(.sa-modal) {
+    padding: max(28px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+    place-items: center; overflow: hidden; touch-action: none;
+  }
+  .modal.sa-modal {
+    width: 100%; max-width: 100%; max-height: none; padding: 0; border-radius: 0;
+    display: flex; justify-content: center;
+    overflow: visible; /* no scrollbar, nothing clipped */
+    transform: scale(.92); transition: opacity .25s ease, transform .35s cubic-bezier(.34, 1.4, .5, 1);
+  }
+  .modal-overlay.show .modal.sa-modal { transform: none; }
+  .modal.sa-modal::before { display: none; } /* no grab handle */
+  .sa-wrap img { max-width: 100%; max-height: 66vh; max-height: 66dvh; border-radius: 16px; }
+  /* close button sits inside the image corner so it can never be cut off */
+  .sa-close { top: 8px; right: 8px; width: 34px; height: 34px; font-size: 22px; background: rgba(255, 255, 255, .95); }
+}

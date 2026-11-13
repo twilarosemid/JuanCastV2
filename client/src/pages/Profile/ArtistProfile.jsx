@@ -51,6 +51,8 @@ const RELOGIN = 'Please log out and log in again to unlock your artist tools.';
 // Own page (ownView): change cover, edit bio, preview as fan. Anyone else: Follow + share.
 // ---------------------------------------------------------------
 export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isFollowing, onToggleFollow, onOpenQR, qrValue, onProfileChange, say, balance }) {
+  const fileRef = useRef(null);
+  const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -63,6 +65,38 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
   }, [menuOpen]);
+
+  const saveProfile = async (form) => {
+    if (needsRelogin()) { say('error', RELOGIN); return false; }
+    setBusy(true);
+    try {
+      const data = await adminFetch('/api/artist/profile', { method: 'PUT', body: form });
+      onProfileChange({ coverPhoto: data.coverPhoto, bio: data.bio, socialLinks: data.socialLinks || {} });
+      return true;
+    } catch (error) {
+      say('error', error.status === 401 ? RELOGIN : (error.message || 'Could not update your page.'));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickCover = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { say('error', 'Please choose an image file.'); return; }
+    if (file.size > MAX_IMAGE) { say('error', 'That image is too big (max 8 MB).'); return; }
+    const form = new FormData();
+    form.append('cover', file);
+    await saveProfile(form);
+  };
+
+  const removeCover = () => {
+    const form = new FormData();
+    form.append('removeCover', 'true');
+    saveProfile(form);
+  };
 
   return (
     <section className={`pf-hero ap-hero rise${ownView ? ' own' : ''}`}>
@@ -80,6 +114,15 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
                 </button>
               </div>
             )}
+          </div>
+        )}
+        {ownView && (
+          <div className="ap-cover-tools">
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickCover} />
+            <button type="button" className="ap-chip" disabled={busy} onClick={() => fileRef.current?.click()}>
+              <CameraIcon /> {busy ? 'Saving…' : profile.coverPhoto ? 'Change cover' : 'Add cover photo'}
+            </button>
+            {profile.coverPhoto && <button type="button" className="ap-chip subtle" disabled={busy} onClick={removeCover}>Remove</button>}
           </div>
         )}
       </div>
@@ -131,40 +174,6 @@ export function ArtistHero({ profile, ownView, isOwn, previewing, onPreview, isF
 // ---------------------------------------------------------------
 const LINKS_COLLAPSED = 3;
 const prettyLink = (url = '') => String(url).replace(/^https?:\/\/(www\.)?/i, '').replace(/\/$/, '');
-
-// The polls this artist is in; each one opens the poll page.
-export function ArtistPollsCard({ username }) {
-  const [polls, setPolls] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    setPolls(null);
-    getJSON(`/api/artists/${encodeURIComponent(username)}/polls`)
-      .then((data) => { if (!cancelled) setPolls(Array.isArray(data.polls) ? data.polls : []); })
-      .catch(() => { if (!cancelled) setPolls([]); });
-    return () => { cancelled = true; };
-  }, [username]);
-
-  if (!polls || polls.length === 0) return null;
-  const live = (p) => new Date(p.toDate).getTime() > Date.now();
-  return (
-    <div className="pf-card rise" style={{ '--d': '140ms' }}>
-      <h2>Polls</h2>
-      <ul className="apl-list">
-        {polls.map((p) => (
-          <li key={p.pollId}>
-            <Link className="apl-item" to={`/polls/${p.pollId}`}>
-              <span className="apl-text">
-                <strong>{String(p.title || '').replace(/\s*\(ended\)\s*$/i, '')}</strong>
-                <small>{[p.group, `#${p.rank}`, `${Number(p.votes || 0).toLocaleString()} votes`].filter(Boolean).join(' · ')}</small>
-              </span>
-              <em className={live(p) ? 'apl-live' : ''}>{live(p) ? 'Live' : 'Ended'}</em>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 export function ArtistLinksCard({ links, ownView }) {
   const [open, setOpen] = useState(false);

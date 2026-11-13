@@ -140,8 +140,7 @@ button.pf-stat:hover svg { transform: translateX(2px); color: var(--text); }
 .pf-pm-search svg { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .modal .pf-pm-search input { min-height: 42px; padding: 0 14px 0 38px; border-radius: 999px; font-size: 14px; }
 
-.pf-people { list-style: none; margin: 0; padding: 0 2px; max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: none; -ms-overflow-style: none; }
-.pf-people::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.pf-people { list-style: none; margin: 0; padding: 0 2px; max-height: min(52vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; }
 .pf-people li a { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 16px; color: var(--text); text-decoration: none; transition: background .2s, transform .2s; }
 .pf-people li a:hover { background: rgba(255, 255, 255, .09); }
 .pf-people li a:active { transform: scale(.985); }
@@ -167,7 +166,3 @@ button.pf-stat:hover svg { transform: translateX(2px); color: var(--text); }
 .pf-qr-name span { color: #7fb0ff; font-weight: 700; }
 .modal .pf-qr-hint { margin: 0; font-size: 13px; }
 .pf-qr-modal .modal-actions { justify-content: center; }
-
-/* no visible scrollbars anywhere on the profile (scrolling itself still works) */
-.pf-page, .pf-page *, .pf-people-modal, .pf-people-modal *, .pf-qr-modal { scrollbar-width: none; -ms-overflow-style: none; }
-.pf-page::-webkit-scrollbar, .pf-page *::-webkit-scrollbar, .pf-people-modal::-webkit-scrollbar, .pf-people-modal *::-webkit-scrollbar, .pf-qr-modal::-webkit-scrollbar { display: none; width: 0; height: 0; }

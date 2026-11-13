@@ -1,0 +1,345 @@
+/* =====================================================================
+   MOBILE VIEW  (phones <= 760px, bottom sheets <= 560px)
+   Imported LAST in main.jsx so it overrides each page's own CSS.
+   Layout: slim top bar (logo / bell / avatar) + floating bottom tab bar.
+   ===================================================================== */
+
+:root {
+  --top: calc(82px + env(safe-area-inset-top));      /* space the fixed top bar takes */
+  --dock: calc(86px + env(safe-area-inset-bottom));  /* space the bottom tab bar takes */
+}
+
+/* ---------- touch devices (any size): no "stuck" hover states after a tap ---------- */
+@media (hover: none) {
+  .poll-card:hover, .post:hover, .chika-hero:hover, .chika-row:hover, .mk-card:hover, .cm-card:hover,
+  .poster:hover, .pf-feature:hover, .spin-pack:hover, .group-filter:hover, .cm-tab:hover, .mk-tab:hover,
+  .rw-tab:hover, .vote:hover, .btn-solid:hover, .btn-ghost:hover, .logo:hover {
+    transform: none !important; box-shadow: none !important;
+  }
+  .poll-card:hover .poll-card-image, .chika-hero:hover .chika-hero-img, .cm-card:hover .cm-card-img,
+  .chika-row:hover .chika-thumb div, .stars-card:hover .stars-img, .powerup-card:hover .powerup-icon,
+  .others li:hover .av, .poll.active:hover .cover { transform: none !important; }
+  /* press feedback instead */
+  .poll-card:active, .cm-card:active, .chika-row:active, .chika-hero:active, .mk-card:active, .pf-feature:active { transform: scale(.98) !important; }
+  .vote:active, .btn-solid:active, .btn-ghost:active { transform: scale(.95) !important; }
+  .row-nav, .cm-arrow { display: none; }
+}
+
+@media (max-width: 760px) {
+  /* logged in: the balance / buffs row under the top bar makes it taller */
+  :root[data-nav-status="on"] { --top: calc(126px + env(safe-area-inset-top)); }
+  body { padding-bottom: var(--dock); }
+  /* 16px inputs stop iOS from zooming the page when a field is focused */
+  input, textarea, select { font-size: 16px !important; }
+  .section-title { margin: 30px 0 14px; }
+  .section-head { align-items: center; }
+  .section-head a { display: inline-flex; align-items: center; min-height: 44px; margin: 14px 0 0; padding: 0 0 0 16px; font-size: 15px; }
+
+  /* ================= NAVIGATION ================= */
+  /* top bar: the nav no longer animates a transform, so the fixed tab bar inside it stays pinned to the screen */
+  nav.site-nav {
+    padding: calc(10px + env(safe-area-inset-top)) 5vw 12px; flex-wrap: wrap; row-gap: 8px; pointer-events: none;
+    animation: navFadeIn .5s ease backwards;
+  }
+  @keyframes navFadeIn { from { opacity: 0; } }
+  .logo, .pill, .links { pointer-events: auto; }
+  .logo img { height: 30px; }
+
+  /* the pill becomes just [bell] [avatar], each its own glass button */
+  .pill { flex-wrap: nowrap; gap: 8px; padding: 0; background: none; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .divider { display: none; }
+  .icon-btn, .avatar {
+    width: 42px; height: 42px; background: rgba(8, 40, 112, .6); border: 1px solid rgba(255, 255, 255, .16);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .avatar.open { background: #fff; }
+  .menu { width: min(290px, 90vw); top: calc(100% + 10px); }
+  .menu a, .menu button { min-height: 48px; }
+
+  /* the four links become a floating tab bar */
+  .links {
+    position: fixed; left: 0; right: 0; z-index: 30; width: min(440px, calc(100% - 24px)); margin: 0 auto;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    display: flex; justify-content: space-between; gap: 2px; padding: 6px;
+    background: rgba(12, 18, 34, .82); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, .14); border-radius: 26px; box-shadow: 0 16px 44px rgba(0, 0, 0, .55);
+    animation: dockIn .6s cubic-bezier(.2, .7, .2, 1) .15s backwards;
+  }
+  @keyframes dockIn { from { opacity: 0; transform: translateY(40px); } }
+  .links a {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0;
+    padding: 9px 4px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .01em;
+  }
+  .links a:not(.on):hover { background: transparent; }
+  .nav-ico { display: grid; }
+  .nav-ico svg { width: 22px; height: 22px; }
+  .nav-label { line-height: 1.1; white-space: nowrap; }
+  .bubble { border-radius: 20px; }
+
+  /* ================= PAGE SPACING (clear the new top bar) ================= */
+  .polls-page, .community-page, .market-page { grid-template-columns: minmax(0, 1fr); gap: 16px; min-height: 0; }
+  .community-page, .market-page { padding: var(--top) 5vw 32px; }
+  .polls-page { padding: var(--top) 0 32px 5vw; }      /* rows bleed off the right edge, so no right padding */
+  .tx-page, .st-page, .subpage { padding: var(--top) 5vw 32px; min-height: 0; }
+  .pf-page, .ep-page { padding: var(--top) 4vw 32px; min-height: 0; }
+  .login-page { padding: var(--top) 5vw 32px; min-height: 0; }
+  .poll-detail { padding: var(--top) 5vw 32px; gap: 16px; }
+
+  /* ================= HOME ================= */
+  .hero { padding-top: var(--top); touch-action: pan-y; }
+  .sheet { padding: 0 5vw 16px; margin-top: 20px; }
+  .spacer { height: 0; }
+
+  /* podium: #2 | #1 | #3 in one compact row (same shape as desktop, scaled down) */
+  .podium { display: flex; flex-direction: row; align-items: flex-end; justify-content: center; gap: 10px; padding-top: 6px; }
+  .slot, .slot.r1 { flex: 1 1 0; width: auto; min-width: 0; order: 0; grid-column: auto; justify-self: auto; }
+  .slot.r1 { flex: 1.3 1 0; }
+  .podium .poster { border-radius: 12px; }
+  .podium .info { flex-direction: column; align-items: stretch; gap: 8px; padding-top: 10px; }
+  .podium .info > div { min-width: 0; }
+  .podium .info h3 {
+    font-size: 13px; line-height: 1.25; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .slot.r1 .info h3 { font-size: 14px; }
+  .podium .info small { display: block; margin-top: 2px; font-size: 11px; }
+  .podium .vote { width: 100%; padding: 9px 0; font-size: 13px; }
+  .podium .rank { top: 6px; left: 6px; padding: 3px 8px; font-size: 11px; }
+  .others li { grid-template-columns: 22px 38px minmax(0, 1fr) auto auto; gap: 10px; }
+  .others .vt { font-size: 13px; }
+  .others .vote { padding: 8px 16px; }
+
+  /* polls film strip */
+  .stage { height: 310px; touch-action: pan-y; }
+  .poll { width: 72%; }
+  .meta h3 { font-size: 17px; }
+  .meta p { font-size: 13px; }
+  .foot { font-size: 11px; gap: 10px; }
+
+  /* chat + chika */
+  .feed { gap: 0; }
+  .composer { flex-wrap: wrap; padding: 12px; border-radius: 20px; }
+  .composer textarea { flex: 1 1 calc(100% - 56px); min-height: 56px; }
+  .composer .btn-solid { margin-left: auto; }
+  .chat-scroll { max-height: 520px; padding-right: 0; overscroll-behavior: contain; }
+  .post { padding: 14px; gap: 10px; border-radius: 18px; }
+  .chat-av { width: 38px; height: 38px; }
+  .act { min-height: 40px; }
+  .reply-input input { min-height: 44px; }
+  .reply-input button { min-height: 44px; }
+  .chika-hero-body { padding: 16px; }
+  .chika-hero-body h3 { font-size: 20px; }
+  .chika-badge { width: 52px; top: 10px; left: 10px; }
+  .chika-rows { max-height: 420px; padding-right: 0; overscroll-behavior: contain; }
+  .chika-thumb { flex-basis: 96px; }
+
+  /* ================= VOTE (all polls + poll detail) ================= */
+  .polls-sidebar { position: static; padding-right: 5vw; gap: 12px; }
+  .polls-groups { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; gap: 8px; margin-right: -5vw; padding-right: 5vw; scrollbar-width: none; }
+  .polls-groups::-webkit-scrollbar { display: none; }
+  .group-filter { flex: none; min-height: 42px; }
+  .polls-section-head { padding-right: 5vw; }
+  .polls-section + .polls-section { margin-top: 30px; }
+  .polls-grid.collapsed { padding-right: 5vw; gap: 14px; scroll-snap-type: x mandatory; scroll-padding-left: 4px; -webkit-overflow-scrolling: touch; }
+  .polls-grid.collapsed .poll-card { flex-basis: min(78vw, 320px); }
+  .polls-grid.expanded { grid-template-columns: minmax(0, 1fr); padding-right: 5vw; }
+  .poll-card { padding: 8px 8px 14px; border-radius: 18px; }
+  .poll-card-info h3 { font-size: 16px; }
+  .row-nav { display: none; }
+
+  .poll-banner { aspect-ratio: 16 / 9; border-radius: 18px; }
+  .poll-info { padding: 18px; border-radius: 18px; }
+  .poll-info h1 { font-size: 24px; }
+  .poll-timer { font-size: 12px; flex-wrap: wrap; }
+  .poll-detail .others { margin-top: 26px; }
+  .artist-list .vote { min-height: 40px; }
+
+  /* ================= COMMUNITY / MARKET ================= */
+  .cm-card, .cm-skel { flex-basis: 78vw; }
+  .cm-title, .mk-title { font-size: 24px; }
+  .mk-head { margin-bottom: 18px; }
+  .mk-panel { padding: 16px 14px 18px; }
+  .mk-card:hover { transform: none; }
+  .sc-balances span { font-size: 13px; padding: 8px 12px; }
+  .spin-panel { width: 100%; }
+
+  /* ================= PROFILE / SETTINGS / TRANSACTIONS ================= */
+  .pf-hero { border-radius: 22px; }
+  .pf-cols { gap: 16px; margin-top: 16px; }
+  .pf-balance { flex-wrap: wrap; }
+  .pf-actions .btn-solid, .pf-actions .btn-ghost { flex: 1; }
+  .pf-composer textarea { font-size: 16px; }
+  .st-card { border-radius: 18px; }
+  .st-row { min-height: 60px; }
+  .st-actions .st-btn { flex: 1; }
+  .tx-head { flex-direction: column; align-items: stretch; gap: 14px; margin-bottom: 18px; }
+  .tx-panel { border-radius: 16px; }
+
+  /* ================= LOGIN / SIGN UP ================= */
+  .login-body { padding: 24px 20px 24px; }
+  .login-btn, .su-ghost { min-height: 52px; }
+  .su-actions { flex-direction: column-reverse; }
+  .su-actions .login-btn, .su-ghost { width: 100%; }
+  .su-seg-btn { min-height: 48px; }
+
+  /* ================= background effects: lighter on phones ================= */
+  .orb { filter: blur(60px); }
+  .o1 { width: 90vw; height: 90vw; top: -30vw; left: -20vw; }
+  .o2 { width: 80vw; height: 80vw; }
+}
+
+/* ================= BOTTOM SHEETS (dialogs slide up from the bottom on phones) ================= */
+@media (max-width: 560px) {
+  .modal-overlay { place-items: end center; padding: 0; }
+  .modal {
+    width: 100%; max-width: none; max-height: 92dvh; overflow-y: auto; border-radius: 26px 26px 0 0;
+    padding-bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateY(100%);
+    transition: opacity .25s ease, transform .45s cubic-bezier(.2, .8, .2, 1);
+    overscroll-behavior: contain;
+  }
+  /* little grab handle */
+  .modal::before { content: ''; display: block; width: 40px; height: 4px; margin: -12px auto 16px; border-radius: 4px; background: rgba(255, 255, 255, .25); }
+  .modal.dr-modal::before, .modal.rw-modal::before, .modal.cm-wide::before { display: none; }
+  .modal-actions { flex-direction: column-reverse; }
+  .modal-actions .btn-solid, .modal-actions .btn-ghost { width: 100%; }
+  .modal.dr-modal { max-height: 94dvh; overflow: hidden; border-radius: 26px 26px 0 0; }
+  .dr-banner { border-radius: 26px 26px 0 0; }
+  .dr-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .modal.rw-modal { height: 94dvh; border-radius: 26px 26px 0 0; }
+  .modal.cm-wide { padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
+  .spin-packs { gap: 8px; }
+}
+
+/* very small phones */
+@media (max-width: 360px) {
+  .links a { font-size: 10px; }
+  .nav-ico svg { width: 20px; height: 20px; }
+  .stars-grid { gap: 8px; }
+}
+
+@media (max-width: 900px) and (max-height: 480px) and (orientation: landscape) {
+  .links { width: min(380px, calc(100% - 24px)); }
+  .links a { flex-direction: row; justify-content: center; gap: 6px; padding: 7px 4px; }
+}
+
+/* ================= STICKY FILTERS / TABS (phones + small tablets) =================
+   The Polls filters, the Community tabs (Chat / Chika / Content) and the Market tabs
+   (Stars / Suns / Spin / Powerups) stay pinned under the top bar while the page scrolls.
+   (On wide screens they are already sticky in each page's own CSS.) */
+@media (max-width: 860px) {
+  .polls-sidebar, .cm-sidebar, .mk-sidebar {
+    position: sticky; top: 92px; z-index: 6; align-self: start;
+  }
+  .cm-sidebar, .mk-sidebar { padding: 6px 0; }
+  /* the Polls block has several rows: a clear frosted backdrop (blur, no dark colour) so the cards scrolling underneath don't show through */
+  .polls-sidebar {
+    margin-left: -5vw; padding-left: 5vw; padding-top: 8px; padding-bottom: 14px;
+  }
+  .polls-sidebar::before {
+    content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent);
+            mask-image: linear-gradient(to bottom, #000 78%, transparent);
+  }
+}
+@media (max-width: 760px) {
+  .polls-sidebar, .cm-sidebar, .mk-sidebar { top: calc(var(--top) - 10px); }
+}
+
+/* ================= COMMUNITY (phones): the page itself never scrolls ================= */
+/* Tabs stay put on top. Chat: the posting box stays put and only the posts scroll (same as the home page).
+   Chika / Content: the content scrolls below the tabs. Anything scrolling toward the tabs or the tab bar fades away. */
+@media (max-width: 760px) {
+  .community-page {
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  /* align-self: stretch keeps the tab bar full width (the older sticky rule says align-self: start, which would shrink it in this column layout) */
+  .community-page .cm-sidebar { position: static; flex: none; align-self: stretch; }
+  .community-page .cm-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-right: 0; }
+  .community-page .cm-title { flex: none; }
+  .community-page .cm-section { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+  /* chat: composer fixed, posts scroll underneath it and fade out at the edges */
+  .community-page .chat { flex: 1 1 auto; min-height: 0; max-width: none; }
+  .community-page .chat-scroll {
+    flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain; padding: 12px 0 34px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+
+  /* chika + content: the section scrolls (its right padding lets the swipe rows still run to the screen edge) */
+  .community-page .cm-section.cm-scroll {
+    display: block; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    margin-right: -5vw; padding: 12px 5vw 34px 0; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .community-page .cm-section.cm-scroll::-webkit-scrollbar { display: none; }
+}
+
+/* ================= POLLS (phones): same idea as Community ================= */
+/* The search + filters stay put on top; only the polls scroll below them and fade away before reaching the filters / the tab bar. */
+@media (max-width: 760px) {
+  .polls-page {
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  .polls-page .polls-sidebar { position: static; flex: none; align-self: stretch; margin-left: 0; padding: 0 5vw 0 0; background: none; }
+  .polls-page .polls-sidebar::before { display: none; }
+  .polls-page .polls-main {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    padding: 12px 0 34px; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .polls-page .polls-main::-webkit-scrollbar { display: none; }
+}
+
+/* ================= MARKET (phones): same idea as Community + Polls ================= */
+/* The tabs stay put on top; the heading and the shop / spin / powerups scroll below them and fade away before reaching the tabs or the tab bar. */
+@media (max-width: 760px) {
+  .market-page {
+    display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden;
+    height: calc(100vh - var(--dock)); height: calc(100svh - var(--dock));
+  }
+  .market-page .mk-sidebar { position: static; flex: none; align-self: stretch; }
+  .market-page .mk-ad { display: none; }
+  .market-page .mk-main, .market-page.has-ad .mk-main {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
+    margin-right: -5vw; padding: 12px 5vw 34px 0; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 36px), transparent);
+  }
+  .market-page .mk-main::-webkit-scrollbar { display: none; }
+}
+
+
+
+/* ================= BOARD POSTS (phones): Facebook-style ================= */
+/* Avatar + name on one line, the text and the photo use the full width, the photo runs edge to edge of the card.
+   The card keeps its rounded container; only the side margin around it is slim. */
+@media (max-width: 760px) {
+  .community-page .chat-scroll { margin: 0 -3vw; gap: 12px; }   /* cards keep their container, just a slim side margin */
+  .chat .post {
+    display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 10px; row-gap: 0; align-items: center;
+    padding: 12px 0 6px; border-radius: 18px; overflow: hidden; transform: none !important;
+  }
+  .chat .post-body { display: contents; }
+  .chat .post .who-av { grid-column: 1; grid-row: 1; margin-left: 12px; align-self: center; }
+  .chat .post .who-av .chat-av { width: 40px; height: 40px; }
+  .chat .post-body > * { grid-column: 1 / -1; padding-left: 12px; padding-right: 12px; }
+  .chat .post-body > .post-head { grid-column: 2; grid-row: 1; padding: 0 12px 0 0; align-self: center; }
+  .chat .post-body > .post-head time { flex-basis: 100%; margin: 0; }
+  .chat .post-body > .bd-post-title { margin: 10px 0 0; }
+  .chat .post-body > .post-text { margin-top: 6px; font-size: 15px; line-height: 1.5; }
+  .chat .post-body > .see-more { padding-top: 2px; }
+  /* photos: full card width, no rounded corners, taller on a phone */
+  .chat .post-body > .bd-photo.single,
+  .chat .post-body > .bd-carousel { padding-left: 0; padding-right: 0; margin-top: 10px; }
+  .chat .bd-photo img { border-radius: 0; width: 100%; max-height: 78vh; object-fit: cover; }
+  .chat .post-body > .post-actions { margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.1); }
+  .chat .post-body > .post-actions .act { flex: 1 1 0; justify-content: center; }
+  /* comments under a post line up with the post text again */
+  .chat .post-body > .comments, .chat .post-body > [class*="comment"] { padding-left: 12px; padding-right: 12px; }
+}

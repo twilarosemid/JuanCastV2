@@ -1,0 +1,77 @@
+/* Rewards page: same shell as Community (sidebar tabs + content). Only the content styles live here. */
+.rewards-page .cm-section { max-width: 860px; }
+
+/* back to profile, sits above the page title */
+.rw-head { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+.rw-head .cm-title { margin: 0; }
+.rw-back { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 16px 0 10px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 999px; background: rgba(255, 255, 255, .08); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: background .2s, transform .2s; }
+.rw-back:hover { background: rgba(255, 255, 255, .14); transform: translateX(-3px); }
+.rw-back:focus-visible { outline: 3px solid rgba(47, 123, 255, .6); outline-offset: 3px; }
+
+.rw-spin { min-width: 200px; }
+
+/* inventory */
+.rw-inventory { display: flex; flex-direction: column; gap: 12px; }
+.rw-item { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 18px; background: var(--card); border: 1px solid rgba(255, 255, 255, .1); backdrop-filter: blur(14px); transition: transform .3s cubic-bezier(.2, .7, .2, 1), border-color .3s; }
+.rw-item:hover { transform: translateY(-3px); border-color: rgba(245, 197, 66, .45); }
+.rw-item-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 16px; background: rgba(255, 255, 255, .08); }
+.rw-item-icon img { width: 48px; height: 48px; object-fit: contain; }
+.rw-item-icon img.wide { width: 60px; height: 38px; }
+.rw-item-copy h2 { margin: 0 0 3px; font-size: 17px; font-weight: 800; }
+.rw-item-copy p { margin: 0 0 4px; color: var(--muted); font-size: 13.5px; }
+.rw-item-copy span { color: rgba(169, 182, 211, .75); font-size: 12px; }
+.rw-item-action { min-height: 40px; padding: 0 20px; border: 0; border-radius: 999px; background: linear-gradient(180deg, #fff, #e3f0ff); color: #06307f; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: transform .2s, box-shadow .25s, opacity .2s; }
+.rw-item-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(245, 197, 66, .35); }
+.rw-item-action:disabled { cursor: default; opacity: .5; }
+
+.rw-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 280px; padding: 24px; border: 1px dashed rgba(255, 255, 255, .2); border-radius: 18px; text-align: center; }
+.rw-empty > span { font-size: 40px; color: var(--muted); }
+.rw-empty h2 { margin: 6px 0 0; font-size: 20px; font-weight: 800; }
+.rw-empty p { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+
+/* swerte wheel */
+.rw-swerte { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.rw-wheel-stage { position: relative; display: grid; width: min(100%, 460px); place-items: center; padding: 34px 0 8px; }
+.rw-pointer { position: absolute; z-index: 2; top: 6px; left: 50%; width: 30px; height: 42px; transform: translateX(-50%); clip-path: polygon(50% 100%, 0 0, 100% 0); background: #f5c84c; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .4)); }
+/* the shell never rotates, so the drop shadow stays put while only the wheel spins */
+.rw-wheel-shell { width: min(100%, 400px); aspect-ratio: 1; border-radius: 50%; box-shadow: 0 14px 34px rgba(0, 0, 0, .45); }
+.rw-wheel {
+  position: relative; width: 100%; aspect-ratio: 1; border: 8px solid #fff; border-radius: 50%;
+  background: repeating-conic-gradient(from -10deg, #f8fafc 0deg 20deg, #4f6cf7 20deg 40deg);
+  box-shadow: inset 0 0 0 1px rgba(30, 64, 175, .15);
+}
+.rw-wheel.is-spinning { transition: transform 5.2s cubic-bezier(.12, .72, .08, 1); }
+.rw-wheel-label { position: absolute; top: 50%; left: 50%; display: flex; width: 70px; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #172554; text-align: center; }
+.rw-wheel-label img { display: block; width: 40px; height: 40px; flex: 0 0 auto; object-fit: contain; }
+.rw-wheel-label img.wide { width: 62px; height: 38px; }
+.rw-wheel-label.stars { width: 100px; flex-direction: row; gap: 0; }
+.rw-wheel-label.stars img { width: 44px; height: 44px; }
+.rw-wheel-label.stars strong { color: #fff; font-size: 12px; font-weight: 900; text-shadow: 0 1px 3px rgba(15, 23, 42, .8); white-space: nowrap; }
+.rw-hub { position: absolute; top: 50%; left: 50%; display: grid; width: 56px; height: 56px; place-items: center; transform: translate(-50%, -50%); border: 3px solid #fff; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3c4, #e4b94d 76%); box-shadow: 0 2px 8px rgba(15, 23, 42, .25); color: #fff; font-size: 22px; }
+.rw-wheel-count { margin: 4px 0 6px; color: var(--muted); font-size: 14px; text-align: center; }
+
+/* daily stars, inline (reuses the .dr-* card styles from the check-in) */
+.rw-daily-page { --dr-icon: 48px; --dr-gap: 14px; display: flex; flex-direction: column; gap: var(--dr-gap); }
+.rw-daily-sub { margin: 0; color: var(--muted); font-size: 14px; }
+.rw-daily-sub strong { color: var(--text); }
+.rw-daily-page .dr-grid { margin-bottom: 0; }
+.rw-daily-page .dr-card { padding: 16px 10px; }
+.rw-daily-page .dr-notice { text-align: left; }
+
+/* Day 7: same card as the other days, just full width and gold so it stands out */
+.rw-grand { padding: 18px 10px 16px; border-color: rgba(250, 204, 21, .55); background: radial-gradient(90% 120% at 50% 0%, rgba(250, 204, 21, .2), rgba(250, 204, 21, .05) 70%); box-shadow: 0 0 0 3px rgba(250, 204, 21, .1), 0 14px 36px rgba(250, 204, 21, .12); }
+.rw-grand.available { border-color: rgba(250, 204, 21, .85); box-shadow: 0 0 0 3px rgba(250, 204, 21, .18), 0 16px 40px rgba(250, 204, 21, .2); }
+.rw-grand h3 { color: #facc15; }
+.rw-grand img { width: calc(var(--dr-icon) * 1.5); height: calc(var(--dr-icon) * 1.5); }
+.rw-grand strong { color: #facc15; }
+.modal.dr-modal.rw-win-modal { width: min(420px, 100%); }
+
+@media (max-width: 760px) {
+  .rw-item { grid-template-columns: 56px minmax(0, 1fr); }
+  .rw-item-icon { width: 56px; height: 56px; }
+  .rw-item-action { grid-column: 1 / -1; }
+  .rw-wheel-stage { padding-top: 30px; }
+  .rw-wheel-shell { width: min(100%, 340px); }
+  .rw-daily-page { --dr-icon: 38px; --dr-gap: 10px; }
+  .rw-daily-page .dr-card { padding: 10px 4px; }
+}

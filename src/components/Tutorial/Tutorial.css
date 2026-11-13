@@ -1,0 +1,43 @@
+/* Game-style walkthrough: dimmed screen, a glowing spotlight on the thing being explained, and a speech card. */
+.tut { position: fixed; inset: 0; z-index: 3000; }
+.tut-block { position: absolute; inset: 0; touch-action: none; }
+.tut-dim { position: absolute; inset: 0; background: rgba(3, 10, 32, .8); backdrop-filter: blur(3px); animation: tutFade .3s ease-out; }
+.tut-spot {
+  position: absolute; border-radius: 18px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(3, 10, 32, .8), 0 0 0 3px var(--gold), 0 0 24px 4px rgba(245, 197, 66, .55);
+  transition: top .35s cubic-bezier(.2, .7, .2, 1), left .35s cubic-bezier(.2, .7, .2, 1), width .35s cubic-bezier(.2, .7, .2, 1), height .35s cubic-bezier(.2, .7, .2, 1);
+  animation: tutPulse 1.8s ease-in-out infinite;
+}
+@keyframes tutPulse {
+  50% { box-shadow: 0 0 0 9999px rgba(3, 10, 32, .8), 0 0 0 5px var(--gold), 0 0 34px 8px rgba(245, 197, 66, .75); }
+}
+@keyframes tutFade { from { opacity: 0; } }
+
+.tut-card {
+  position: absolute; z-index: 2; max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); padding: 18px 20px 16px;
+  border-radius: 20px; color: var(--text); background: linear-gradient(160deg, #0f3a8f, #0a2566);
+  border: 1px solid rgba(255, 255, 255, .22); box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  animation: tutPop .32s cubic-bezier(.34, 1.4, .5, 1);
+  transition: top .28s cubic-bezier(.2, .7, .2, 1), left .28s cubic-bezier(.2, .7, .2, 1);
+}
+@keyframes tutPop { from { opacity: 0; transform: translateY(10px) scale(.95); } }
+.tut-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tut-step { padding: 3px 10px; border-radius: 999px; background: rgba(245, 197, 66, .18); color: var(--gold); font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.tut-skip { padding: 4px 6px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.tut-skip:hover { color: #fff; text-decoration: underline; }
+.tut-card h3 { margin: 12px 0 6px; font-size: 19px; }
+.tut-card p { margin: 0; font-size: 14.5px; line-height: 1.5; color: rgba(244, 247, 255, .9); }
+.tut-dots { display: flex; justify-content: center; gap: 6px; margin: 14px 0 12px; }
+.tut-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .22); transition: background .2s, transform .2s; }
+.tut-dots i.past { background: rgba(245, 197, 66, .6); }
+.tut-dots i.on { background: var(--gold); transform: scale(1.35); }
+.tut-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tut-back { min-height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .28); background: transparent; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.tut-back:hover { background: rgba(255, 255, 255, .1); }
+.tut-next { min-height: 40px; padding: 0 24px; border: 0; border-radius: 999px; background: var(--gold); color: #1a1200; font: inherit; font-weight: 800; cursor: pointer; box-shadow: 0 8px 20px rgba(245, 197, 66, .35); transition: transform .2s, box-shadow .2s; }
+.tut-next:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(245, 197, 66, .5); }
+.tut-next:focus-visible, .tut-back:focus-visible, .tut-skip:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-spot, .tut-card { animation: none; transition: none; }
+}
