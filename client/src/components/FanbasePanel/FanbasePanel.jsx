@@ -320,7 +320,6 @@ function LeaderboardView({ fanbase, topFans, onBack }) {
 
   return (
     <section className="fb-fans" aria-label="Leaderboard">
-      <button type="button" className="fb-back" onClick={onBack}>← Back to {fanbase.name}</button>
       <div className="fb-fans-head">
         <h3>Top 100 Fans</h3>
         <p>Ranked by the Stars spent voting for {fanbase.name}&apos;s artists or for the whole group{fanCount ? ` · ${nf(fanCount)} ${fanCount === 1 ? 'fan' : 'fans'} · ${nf(totalStars)} Stars` : ''}.</p>
