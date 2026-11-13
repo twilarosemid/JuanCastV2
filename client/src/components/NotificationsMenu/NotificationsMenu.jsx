@@ -83,15 +83,15 @@ export default function NotificationsMenu({ visible, onClose, user, onUnreadChan
     onClose();
     if (n.type === 'follow') navigate(`/profile/${encodeURIComponent(actor)}`);
     else if (n.type === 'artist_post') navigate(n.sourceId ? `/community?tab=fanbase&artist=${encodeURIComponent(n.sourceId)}${n.postId ? `&post=${encodeURIComponent(n.postId)}` : `&by=${encodeURIComponent(actor)}`}` : `/profile/${encodeURIComponent(actor)}`);
-    else navigate(n.postId ? `/profile#post-${n.postId}` : '/profile');
+    else navigate(n.postId ? `/community?post=${encodeURIComponent(n.postId)}` : '/community');
   };
 
   const unread = (items || []).filter((n) => !n.isRead).length;
 
   const label = (n) => {
     const who = <strong>{n.actor}</strong>;
-    if (n.type === 'like') return <>{who} liked your post</>;
-    if (n.type === 'reply') return <>{who} replied to your post</>;
+    if (n.type === 'like') return <>{who} {n.subject === 'comment' ? 'hearted your comment' : 'liked your post'}</>;
+    if (n.type === 'reply') return <>{who} {n.subject === 'comment' ? 'replied to your comment' : 'replied to your post'}</>;
     if (n.type === 'follow') return <>{who} started following you</>;
     if (n.type === 'artist_post') return <><strong>{n.subject || n.actor}</strong> shared a new post</>;
     return <strong>{n.subject || 'Message from JuanCast'}</strong>;

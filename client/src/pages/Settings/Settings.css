@@ -143,3 +143,12 @@ a.st-row:hover .st-chev { color: #fff; transform: translateX(4px); }
   .st-opt { flex-direction: column; align-items: stretch; }
   .st-pill { width: 100%; }
 }
+
+/* 6-box one-time code (OTP) input */
+.st-otp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
+.modal input.st-otp-box, .st-otp-box {
+  width: 100%; min-width: 0; height: 52px; padding: 0; border: 1px solid rgba(255, 255, 255, .24); border-radius: 12px; background: rgba(255, 255, 255, .08);
+  color: var(--text); font: inherit; font-size: 22px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; caret-color: var(--accent);
+}
+.modal input.st-otp-box:focus, .st-otp-box:focus { outline: 0; border-color: var(--accent); background: rgba(255, 255, 255, .12); box-shadow: 0 0 0 4px rgba(47, 123, 255, .25); }
+@media (max-width: 480px) { .st-otp { gap: 6px; } .modal input.st-otp-box, .st-otp-box { height: 46px; font-size: 20px; } }

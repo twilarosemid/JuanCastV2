@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { getJSON, img } from '../../api';
 import useBubble from '../../hooks/useBubble';
 import Modal from '../../components/Modal/Modal';
-import ChatPanel from '../../components/ChatPanel/ChatPanel';
+import BoardPanel from '../../components/BoardPanel/BoardPanel';
 import ChikaPanel from '../../components/ChikaPanel/ChikaPanel';
 import FanbasePanel from '../../components/FanbasePanel/FanbasePanel';
 import './Community.css';
 
 const SECTIONS = [
-  { id: 'chat', label: 'Chat' },
+  { id: 'chat', label: 'Board' },
   { id: 'fanbase', label: 'Fanbase' },
   { id: 'chika', label: 'Chika' },
   { id: 'contents', label: 'Content' }
@@ -175,7 +175,7 @@ export default function Community() {
       <main className="cm-main">
         <h1 className="cm-title" key={`t-${active}`}>{title}</h1>
         <div className={`cm-section${active === 'chat' ? '' : ' cm-scroll'}`} key={active}>
-          {active === 'chat' && <ChatPanel />}
+          {active === 'chat' && <BoardPanel />}
           {active === 'fanbase' && <FanbasePanel />}
           {active === 'chika' && <ChikaPanel />}
           {active === 'contents' && <ContentSection />}

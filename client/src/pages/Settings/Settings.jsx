@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { API, clearUser } from '../../api';
 import Modal from '../../components/Modal/Modal';
@@ -193,12 +193,59 @@ function ChangePassword() {
   );
 }
 
+/* ---------- 6-box one-time code (OTP) input: type, paste or auto-fill from the email / SMS ---------- */
+function OtpBoxes({ value, onChange, autoFocus }) {
+  const refs = useRef([]);
+  const digits = Array.from({ length: 6 }, (_, i) => value[i] || '');
+  const focus = (i) => refs.current[Math.max(0, Math.min(5, i))]?.focus();
+  const put = (i, raw) => {
+    const typed = raw.replace(/\D/g, '');
+    if (!typed) return;
+    let add = typed;
+    if (digits[i] && typed.length === 2) add = typed.replace(digits[i], '') || typed[1]; // box already had a digit: keep the new one
+    const next = digits.slice();
+    add.split('').slice(0, 6 - i).forEach((d, n) => { next[i + n] = d; });
+    onChange(next.join(''));
+    focus(i + add.length);
+  };
+  const key = (e, i) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      const next = digits.slice();
+      if (next[i]) next[i] = ''; else if (i > 0) { next[i - 1] = ''; focus(i - 1); }
+      onChange(next.join(''));
+    } else if (e.key === 'ArrowLeft') focus(i - 1);
+    else if (e.key === 'ArrowRight') focus(i + 1);
+  };
+  return (
+    <div className="st-otp" role="group" aria-label="6-digit verification code">
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => { refs.current[i] = el; }}
+          className="st-otp-box"
+          type="text"
+          inputMode="numeric"
+          autoComplete={i === 0 ? 'one-time-code' : 'off'}
+          maxLength={6}
+          value={d}
+          autoFocus={autoFocus && i === 0}
+          aria-label={`Digit ${i + 1}`}
+          onChange={(e) => put(i, e.target.value)}
+          onKeyDown={(e) => key(e, i)}
+          onFocus={(e) => e.target.select()}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- One reusable password (+ emailed code) confirmation ---------- */
-function SecureModal({ title, intro, path, extra = {}, confirmLabel, danger, requireText, email, onClose, onSuccess }) {
+function SecureModal({ title, intro, path, extra = {}, confirmLabel, danger, requireText, otpOnly, email, onClose, onSuccess }) {
   const [password, setPassword] = useState('');
   const [typed, setTyped] = useState('');
   const [code, setCode] = useState('');
-  const [step, setStep] = useState('password');
+  const [step, setStep] = useState(otpOnly ? 'code' : 'password'); // otpOnly: no password, the emailed one-time code is the whole check
   const [sentTo, setSentTo] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -217,6 +264,9 @@ function SecureModal({ title, intro, path, extra = {}, confirmLabel, danger, req
       setBusy(false);
     }
   };
+  // otpOnly: email the code as soon as the dialog opens
+  const sentOnOpen = useRef(false); // React dev mode runs effects twice: only email one code
+  useEffect(() => { if (otpOnly && !sentOnOpen.current) { sentOnOpen.current = true; run(false); } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const submit = (e) => { e.preventDefault(); if (!busy) run(step === 'code'); };
   const ready = step === 'password' ? password && (!requireText || typed.trim() === requireText) : code.length === 6;
 
@@ -238,10 +288,11 @@ function SecureModal({ title, intro, path, extra = {}, confirmLabel, danger, req
           </>
         ) : (
           <>
-            <p>We sent a 6-digit code to <b>{sentTo || 'your email'}</b>. Enter it to continue.</p>
-            <label htmlFor="sm-code">Verification code</label>
-            <input id="sm-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="st-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus />
-            <button type="button" className="st-linkbtn" onClick={() => { setCode(''); run(false); }} disabled={busy}>Send a new code</button>
+            {otpOnly && <p>{intro}</p>}
+            <p>{sentTo ? <>We sent a 6-digit one-time code (OTP) to <b>{sentTo}</b>. Enter it to continue.</> : (busy ? 'Sending a one-time code to your email…' : 'We could not send the code yet.')}</p>
+            <label>One-time code</label>
+            <OtpBoxes value={code} onChange={(v) => { setError(''); setCode(v); }} autoFocus />
+            <button type="button" className="st-linkbtn" onClick={() => { setCode(''); run(false); }} disabled={busy}>{sentTo ? 'Send a new code' : 'Try sending again'}</button>
           </>
         )}
         {error && <p className="st-err" role="alert" style={{ margin: '12px 0 0' }}>{error}</p>}
@@ -292,8 +343,8 @@ function Account() {
     title: tfa ? 'Turn off 2FA' : 'Turn on 2FA',
     intro: tfa
       ? 'Enter your password. We will email you a code to confirm turning 2FA off.'
-      : 'With 2FA on, we email you a 6-digit code before you can change your password or delete your account. Enter your password to start.',
-    path: '/api/account/2fa', extra: { enable: !tfa }, confirmLabel: tfa ? 'Turn off' : 'Turn on',
+      : 'With 2FA on, we email you a 6-digit code before you can change your password or delete your account. To set it up, enter the one-time code we just emailed you.',
+    path: '/api/account/2fa', extra: { enable: !tfa }, otpOnly: !tfa, confirmLabel: tfa ? 'Turn off' : 'Turn on',
     onSuccess: (data) => { setStatus((s) => ({ ...s, twoFactorEnabled: Boolean(data.twoFactorEnabled) })); setDialog(null); setFb({ open: true, type: 'success', message: data.message || 'Done.', leave: false }); }
   });
   const openDeactivate = () => setDialog({

@@ -4,6 +4,7 @@ import Cropper from 'react-easy-crop';
 import { adminFetch, clearUser, getJSON, img, isAdminUser, isGroupAdminUser, isSuperAdminUser } from '../../api';
 import useUser from '../../hooks/useUser';
 import Modal from '../../components/Modal/Modal';
+import BoardPanel from '../../components/BoardPanel/BoardPanel';
 import { SocialLinksFields } from '../../components/SocialLinks/SocialLinks';
 import { markEntered } from '../../landingGate';
 import './Admin.css';
@@ -36,6 +37,7 @@ const NAV_SUPER = [
     { key: 'contents', label: 'Contents', desc: 'Videos and other content on the site.' },
   ] },
   { group: 'Community', items: [
+    { key: 'board', label: 'Community Board', desc: 'Write posts for the Community Board and control the comments: pin, lock, remove and mute.' },
     { key: 'accounts', label: 'Accounts', desc: 'Accounts made from this dashboard, and who is a user, an artist, a Group Admin, a System Admin or a super admin.' },
     { key: 'reports', label: 'Reports', desc: 'Problems sent in by users. Reply or mark them resolved.' }
   ] },
@@ -2486,6 +2488,7 @@ function Dashboard({ user }) {
             {tab === 'ads' && <AdsTab ads={data.ads} ctx={ctx} />}
             {tab === 'landing' && <LandingTab settings={data.settings} ctx={ctx} />}
             {tab === 'reports' && <ReportsTab reports={data.reports} loading={loading} ctx={ctx} />}
+            {tab === 'board' && <div className="admin-board" style={{ maxWidth: 820 }}><BoardPanel /></div>}
             {tab === 'accounts' && <AccountsTab key="accounts" ctx={ctx} />}
             {tab === 'artistprofiles' && <AccountsTab key="artistprofiles" ctx={ctx} groupMode />}
             {tab === 'promos' && <PromosTab key="promos" ctx={ctx} />}

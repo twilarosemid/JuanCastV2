@@ -5,6 +5,7 @@ import { API, getJSON, getUser, img, normalizeHandle } from '../../api';
 import Modal from '../Modal/Modal';
 import ArtistIdModal from '../ArtistIdCard/ArtistIdCard';
 import PhotoCarousel from '../PhotoCarousel/PhotoCarousel';
+import { pollStatus, STATUS_LABEL, timeLeftText } from '../../utils/pollTime';
 import './FanbasePanel.css';
 
 const bg = (url) => (url ? { backgroundImage: `url("${img(url)}")` } : undefined);
@@ -242,24 +243,69 @@ function MerchTab({ fanbaseId }) {
   );
 }
 
-// Top Fans tab: fans ranked by the Stars they spent voting for this group's artists or for the whole group.
-function TopFansTab({ fanbase }) {
+// Top Fans: the top 3 sit on the fanbase banner with a gold / silver / bronze ring (like TikTok). Tap them to see the top 100.
+const RING = { 1: 'gold', 2: 'silver', 3: 'bronze' };
+// Polls this artist / group is in. Each one opens that poll's page. Live polls come first, finished ones last.
+const POLL_ORDER = { ending: 0, ongoing: 0, soon: 1, ended: 2 };
+function PollLinks({ polls = [] }) {
+  if (!polls.length) return null;
+  const now = new Date();
+  const list = polls
+    .map((p) => ({ ...p, status: pollStatus(p, now) }))
+    .sort((a, b) => POLL_ORDER[a.status] - POLL_ORDER[b.status])
+    .slice(0, 3);
+  return (
+    <div className="fb-polls" role="list" aria-label="Polls this artist is in">
+      {list.map((p) => (
+        <Link key={p._id} role="listitem" to={`/polls/${p._id}`} className={`fb-poll ${p.status}`}>
+          <span className="fb-poll-dot" aria-hidden="true" />
+          <span className="fb-poll-text">
+            <small>{p.status === 'ended' ? 'Past poll' : 'Existing poll'} · {STATUS_LABEL[p.status]}{p.status !== 'ended' ? ` · ${timeLeftText(p, now)}` : ''}</small>
+            <strong>{p.displayTitle || p.title}</strong>
+          </span>
+          <span className="fb-poll-go" aria-hidden="true">›</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// Top Fans data for one fanbase, loaded once and shared by the badge in the bar and the Leaderboard tab.
+function useTopFans(fanbaseId) {
   const [state, setState] = useState({ loading: true, error: false, data: null });
   const email = getUser()?.email || '';
 
   useEffect(() => {
     let alive = true;
     setState({ loading: true, error: false, data: null });
-    getJSON(`/api/fanbases/${fanbase._id}/top-fans${email ? `?email=${encodeURIComponent(email)}` : ''}`)
+    getJSON(`/api/fanbases/${fanbaseId}/top-fans${email ? `?email=${encodeURIComponent(email)}` : ''}`)
       .then((data) => { if (alive) setState({ loading: false, error: false, data }); })
       .catch(() => { if (alive) setState({ loading: false, error: true, data: null }); });
     return () => { alive = false; };
-  }, [fanbase._id, email]);
+  }, [fanbaseId, email]);
 
-  if (state.loading) return <div className="feed-empty">Loading…</div>;
-  if (state.error || !state.data) return <div className="feed-empty">Could not load Top Fans.</div>;
+  return state;
+}
 
-  const { fans = [], you = null, fanCount = 0, totalStars = 0 } = state.data;
+// Top 3 fans as stacked profile pictures next to the price: #1 in front, #3 furthest back, with gold / silver / bronze outlines.
+// Tapping the stack opens the leaderboard view.
+function TopFans({ topFans, onOpen }) {
+  const fans = (topFans.data?.fans || []).slice(0, 3);
+  if (topFans.loading || topFans.error || fans.length === 0) return null;
+  return (
+    <button type="button" className="fb-top3" onClick={onOpen} aria-label={`Leaderboard. Top fans: ${fans.map((f) => `#${f.rank} @${f.username}`).join(', ')}`}>
+      {fans.map((fan) => (
+        <span key={fan.rank} className={`fb-top3-fan ${RING[fan.rank]}`} style={{ zIndex: 4 - fan.rank }} title={`#${fan.rank} @${fan.username}`}>
+          <span className="fb-top3-pic" style={bg(fan.avatar)}>{!fan.avatar && (fan.username || '?').charAt(0).toUpperCase()}</span>
+        </span>
+      ))}
+    </button>
+  );
+}
+
+// Leaderboard view: the top 100 fans, shown inside the fanbase page in place of the tab content.
+function LeaderboardView({ fanbase, topFans, onBack }) {
+  const { fans = [], you = null, fanCount = 0, totalStars = 0 } = topFans.data || {};
   const Row = ({ fan }) => (
     <li className={`fb-fan${fan.isYou ? ' you' : ''}${fan.rank <= 3 ? ` top${fan.rank}` : ''}`}>
       <span className="fb-fan-rank" aria-label={`Rank ${fan.rank}`}>{fan.rank}</span>
@@ -273,14 +319,13 @@ function TopFansTab({ fanbase }) {
   );
 
   return (
-    <section className="fb-fans" aria-label="Top Fans">
+    <section className="fb-fans" aria-label="Leaderboard">
+      <button type="button" className="fb-back" onClick={onBack}>← Back to {fanbase.name}</button>
       <div className="fb-fans-head">
-        <h3>Top Fans</h3>
+        <h3>Top 100 Fans</h3>
         <p>Ranked by the Stars spent voting for {fanbase.name}&apos;s artists or for the whole group{fanCount ? ` · ${nf(fanCount)} ${fanCount === 1 ? 'fan' : 'fans'} · ${nf(totalStars)} Stars` : ''}.</p>
       </div>
-      {fans.length === 0 ? (
-        <div className="feed-empty">No votes yet. Vote for {fanbase.name} or one of its artists to be the first on the board.</div>
-      ) : (
+      {fans.length === 0 ? <div className="feed-empty">No fans on the leaderboard yet.</div> : (
         <ol className="fb-fan-list">
           {fans.map((fan) => <Row key={`${fan.rank}-${fan.username}`} fan={fan} />)}
           {you && (
@@ -299,7 +344,10 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
   const user = getUser();
   const location = useLocation();
   const [state, setState] = useState({ loading: true, error: '', data: null });
-  const [tab, setTab] = useState('board');
+  const [tab, setTabRaw] = useState('board');
+  const [showLb, setShowLb] = useState(false); // the leaderboard view (opened from the top-3 pictures); picking any tab leaves it
+  const setTab = useCallback((t) => { setShowLb(false); setTabRaw(t); }, []);
+  const topFans = useTopFans(id);
   const [idMember, setIdMember] = useState(null); // artist whose ID card pop-up is open (kept after closing so it can animate out)
   const [idOpen, setIdOpen] = useState(false);
   const [soon, setSoon] = useState(false);
@@ -362,14 +410,14 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
     );
   }
 
-  const { fanbase, locked, total, posts, members = [], previewPhotos = [], photoTotal = 0 } = state.data;
+  const { fanbase, locked, total, posts, members = [], previewPhotos = [], photoTotal = 0, polls = [] } = state.data;
   const photos = posts.flatMap((p) => photosOf(p).map((url, n) => ({ key: `${p._id}-${n}`, url, postId: p._id, index: n })));
   const viewPost = (photo) => {
     setLightbox(null);
     setTab('board');
     setFocus({ postId: photo.postId, index: photo.index });
   };
-  const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar'], ['merch', 'Merch'], ['topfans', 'Top Fans']];
+  const TABS = [['board', 'Board'], ['media', 'Media'], ['about', 'About'], ['calendar', 'Calendar'], ['merch', 'Merch']];
 
   return (
     <div className="fb-board">
@@ -382,19 +430,22 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
         </div>
       </header>
 
+      <PollLinks polls={polls} />
+
       <div className="fb-bar">
         <nav className="fb-tabs" aria-label="Fanbase sections">
           {TABS.map(([key, label]) => (
-            <button key={key} type="button" className={tab === key ? 'on' : ''} aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{label}</button>
+            <button key={key} type="button" className={!showLb && tab === key ? 'on' : ''} aria-current={!showLb && tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{label}</button>
           ))}
         </nav>
         <div className="fb-sub">
+          <TopFans topFans={topFans} onOpen={() => setShowLb(true)} />
           <span className="fb-price">Php {peso(fanbase.price)}<small>/month</small></span>
           <button type="button" className="fb-subscribe" disabled={!locked} onClick={() => setSoon(true)}>{locked ? 'Subscribe' : 'Subscribed'}</button>
         </div>
       </div>
 
-      {tab === 'board' && (
+      {!showLb && tab === 'board' && (
         <div className="fb-body open">
           <div className="fb-feed">
             {posts.length === 0 && <div className="feed-empty">No posts yet.</div>}
@@ -433,7 +484,7 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
         </div>
       )}
 
-      {tab === 'media' && (
+      {!showLb && tab === 'media' && (
         locked ? <LockedBlock count={0} /> : photos.length ? (
           <div className="fb-media-grid">
             {photos.map((p, i) => (
@@ -443,7 +494,7 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
         ) : <div className="feed-empty">No photos yet.</div>
       )}
 
-      {tab === 'about' && (
+      {!showLb && tab === 'about' && (
         <div className="fb-about">
           <section className="fb-about-section">
             <h3>About the group</h3>
@@ -479,11 +530,12 @@ function Board({ id, onBack, focusPost = '', focusBy = '' }) {
         </div>
       )}
 
-      {tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
+      {!showLb && tab === 'calendar' && <div className="feed-empty">Coming soon.</div>}
 
-      {tab === 'merch' && <MerchTab fanbaseId={fanbase._id} />}
+      {!showLb && tab === 'merch' && <MerchTab fanbaseId={fanbase._id} />}
 
-      {tab === 'topfans' && <TopFansTab fanbase={fanbase} />}
+      {showLb && <LeaderboardView fanbase={fanbase} topFans={topFans} onBack={() => setShowLb(false)} />}
+
 
       {lightbox !== null && photos[lightbox] && (
         <Lightbox photos={photos} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)} onViewPost={viewPost} />

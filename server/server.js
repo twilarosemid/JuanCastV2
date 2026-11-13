@@ -1223,23 +1223,55 @@ app.post('/api/check-username', async (req, res) => {
   }
 });
 
-// Chat Posts
+// Community Board: posts are written by system admins / super admins only; everyone else can like and comment.
+// (Posts made by users before the board existed are kept and still shown.)
 const postSchema = new mongoose.Schema({
   user: { type: String, required: true },
   avatar: { type: String, default: '' },
-  text: { type: String, required: true },
+  official: { type: Boolean, default: false },                   // written from the board by a system admin / super admin (shows the Official badge)
+  title: { type: String, default: '', maxlength: 120 },
+  text: { type: String, default: '' },
+  images: { type: [String], default: [] },                       // up to 10 photos, in order
+  pinned: { type: Boolean, default: false },                     // pinned posts stay on top of the board
+  commentsMode: { type: String, enum: ['open', 'locked', 'off'], default: 'open' }, // open | locked (read only) | off (hidden)
   likes: { type: [String], default: [] },
-  // ADD THIS REPLIES ARRAY:
   replies: [{
     user: String,
     avatar: String,
     text: String,
+    official: { type: Boolean, default: false },                 // written by a system admin / super admin
+    pinned: { type: Boolean, default: false },                   // a pinned comment is shown first
+    removed: { type: Boolean, default: false },                  // removed by a moderator (the text is never sent to the app again)
+    removedBy: { type: String, default: '' },
+    removedAt: { type: Date, default: null },
+    likes: { type: [String], default: [] },                      // @handles that hearted this comment
+    replies: [{                                                  // people answering this comment (a reply to a reply lands here too, with replyTo set)
+      user: String,
+      avatar: String,
+      text: String,
+      replyTo: { type: String, default: '' },                    // the @handle this reply answers
+      likes: { type: [String], default: [] },                    // @handles that hearted this reply
+      official: { type: Boolean, default: false },
+      removed: { type: Boolean, default: false },
+      removedBy: { type: String, default: '' },
+      removedAt: { type: Date, default: null },
+      createdAt: { type: Date, default: Date.now }
+    }],
     createdAt: { type: Date, default: Date.now }
   }],
+  editedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Post = mongoose.model('Post', postSchema);
+
+// people who may read the board but not comment on it
+const BoardMute = mongoose.model('BoardMute', new mongoose.Schema({
+  handle: { type: String, required: true, unique: true, lowercase: true, trim: true },   // without the @
+  mutedBy: { type: String, default: '' },
+  reason: { type: String, default: '', maxlength: 200 },
+  createdAt: { type: Date, default: Date.now }
+}));
 
 const notificationSchema = new mongoose.Schema({
   recipient: { type: String, required: true, index: true },
@@ -1316,18 +1348,53 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
   }
 });
 
+// everything the app needs to draw a board post (removed comments lose their text and author)
+const serializeBoardPost = (doc, hidden = new Set()) => {
+  const item = doc.toObject ? doc.toObject() : { ...doc };
+  const isHidden = (handle) => hidden.has(String(handle || '').trim().toLowerCase());
+  item.images = postPhotos(item);
+  item.title = item.title || '';
+  item.official = Boolean(item.official);
+  item.pinned = Boolean(item.pinned);
+  item.commentsMode = item.commentsMode || 'open';
+  const cleanChildren = (list) => (list || [])
+    .filter((child) => child.removed || !isHidden(child.user))
+    .map((child) => (child.removed
+      ? { _id: child._id, removed: true, user: '', avatar: '', text: '', replyTo: '', likes: [], official: false, createdAt: child.createdAt }
+      : { ...child, removed: false, official: Boolean(child.official), replyTo: child.replyTo || '', likes: child.likes || [] }));
+  item.replies = (item.replies || [])
+    .filter((reply) => reply.removed || !isHidden(reply.user))
+    .map((reply) => (reply.removed
+      ? { _id: reply._id, removed: true, user: '', avatar: '', text: '', likes: [], official: false, pinned: false, createdAt: reply.createdAt, replies: cleanChildren(reply.replies) }
+      : { ...reply, removed: false, official: Boolean(reply.official), pinned: Boolean(reply.pinned), likes: reply.likes || [], replies: cleanChildren(reply.replies) }));
+  return item;
+};
+
+// the signed-in system admin / super admin, or null (used where staff get extra powers but everyone may call the route)
+const staffFromRequest = async (req) => {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const [body, sig] = token.split('.');
+    if (!body || !sig) return null;
+    const expected = Buffer.from(signToken(body));
+    const given = Buffer.from(sig);
+    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    if (!payload.exp || payload.exp < Date.now()) return null;
+    const user = await User.findById(payload.id);
+    return user && ['systemadmin', 'superadmin'].includes(resolveRole(user)) ? user : null;
+  } catch (error) {
+    return null;
+  }
+};
+
 app.get('/api/posts', async (req, res) => {
   try {
     const [posts, hidden] = await Promise.all([Post.find().sort({ createdAt: -1 }), hiddenHandles()]);
-    if (!hidden.size) return res.status(200).json(posts);
-    const isHidden = (handle) => hidden.has(String(handle || '').trim().toLowerCase());
-    res.status(200).json(posts
-      .filter((post) => !isHidden(post.user))
-      .map((post) => {
-        const item = post.toObject();
-        item.replies = (item.replies || []).filter((reply) => !isHidden(reply.user));
-        return item;
-      }));
+    const visible = posts.filter((post) => !hidden.has(String(post.user || '').trim().toLowerCase()));
+    visible.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))); // pinned first, newest first inside each group
+    res.status(200).json(visible.map((post) => serializeBoardPost(post, hidden)));
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch posts" });
   }
@@ -1365,62 +1432,140 @@ app.put('/api/posts/:id/like', async (req, res) => {
   }
 });
 
-app.post('/api/posts', async (req, res) => {
-  try {
-    const { user, avatar, text } = req.body;
-    if (!text || !text.trim()) {
-      return res.status(400).json({ message: "Post text cannot be empty" });
-    }
-    const newPost = new Post({ user, avatar: avatar || "", text, likes: [], replies: [] });
-    await newPost.save();
-    res.status(201).json(newPost);
-  } catch (error) {
-    console.error("Error creating post:", error);
-    res.status(500).json({ error: "Failed to create post" });
-  }
-});
+// (creating a post now lives in the COMMUNITY BOARD section further down: system admins / super admins only)
 
-// POST: Add a reply to a specific post
+// POST: add a comment to a board post (blocked when the post is locked / comments are off, or the person is muted; staff can always comment)
 app.post('/api/posts/:id/reply', async (req, res) => {
   try {
-    const { user, avatar, text } = req.body;
-    if (!text || !String(text).trim()) return res.status(400).json({ message: 'Reply cannot be empty.' });
-    
-    // 1. Find the post by the ID in the URL
+    const text = String(req.body.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'Reply cannot be empty.' });
+    if (text.length > 1000) return res.status(400).json({ message: 'Comments can be up to 1000 characters.' });
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Post not found' });
+
     const post = await Post.findById(req.params.id);
-    
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    const staff = await staffFromRequest(req);
+    const mode = post.commentsMode || 'open';
+    if (!staff && mode === 'off') return res.status(403).json({ message: 'Comments are turned off for this post.' });
+    if (!staff && mode === 'locked') return res.status(403).json({ message: 'Comments are locked on this post.' });
+
+    let user = String(req.body.user || '').trim();
+    let avatar = req.body.avatar || '';
+    if (staff) {
+      const profile = await findProfileByEmail(staff.email);
+      user = profile?.username ? `@${profile.username}` : '@JuanCast';
+      avatar = profile?.avatar || '';
+    } else {
+      const handle = normalizeHandle(user);
+      if (!handle || handle === 'guest') return res.status(400).json({ message: 'A signed-in user is required.' });
+      if (await BoardMute.exists({ handle })) return res.status(403).json({ message: 'You can’t comment on the board right now.' });
     }
 
-    // 2. Add the new reply to the array
-    post.replies.push({ 
-      user, 
-      avatar: avatar || '', 
-      text: String(text).trim()
-    });
-
-    // 3. Save it to the database
+    post.replies.push({ user, avatar, text, official: Boolean(staff) });
     await post.save();
 
     await createNotification({
       recipient: post.user,
       actor: user,
-      actorAvatar: avatar || '',
+      actorAvatar: avatar,
       type: 'reply',
       postId: post._id,
       replyIndex: post.replies.length - 1,
-      preview: String(text).trim()
+      preview: text
     });
 
-    // 4. Send the FULL updated post back to React so it can re-render the UI
-    res.status(200).json(post);
-    
+    res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
   } catch (error) {
     console.error("Error adding reply:", error);
-    res.status(500).json({ message: 'Error adding reply', error: error.message });
+    res.status(500).json({ message: 'Error adding reply' });
   }
 });
+
+// POST: reply to a comment. Same rules as commenting (locked / off posts, muted people), and staff can always reply.
+// toReplyId (optional) says which reply in the thread is being answered, so the right person gets named and notified.
+app.post('/api/posts/:id/replies/:replyId/reply', async (req, res) => {
+  try {
+    const text = String(req.body.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'Reply cannot be empty.' });
+    if (text.length > 1000) return res.status(400).json({ message: 'Replies can be up to 1000 characters.' });
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.replyId)) return res.status(404).json({ message: 'Comment not found' });
+
+    const post = await Post.findById(req.params.id);
+    const comment = post?.replies.id(req.params.replyId);
+    if (!post || !comment || comment.removed) return res.status(404).json({ message: 'Comment not found' });
+
+    const staff = await staffFromRequest(req);
+    const mode = post.commentsMode || 'open';
+    if (!staff && mode === 'off') return res.status(403).json({ message: 'Comments are turned off for this post.' });
+    if (!staff && mode === 'locked') return res.status(403).json({ message: 'Comments are locked on this post.' });
+
+    let user = String(req.body.user || '').trim();
+    let avatar = req.body.avatar || '';
+    if (staff) {
+      const profile = await findProfileByEmail(staff.email);
+      user = profile?.username ? `@${profile.username}` : '@JuanCast';
+      avatar = profile?.avatar || '';
+    } else {
+      const handle = normalizeHandle(user);
+      if (!handle || handle === 'guest') return res.status(400).json({ message: 'A signed-in user is required.' });
+      if (await BoardMute.exists({ handle })) return res.status(403).json({ message: 'You can’t comment on the board right now.' });
+    }
+
+    const target = req.body.toReplyId && mongoose.isValidObjectId(req.body.toReplyId) ? comment.replies.id(req.body.toReplyId) : null;
+    const replyTo = target && !target.removed && target.user ? target.user : comment.user;
+
+    comment.replies.push({ user, avatar, text, replyTo, official: Boolean(staff) });
+    await post.save();
+
+    const commentIndex = post.replies.findIndex((item) => String(item._id) === String(comment._id));
+    const notify = (recipient) => createNotification({ recipient, actor: user, actorAvatar: avatar, type: 'reply', subject: 'comment', postId: post._id, replyIndex: commentIndex, preview: text });
+    await notify(comment.user);
+    if (normalizeHandle(replyTo) !== normalizeHandle(comment.user)) await notify(replyTo);
+
+    res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+  } catch (error) {
+    console.error('Error replying to a comment:', error);
+    res.status(500).json({ message: 'Error replying to the comment' });
+  }
+});
+
+// PUT: heart / un-heart a comment, or a reply to a comment (anyone signed in, even on locked posts, like hearting the post itself).
+// The comment's author is notified the first time someone hearts it.
+const toggleCommentHeart = async (req, res, childId) => {
+  try {
+    const actor = String(req.body.user || '').trim();
+    if (!actor || normalizeHandle(actor) === 'guest') return res.status(400).json({ message: 'A signed-in user is required.' });
+    if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.replyId)) return res.status(404).json({ message: 'Comment not found.' });
+    const post = await Post.findById(req.params.id);
+    const comment = post?.replies.id(req.params.replyId);
+    const target = childId ? (mongoose.isValidObjectId(childId) ? comment?.replies?.id(childId) : null) : comment;
+    if (!post || !comment || !target || target.removed) return res.status(404).json({ message: 'Comment not found.' });
+
+    const key = normalizeHandle(actor);
+    const had = (target.likes || []).some((h) => normalizeHandle(h) === key);
+    target.likes = had ? target.likes.filter((h) => normalizeHandle(h) !== key) : [...(target.likes || []), actor];
+    await post.save();
+
+    if (!had) {
+      await createNotification({
+        recipient: target.user,
+        actor,
+        type: 'like',
+        subject: 'comment',
+        postId: post._id,
+        replyIndex: post.replies.findIndex((item) => String(item._id) === String(comment._id)),
+        preview: target.text
+      });
+    }
+    res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+  } catch (error) {
+    console.error('Error hearting a comment:', error);
+    res.status(500).json({ message: 'Failed to update the heart.' });
+  }
+};
+app.put('/api/posts/:id/replies/:replyId/like', (req, res) => toggleCommentHeart(req, res, ''));
+app.put('/api/posts/:id/replies/:replyId/replies/:childId/like', (req, res) => toggleCommentHeart(req, res, req.params.childId));
 
 const serializeImage = (item = {}) => ({
   ...item,
@@ -2059,6 +2204,7 @@ app.post('/api/login', async (req, res) => {
 
     const normalizedUserEmail = normalizeEmail(user.email);
     const profile = await Profile.findOne({ email: { $regex: `^${escapeRegex(normalizedUserEmail)}$`, $options: 'i' } });
+    if (profile) await applyBrandAvatar(profile);
     const role = resolveRole(user);
     const isAdmin = role === 'groupadmin' || role === 'systemadmin' || role === 'superadmin';
 
@@ -2841,7 +2987,7 @@ app.get('/api/fanbases/:id/board', async (req, res) => {
     const profile = email ? await Profile.findOne({ email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } }) : null;
     const unlocked = Boolean(profile) && (resolveAdminStatus(profile) || (profile.fanbaseSubscriptions || []).includes(String(fanbase._id)));
 
-    const [posts, members] = await Promise.all([getFanbaseBoardPosts(fanbase), getFanbaseMemberProfiles(fanbase)]);
+    const [posts, members, polls] = await Promise.all([getFanbaseBoardPosts(fanbase), getFanbaseMemberProfiles(fanbase), pollsOfFanbase(fanbase)]);
     const shown = unlocked ? posts : posts.slice(0, 1);
     // non-subscribers get a small teaser of photos from the locked posts (never the posts themselves)
     const photosOfPost = (post) => (post.images?.length ? post.images : (post.imageUrl ? [post.imageUrl] : []));
@@ -2854,7 +3000,8 @@ app.get('/api/fanbases/:id/board', async (req, res) => {
       posts: shown,
       previewPhotos,
       photoTotal,
-      members
+      members,
+      polls
     });
   } catch (error) {
     console.error('Error loading fanbase board:', error);
@@ -3059,19 +3206,41 @@ app.delete('/api/fanbases/:id/merch/:itemId', requireGroupAdmin, async (req, res
 });
 
 // ---- Top Fans: fans ranked by the Stars they spent voting for a fanbase's artists or for the whole group ----
-const TOP_FANS_LIMIT = 10;
+const TOP_FANS_LIMIT = 100; // the leaderboard only lists the top 100 fans
 const keyOf = (value) => String(value || '').trim().toLowerCase();
 // The poll entries that belong to a fanbase: an entry linked to one of its artists, an entry linked to the fanbase itself
 // (Admin > Artists > "Linked fanbase"), or, when it is not linked to any fanbase, an entry named exactly like the fanbase.
-const rankingsOfFanbase = async (fanbase) => {
+const fanbaseRankingMatcher = (fanbase) => {
   const members = new Set([...(fanbase.memberEmails || []), ...(fanbase.ownerEmail ? [fanbase.ownerEmail] : [])].map(normalizeEmail));
   const nameKey = keyOf(fanbase.name);
-  const all = await Ranking.find().select('name accountEmail fanbaseId');
-  return all.filter((r) => (
+  return (r) => (
     String(r.fanbaseId || '') === String(fanbase._id)
     || (r.accountEmail && members.has(normalizeEmail(r.accountEmail)))
     || (!r.fanbaseId && keyOf(r.name) === nameKey)
-  ));
+  );
+};
+const rankingsOfFanbase = async (fanbase) => {
+  const all = await Ranking.find().select('name accountEmail fanbaseId');
+  return all.filter(fanbaseRankingMatcher(fanbase));
+};
+// The polls a fanbase takes part in: every poll that has an entry belonging to this fanbase (same match as above).
+// A poll entry points to its poll by group + category (= the poll's group + title), the same way the poll page finds its entries.
+const pollsOfFanbase = async (fanbase) => {
+  const [rankings, polls] = await Promise.all([
+    Ranking.find().select('name group category accountEmail fanbaseId'),
+    Poll.find().sort({ fromDate: -1 })
+  ]);
+  const keys = new Set(rankings.filter(fanbaseRankingMatcher(fanbase)).map((r) => `${keyOf(r.group)}|${keyOf(r.category)}`));
+  return polls
+    .filter((p) => keys.has(`${keyOf(p.group)}|${keyOf(p.title)}`))
+    .map((p) => ({
+      _id: String(p._id),
+      title: p.title,
+      displayTitle: getPollDisplayTitle ? getPollDisplayTitle(p.title, p.fromDate) : p.title,
+      group: p.group,
+      fromDate: p.fromDate,
+      toDate: p.toDate
+    }));
 };
 
 // profile pictures are stored inside the profile as data: URLs; serve them as a real (cacheable) image so lists stay small
@@ -3270,6 +3439,195 @@ const postPhotos = (item) => {
   const list = Array.isArray(item.images) && item.images.length ? item.images : (item.imageUrl ? [item.imageUrl] : []);
   return list.filter(Boolean).map((url) => normalizeImageUrl(url));
 };
+
+// --- COMMUNITY BOARD: posting and comment controls ---
+// Only system admins and super admins can write, edit, pin or delete posts, and control the comments under them.
+const BOARD_MAX_PINS = 3;
+const COMMENT_MODES = ['open', 'locked', 'off'];
+const withBoardPost = (handler) => async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Post not found.' });
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found.' });
+    await handler(req, res, post);
+  } catch (error) {
+    console.error('Board error:', error);
+    res.status(500).json({ message: 'Something went wrong. Please try again.' });
+  }
+};
+const staffHandle = async (user) => {
+  const profile = await findProfileByEmail(user.email);
+  return profile?.username ? `@${profile.username}` : '@JuanCast';
+};
+
+// create a post: title (optional), text, up to 10 photos, and whether people can comment
+app.post('/api/posts', requireSystemAdmin, withImages, async (req, res) => {
+  const files = [...(req.files?.images || []), ...(req.files?.image || [])];
+  try {
+    const title = String(req.body.title || '').trim().slice(0, 120);
+    const text = String(req.body.text || '').trim();
+    if (!text && !files.length) {
+      discardUploaded(files);
+      return res.status(400).json({ message: 'Write something or add a photo first.' });
+    }
+    if (text.length > 5000) {
+      discardUploaded(files);
+      return res.status(400).json({ message: 'Posts can be up to 5000 characters.' });
+    }
+    const profile = await findProfileByEmail(req.adminUser.email);
+    const post = await Post.create({
+      user: profile?.username ? `@${profile.username}` : '@JuanCast',
+      avatar: profile?.avatar || '',
+      official: true,
+      title,
+      text,
+      images: files.map((file) => normalizeImageUrl(`/uploads/${file.filename}`)),
+      commentsMode: COMMENT_MODES.includes(req.body.commentsMode) ? req.body.commentsMode : 'open'
+    });
+    res.status(201).json(serializeBoardPost(post));
+  } catch (error) {
+    console.error('Error creating post:', error);
+    discardUploaded(files);
+    res.status(500).json({ message: 'Failed to post.' });
+  }
+});
+
+// edit the title / text of a post
+app.put('/api/posts/:id', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  const title = req.body.title === undefined ? post.title : String(req.body.title || '').trim().slice(0, 120);
+  const text = req.body.text === undefined ? post.text : String(req.body.text || '').trim();
+  if (!text && !postPhotos(post.toObject()).length) return res.status(400).json({ message: 'A post needs some text or a photo.' });
+  if (text.length > 5000) return res.status(400).json({ message: 'Posts can be up to 5000 characters.' });
+  post.title = title;
+  post.text = text;
+  post.editedAt = new Date();
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// delete a post (its photos and the notifications about it go too)
+app.delete('/api/posts/:id', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  postPhotos(post.toObject()).forEach(removeStoredImage);
+  await Notification.deleteMany({ postId: post._id });
+  await post.deleteOne();
+  res.status(200).json({ message: 'Post deleted.' });
+}));
+
+// pin / unpin a post (at most BOARD_MAX_PINS at a time)
+app.patch('/api/posts/:id/pin', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  const pinned = req.body.pinned === undefined ? !post.pinned : Boolean(req.body.pinned);
+  if (pinned && !post.pinned && (await Post.countDocuments({ pinned: true })) >= BOARD_MAX_PINS) {
+    return res.status(400).json({ message: `You can pin up to ${BOARD_MAX_PINS} posts. Unpin one first.` });
+  }
+  post.pinned = pinned;
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// comments on a post: open, locked (people can read but not write) or off (hidden)
+app.patch('/api/posts/:id/comments', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  if (!COMMENT_MODES.includes(req.body.mode)) return res.status(400).json({ message: 'Choose open, locked or off.' });
+  post.commentsMode = req.body.mode;
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// remove one comment (it stays in the thread as "removed by a moderator")
+app.delete('/api/posts/:id/replies/:replyId', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  const reply = post.replies.id(req.params.replyId);
+  if (!reply) return res.status(404).json({ message: 'Comment not found.' });
+  reply.removed = true;
+  reply.pinned = false;
+  reply.removedBy = await staffHandle(req.adminUser);
+  reply.removedAt = new Date();
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// remove one reply to a comment (it stays in the thread as \"removed by a moderator\")
+app.delete('/api/posts/:id/replies/:replyId/replies/:childId', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  const comment = post.replies.id(req.params.replyId);
+  const child = comment?.replies?.id(req.params.childId);
+  if (!child) return res.status(404).json({ message: 'Reply not found.' });
+  child.removed = true;
+  child.removedBy = await staffHandle(req.adminUser);
+  child.removedAt = new Date();
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// pin / unpin one comment (one pinned comment per post, shown first)
+app.patch('/api/posts/:id/replies/:replyId/pin', requireSystemAdmin, withBoardPost(async (req, res, post) => {
+  const reply = post.replies.id(req.params.replyId);
+  if (!reply || reply.removed) return res.status(404).json({ message: 'Comment not found.' });
+  const pinned = req.body.pinned === undefined ? !reply.pinned : Boolean(req.body.pinned);
+  post.replies.forEach((item) => { item.pinned = false; });
+  reply.pinned = pinned;
+  await post.save();
+  res.status(200).json(serializeBoardPost(post, await hiddenHandles()));
+}));
+
+// muted people can still read and like, but can't comment
+app.get('/api/board/mutes', requireSystemAdmin, async (req, res) => {
+  try {
+    const mutes = await BoardMute.find().sort({ createdAt: -1 }).lean();
+    res.status(200).json(mutes.map((m) => ({ handle: m.handle, mutedBy: m.mutedBy, reason: m.reason, createdAt: m.createdAt })));
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to load muted people.' });
+  }
+});
+
+app.post('/api/board/mutes', requireSystemAdmin, async (req, res) => {
+  try {
+    const handle = normalizeHandle(req.body.handle);
+    if (!handle) return res.status(400).json({ message: 'Enter a @username.' });
+    const profile = await Profile.findOne({ username: handle }).collation(CI);
+    if (!profile) return res.status(404).json({ message: `No one is called @${handle}.` });
+    const role = await roleOfProfile(profile);
+    if (role === 'systemadmin' || role === 'superadmin') return res.status(400).json({ message: 'Admins can’t be muted.' });
+
+    const key = String(profile.username).toLowerCase();
+    await BoardMute.findOneAndUpdate(
+      { handle: key },
+      { handle: key, mutedBy: await staffHandle(req.adminUser), reason: String(req.body.reason || '').trim().slice(0, 200), createdAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // optional: also remove what they already wrote
+    let removed = 0;
+    if (req.body.removeComments) {
+      const by = await staffHandle(req.adminUser);
+      const who = { $regex: `^@?${escapeRegex(key)}$`, $options: 'i' };
+      const posts = await Post.find({ $or: [{ 'replies.user': who }, { 'replies.replies.user': who }] });
+      for (const post of posts) {
+        post.replies.forEach((reply) => {
+          if (!reply.removed && normalizeHandle(reply.user) === key) {
+            reply.removed = true; reply.pinned = false; reply.removedBy = by; reply.removedAt = new Date(); removed += 1;
+          }
+          (reply.replies || []).forEach((child) => {
+            if (!child.removed && normalizeHandle(child.user) === key) {
+              child.removed = true; child.removedBy = by; child.removedAt = new Date(); removed += 1;
+            }
+          });
+        });
+        await post.save();
+      }
+    }
+    res.status(200).json({ handle: key, removed });
+  } catch (error) {
+    console.error('Error muting:', error);
+    res.status(500).json({ message: 'Failed to mute.' });
+  }
+});
+
+app.delete('/api/board/mutes/:handle', requireSystemAdmin, async (req, res) => {
+  try {
+    await BoardMute.deleteOne({ handle: normalizeHandle(req.params.handle) });
+    res.status(200).json({ message: 'Unmuted.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to unmute.' });
+  }
+});
 
 const artistPostSchema = new mongoose.Schema({
   artistEmail: { type: String, required: true, index: true },   // owner (stable even if the @username changes)
@@ -4191,12 +4549,23 @@ app.post('/api/account/change-password', async (req, res) => {
   }
 });
 
-// Turn 2FA on or off. Both need the current password and a code emailed to the account.
+// Turn 2FA on or off.
+// ON: a one-time code (OTP) is emailed to the account and typing it in is all it takes: no password needed.
+//     (Nothing changes unless the code that only the email owner receives is entered.)
+// OFF: still needs the current password AND an emailed code.
 app.post('/api/account/2fa', async (req, res) => {
   try {
     const enable = req.body.enable === true || req.body.enable === 'true';
-    const user = await authenticate(req, res);
-    if (!user) return;
+    let user;
+    if (enable) {
+      const email = normalizeEmail(req.body.email);
+      if (!email) return res.status(400).json({ message: 'Your email is required.' });
+      user = await findAccount(email);
+      if (!user) return res.status(404).json({ message: 'Account not found.' });
+    } else {
+      user = await authenticate(req, res);
+      if (!user) return;
+    }
     if (enable === Boolean(user.twoFactorEnabled)) return res.status(200).json({ twoFactorEnabled: enable, message: `2FA is already ${enable ? 'on' : 'off'}.` });
     if (!(await requireCode(req, res, user, 'twofa', enable ? 'turn on 2-step verification' : 'turn off 2-step verification'))) return;
     user.twoFactorEnabled = enable;
@@ -4288,6 +4657,40 @@ const purgeDueAccounts = async () => {
 };
 setTimeout(purgeDueAccounts, 20 * 1000);
 setInterval(purgeDueAccounts, 6 * 60 * 60 * 1000);
+
+// The super admin account always shows the JuanCast icon as its photo (profile, board posts and comments).
+// The logo file is stored in MongoDB like any other upload, so it survives Render restarts.
+const BRAND_EMAIL = 'superadmin@juancast.ph';
+const BRAND_LOGO_NAME = 'brand-juancast-icon.png';
+const BRAND_LOGO_URL = `/uploads/${BRAND_LOGO_NAME}`;
+const applyBrandAvatar = async (profile) => {
+  try {
+    if (!profile || normalizeEmail(profile.email) !== BRAND_EMAIL) return;
+    const file = path.join(__dirname, 'assets', 'category_logo.png');
+    if (!fs.existsSync(file)) return;
+    await UploadFile.updateOne(
+      { filename: BRAND_LOGO_NAME },
+      { $set: { contentType: 'image/png', data: fs.readFileSync(file) } },
+      { upsert: true }
+    );
+    if (profile.avatar !== BRAND_LOGO_URL) {
+      profile.avatar = BRAND_LOGO_URL;
+      await Profile.updateOne({ _id: profile._id }, { $set: { avatar: BRAND_LOGO_URL } });
+    }
+    const handle = `@${profile.username}`;
+    await Post.updateMany({ user: handle, avatar: { $ne: BRAND_LOGO_URL } }, { $set: { avatar: BRAND_LOGO_URL } }).collation(CI);
+    await Post.updateMany(
+      { 'replies.user': handle },
+      { $set: { 'replies.$[r].avatar': BRAND_LOGO_URL } },
+      { arrayFilters: [{ 'r.user': handle }] }
+    );
+  } catch (error) {
+    console.error('Could not apply the brand avatar:', error);
+  }
+};
+mongoose.connection.on('connected', async () => {
+  try { await applyBrandAvatar(await Profile.findOne({ email: BRAND_EMAIL }).collation(CI)); } catch (error) { /* ignore */ }
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => { console.log(`Server running on port ${PORT}`); });

@@ -112,8 +112,6 @@ export default function Profile() {
   const [posts, setPosts] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [replyInputs, setReplyInputs] = useState({});
-  const [newPost, setNewPost] = useState('');
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [promoOpen, setPromoOpen] = useState(false);
   const [peopleList, setPeopleList] = useState(null); // 'followers' | 'following' | null
@@ -270,26 +268,6 @@ export default function Profile() {
       setReplyInputs((prev) => ({ ...prev, [postId]: '' }));
     } catch (error) {
       say('error', error.message || 'Could not send your reply.');
-    }
-  };
-
-  const createPost = async () => {
-    const text = newPost.trim();
-    if (!text) return;
-    try {
-      const res = await fetch(`${API}/api/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: myHandle, avatar: viewer.avatar || '', text })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to post.');
-      setPosts((list) => [data, ...list]);
-      setNewPost('');
-      setConfirmOpen(false);
-    } catch (error) {
-      setConfirmOpen(false);
-      say('error', error.message || 'Failed to post.');
     }
   };
 
@@ -468,31 +446,6 @@ export default function Profile() {
           <ArtistFeed profile={profile} ownView={ownView} viewer={viewer} say={say} goLogin={goLogin} />
         ) : (
         <section className="pf-feed">
-          {isOwn && (
-            <div className="pf-card pf-composer rise" style={{ '--d': '120ms' }}>
-              <textarea
-                placeholder="What are you Juan-dering about?"
-                value={newPost}
-                rows={1}
-                maxLength={1000}
-                onChange={(e) => {
-                  setNewPost(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = `${e.target.scrollHeight}px`;
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (newPost.trim()) setConfirmOpen(true);
-                  }
-                }}
-              />
-              <div className="pf-composer-bar">
-                <button type="button" className="btn-solid" disabled={!newPost.trim()} onClick={() => setConfirmOpen(true)}>Post</button>
-              </div>
-            </div>
-          )}
-
           {posts.length === 0 ? (
             <div className="pf-card"><p className="pf-empty">No posts yet from this profile.</p></div>
           ) : posts.map((post, i) => {
@@ -609,15 +562,6 @@ export default function Profile() {
         <div className="modal-actions">
           <button type="button" className="btn-ghost" onClick={copyLink}>{linkCopied ? 'Link copied!' : 'Copy link'}</button>
           <button type="button" className="btn-solid" onClick={() => setQrOpen(false)}>Done</button>
-        </div>
-      </Modal>
-
-      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} label="Post to community">
-        <h3>Post to Community?</h3>
-        <p>Are you sure your post contents are correct? Posts cannot be deleted or edited once submitted.</p>
-        <div className="modal-actions">
-          <button type="button" className="btn-ghost" onClick={() => setConfirmOpen(false)}>Cancel</button>
-          <button type="button" className="btn-solid" onClick={createPost}>Post it!</button>
         </div>
       </Modal>
 
