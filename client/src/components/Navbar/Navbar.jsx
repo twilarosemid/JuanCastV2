@@ -111,12 +111,23 @@ export default function Navbar() {
     const el = linkRefs.current[active];
     if (el) setBubble({ left: el.offsetLeft, width: el.offsetWidth });
   };
-  useLayoutEffect(moveBubble, [active]);
+  const navKeys = navItems.map((n) => n.key).join(',');
+  const linksRef = useRef(null);
+  // re-measure whenever the page, the signed-in state or the set of links changes (logging out reshapes the bar)
+  useLayoutEffect(moveBubble, [active, loggedIn, isArtist, navKeys]);
   useEffect(() => {
     window.addEventListener('resize', moveBubble);
     document.fonts?.ready.then(moveBubble); // re-measure once the font has loaded
-    return () => window.removeEventListener('resize', moveBubble);
-  }, [active]);
+    // the bar can change size by itself (balance chips come and go, the bar shrinks when scrolled): follow every link
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(moveBubble);
+      if (linksRef.current) ro.observe(linksRef.current);
+      Object.values(linkRefs.current).forEach((el) => { if (el) ro.observe(el); });
+    }
+    const late = setTimeout(moveBubble, 350); // after the bar's own width transition ends
+    return () => { window.removeEventListener('resize', moveBubble); ro?.disconnect(); clearTimeout(late); };
+  }, [active, loggedIn, isArtist, navKeys]);
 
   // re-read the saved user when it changes (login, logout, vote balance)
   useEffect(() => {
@@ -270,7 +281,7 @@ export default function Navbar() {
       <Link className="logo" to={LINKS.home} aria-label="JuanCast home"><img src={logoImg} alt="JuanCast" /></Link>
 
       <div className="pill" ref={menuRef}>
-        <div className="links">
+        <div className="links" ref={linksRef}>
           {bubble && (
             <span
               className="bubble"
