@@ -313,6 +313,26 @@ function Account() {
   const [status, setStatus] = useState(null);      // { twoFactorEnabled, canDelete }
   const [dialog, setDialog] = useState(null);
   const [fb, setFb] = useState({ open: false, type: 'success', message: '', leave: false });
+  const [pollAlerts, setPollAlerts] = useState(null); // null = loading
+
+  useEffect(() => {
+    if (!email) return undefined;
+    let alive = true;
+    fetch(`${API}/api/users/me?email=${encodeURIComponent(email)}`)
+      .then((r) => r.json())
+      .then((me) => { if (alive) setPollAlerts(me?.pollAlerts !== false); })
+      .catch(() => { if (alive) setPollAlerts(true); });
+    return () => { alive = false; };
+  }, [email]);
+
+  const togglePollAlerts = async () => {
+    const next = !pollAlerts;
+    setPollAlerts(next); // instant, rolled back if saving fails
+    try {
+      const r = await fetch(`${API}/api/users/poll-alerts`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, enabled: next }) });
+      if (!r.ok) throw new Error();
+    } catch { setPollAlerts(!next); }
+  };
 
   useEffect(() => {
     if (!email) return;
@@ -363,6 +383,17 @@ function Account() {
   return (
     <Shell title="Account & Security">
       <section className="st-card">
+        <div className="st-intro"><h2>Notifications</h2><p>Choose what gets sent to your bell.</p></div>
+        <div className="st-opt">
+          <div className="st-opt-text">
+            <strong>Poll alerts</strong>
+            <span>{pollAlerts === null ? 'Loading…' : pollAlerts ? 'On: we tell you when an artist or group on your Your Artists row is in a poll.' : 'Off: you will not be told when your artists are in a poll.'}</span>
+          </div>
+          <button type="button" className="st-pill" onClick={togglePollAlerts} disabled={pollAlerts === null}>{pollAlerts ? 'Turn off' : 'Turn on'}</button>
+        </div>
+      </section>
+
+      <section className="st-card" style={{ marginTop: 18 }}>
         <div className="st-intro"><h2>Security</h2><p>Extra protection for your account.</p></div>
         <div className="st-opt">
           <div className="st-opt-text">
@@ -459,7 +490,7 @@ const FAQS = [
           <li>Buy a Stars package. Go to Market → Stars and pick a package with its price in pesos.</li>
           <li>Try your luck on the daily Spin. Go to Market → Spin. You get 15 spins every day, and matching values win Stars.</li>
         </ol>
-        <p>You can also convert 1 Sun into 1,800 Stars. Go to Market → Suns to convert your balance.</p>
+        <p>You can also convert 1,800 Stars into 1 Sun. Go to Market → Suns to convert your balance.</p>
       </>
     )
   }

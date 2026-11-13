@@ -14,7 +14,7 @@ const CENTERED = ['suns', 'spin'];
 
 const SECTIONS = [
   { id: 'stars', label: 'Stars', title: 'Stars for Minor Polls', blurb: 'Choose a Stars package for your account.' },
-  { id: 'suns', label: 'Suns', title: 'Sun Conversion', blurb: 'Convert Suns to Stars for Votes.' },
+  { id: 'suns', label: 'Suns', title: 'Star Conversion', blurb: 'Convert Stars to Suns.' },
   { id: 'spin', label: 'Spin', title: 'Spin', blurb: 'Try your luck and earn Stars.' },
   { id: 'powerups', label: 'Powerups', title: 'Powerups', blurb: 'Boost the impact of your votes.' }
 ];

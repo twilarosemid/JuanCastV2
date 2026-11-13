@@ -85,6 +85,31 @@ const MenuItem = ({ danger, children, ...props }) => (
   <button type="button" role="menuitem" className={`bd-menu-item${danger ? ' danger' : ''}`} {...props}>{children}</button>
 );
 
+// brand logos for the share menu (official brand colours)
+const Logo = ({ children, bg }) => (
+  <span className="share-logo" style={{ background: bg }} aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff">{children}</svg>
+  </span>
+);
+const LinkLogo = () => <span className="share-logo" style={{ background: 'rgba(255,255,255,.18)' }} aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></svg></span>;
+const FacebookLogo = () => <Logo bg="#1877F2"><path d="M13.5 21v-7.5h2.6l.4-3h-3V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H8v3h2.4V21z" /></Logo>;
+const XLogo = () => <Logo bg="#000"><path d="M17.8 3h2.9l-6.3 7.2L21.8 21h-5.8l-4.5-5.9L6.3 21H3.4l6.7-7.7L2.9 3h5.9l4.1 5.4zm-1 16.3h1.6L7.9 4.6H6.2z" /></Logo>;
+const WhatsAppLogo = () => <Logo bg="#25D366"><path d="M12 3.2a8.7 8.7 0 0 0-7.5 13.1L3.2 20.8l4.6-1.2A8.7 8.7 0 1 0 12 3.2zm0 1.6a7.1 7.1 0 1 1-3.7 13.2l-.3-.2-2.4.6.7-2.3-.2-.3A7.1 7.1 0 0 1 12 4.8zm-2.6 3.4c-.2 0-.4.1-.6.3-.2.3-.8.8-.8 2s.8 2.3.9 2.5c.1.2 1.6 2.6 4 3.5 2 .8 2.4.6 2.8.6.5 0 1.4-.6 1.6-1.1.2-.5.2-1 .1-1.1-.1-.1-.2-.2-.5-.3l-1.5-.7c-.2-.1-.4-.1-.5.1l-.7.9c-.1.2-.3.2-.5.1-.3-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5l.4-.4.2-.4c.1-.1 0-.3 0-.4l-.7-1.6c-.2-.4-.3-.4-.5-.4z" /></Logo>;
+const TelegramLogo = () => <Logo bg="#229ED9"><path d="M20.7 4.4 3.4 11.1c-.8.3-.8.8-.1 1l4.4 1.4 1.7 5.2c.2.6.1.8.7.8.5 0 .7-.2 1-.5l2.1-2 4.4 3.2c.8.5 1.4.2 1.6-.7l2.9-13.7c.3-1.2-.4-1.7-1.4-1.4zM9 13.4l8.4-5.3c.4-.2.8-.1.5.2l-6.9 6.2-.3 3z" /></Logo>;
+const MoreLogo = () => <span className="share-logo" style={{ background: 'rgba(255,255,255,.18)' }} aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg></span>;
+
+// the share choices, identical for a post, a comment and a reply
+const ShareItems = ({ post, ref_, copyLink, shareTo, shareNative }) => (
+  <>
+    <MenuItem onClick={() => copyLink(post, ref_)}><LinkLogo />Copy link</MenuItem>
+    <MenuItem onClick={() => shareTo(post, 'facebook', ref_)}><FacebookLogo />Facebook</MenuItem>
+    <MenuItem onClick={() => shareTo(post, 'x', ref_)}><XLogo />X</MenuItem>
+    <MenuItem onClick={() => shareTo(post, 'whatsapp', ref_)}><WhatsAppLogo />WhatsApp</MenuItem>
+    <MenuItem onClick={() => shareTo(post, 'telegram', ref_)}><TelegramLogo />Telegram</MenuItem>
+    {typeof navigator !== 'undefined' && navigator.share && <MenuItem onClick={() => shareNative(post, ref_)}><MoreLogo />More…</MenuItem>}
+  </>
+);
+
 // Photos keep their own size and shape (nothing is cropped). One photo fills the post's width at its natural height;
 // several photos become a swipeable row, one photo per swipe.
 function Photos({ images, onOpen }) {
@@ -125,7 +150,6 @@ export default function BoardPanel({ compact = false }) {
   const [replyInputs, setReplyInputs] = useState({});
   const [replyTarget, setReplyTarget] = useState(null); // { commentId, toReplyId, toUser }: whose comment / reply the open reply box answers
   const [childText, setChildText] = useState('');
-  const [shareFor, setShareFor] = useState(null);       // id of the comment / reply whose share row is open
   const [flashId, setFlashId] = useState('');           // comment / reply highlighted after opening a shared link
   const [popId, setPopId] = useState(null);
   const [notice, setNotice] = useState('');
@@ -394,7 +418,6 @@ export default function BoardPanel({ compact = false }) {
   // ---------- replies to comments ----------
   const openReply = (post, comment, child) => {
     if (!requireLogin()) return;
-    setShareFor(null);
     setChildText('');
     setReplyTarget({ commentId: comment._id, toReplyId: child?._id || '', toUser: (child || comment).user });
   };
@@ -508,7 +531,6 @@ export default function BoardPanel({ compact = false }) {
   const actionsRow = (post, comment, child, canWrite) => {
     const id = child?._id || comment._id;
     const ref = refOf(comment, child);
-    const shareOpen = shareFor === id;
     const likes = Array.isArray((child || comment).likes) ? (child || comment).likes : [];
     const hearted = likes.includes(handle);
     return (
@@ -519,20 +541,18 @@ export default function BoardPanel({ compact = false }) {
             {likes.length > 0 && <span className="heart-count">{likes.length}</span>}
           </button>
           {canWrite && <button type="button" className="reply-act" onClick={() => openReply(post, comment, child)}>Reply</button>}
-          <button type="button" className={`reply-act${shareOpen ? ' on' : ''}`} onClick={() => setShareFor(shareOpen ? null : id)} aria-expanded={shareOpen}>
-            <ShareIconSm /> Share
-          </button>
+          <Menu
+            label={`Share ${child ? 'reply' : 'comment'}`}
+            up
+            trigger={({ open: shareOpen, toggle }) => (
+              <button type="button" className={`reply-act${shareOpen ? ' on' : ''}`} onClick={toggle} aria-haspopup="menu" aria-expanded={shareOpen}>
+                <ShareIconSm /> Share
+              </button>
+            )}
+          >
+            <ShareItems post={post} ref_={ref} copyLink={copyLink} shareTo={shareTo} shareNative={shareNative} />
+          </Menu>
         </div>
-        {shareOpen && (
-          <div className="share-row" role="group" aria-label={`Share ${child ? 'reply' : 'comment'}`}>
-            <button type="button" onClick={() => { copyLink(post, ref); setShareFor(null); }}>Copy link</button>
-            <button type="button" onClick={() => shareTo(post, 'facebook', ref)}>Facebook</button>
-            <button type="button" onClick={() => shareTo(post, 'x', ref)}>X</button>
-            <button type="button" onClick={() => shareTo(post, 'whatsapp', ref)}>WhatsApp</button>
-            <button type="button" onClick={() => shareTo(post, 'telegram', ref)}>Telegram</button>
-            {typeof navigator !== 'undefined' && navigator.share && <button type="button" onClick={() => shareNative(post, ref)}>More…</button>}
-          </div>
-        )}
       </>
     );
   };
@@ -594,7 +614,7 @@ export default function BoardPanel({ compact = false }) {
   };
 
   return (
-    <div className="chat board" data-tour="chat-composer">
+    <div className="chat board">
       {notice && <div className="bd-notice" role="status">{notice}</div>}
 
       {canPost && (
@@ -723,7 +743,7 @@ export default function BoardPanel({ compact = false }) {
                   </>
                 )}
 
-                <div className="post-actions">
+                <div className="post-actions" data-tour={i === 0 ? 'board-actions' : undefined}>
                   <button type="button" className={`act like ${liked ? 'liked' : ''}`} onClick={() => toggleLike(post)} aria-pressed={liked} aria-label="Like">
                     <span className={popId === post._id ? 'pop' : ''}><HeartIcon filled={liked} /></span>
                     {likes.length}
@@ -743,12 +763,7 @@ export default function BoardPanel({ compact = false }) {
                       </button>
                     )}
                   >
-                    <MenuItem onClick={() => copyLink(post)}>Copy link</MenuItem>
-                    <MenuItem onClick={() => shareTo(post, 'facebook')}>Facebook</MenuItem>
-                    <MenuItem onClick={() => shareTo(post, 'x')}>X</MenuItem>
-                    <MenuItem onClick={() => shareTo(post, 'whatsapp')}>WhatsApp</MenuItem>
-                    <MenuItem onClick={() => shareTo(post, 'telegram')}>Telegram</MenuItem>
-                    {typeof navigator !== 'undefined' && navigator.share && <MenuItem onClick={() => shareNative(post)}>More…</MenuItem>}
+                    <ShareItems post={post} copyLink={copyLink} shareTo={shareTo} shareNative={shareNative} />
                   </Menu>
                   {cMode !== 'open' && (
                     <span className="bd-state" title={MODES.find((m) => m.id === cMode)?.hint}>

@@ -379,6 +379,7 @@ const profileSchema = new mongoose.Schema({
   marketBonusSpins: { type: Number, default: 0 },
   redeemedRewardIds: { type: [String], default: [] },
   fanbases: { type: [String], default: [] },              // artists on the user's "Your Artists" row
+  pollAlerts: { type: Boolean, default: true },           // notify me when one of my artists / groups is in a poll
   fanbaseSubscriptions: { type: [String], default: [] },  // fanbases the user is subscribed to (payments are not live yet)
   swerteSpinsRemaining: { type: Number, default: 1 },
   swerteSpinDate: { type: String, default: null },
@@ -931,31 +932,32 @@ app.delete('/api/admin/promos/:id', requireSystemAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/users/convert-suns', async (req, res) => {
+// Stars -> Suns: 1,800 Stars buy 1 Sun. `suns` is how many Suns the person wants to get.
+app.post('/api/users/convert-stars', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email || '');
-    const sunsToConvert = Number(req.body.suns);
+    const sunsToGet = Number(req.body.suns);
     if (!email) return res.status(400).json({ message: 'Email is required.' });
     if (await isArtistEmail(email)) return res.status(403).json(ARTIST_BLOCKED);
-    if (!Number.isSafeInteger(sunsToConvert) || sunsToConvert < 1) {
-      return res.status(400).json({ message: 'Enter a whole number of Suns to convert.' });
+    if (!Number.isSafeInteger(sunsToGet) || sunsToGet < 1) {
+      return res.status(400).json({ message: 'Enter a whole number of Suns to get.' });
     }
 
-    const starsToAdd = sunsToConvert * 1800;
-    if (!Number.isSafeInteger(starsToAdd)) {
+    const starsToSpend = sunsToGet * 1800;
+    if (!Number.isSafeInteger(starsToSpend)) {
       return res.status(400).json({ message: 'Conversion amount is too large.' });
     }
 
     const emailFilter = { email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } };
     const profile = await Profile.findOneAndUpdate(
-      { ...emailFilter, suns: { $gte: sunsToConvert } },
+      { ...emailFilter, stars: { $gte: starsToSpend } },
       {
-        $inc: { suns: -sunsToConvert, stars: starsToAdd },
+        $inc: { stars: -starsToSpend, suns: sunsToGet },
         $push: {
           transactions: {
-            $each: [createTransaction('conversion', 'Suns converted to Stars', [
-              { currency: 'Suns', amount: sunsToConvert, direction: 'debit' },
-              { currency: 'Stars', amount: starsToAdd, direction: 'credit' }
+            $each: [createTransaction('conversion', 'Stars converted to Suns', [
+              { currency: 'Stars', amount: starsToSpend, direction: 'debit' },
+              { currency: 'Suns', amount: sunsToGet, direction: 'credit' }
             ])],
             $slice: -200
           }
@@ -967,13 +969,13 @@ app.post('/api/users/convert-suns', async (req, res) => {
     if (!profile) {
       const existingProfile = await Profile.findOne(emailFilter);
       if (!existingProfile) return res.status(404).json({ message: 'User profile not found.' });
-      return res.status(400).json({ message: 'Not enough Suns for this conversion.' });
+      return res.status(400).json({ message: 'Not enough Stars for this conversion.' });
     }
 
-    res.status(200).json({ stars: profile.stars, suns: profile.suns, convertedSuns: sunsToConvert, addedStars: starsToAdd });
+    res.status(200).json({ stars: profile.stars, suns: profile.suns, addedSuns: sunsToGet, spentStars: starsToSpend });
   } catch (error) {
-    console.error('Error converting Suns to Stars:', error);
-    res.status(500).json({ message: 'Failed to convert Suns to Stars.' });
+    console.error('Error converting Stars to Suns:', error);
+    res.status(500).json({ message: 'Failed to convert Stars to Suns.' });
   }
 });
 
@@ -1277,7 +1279,7 @@ const notificationSchema = new mongoose.Schema({
   recipient: { type: String, required: true, index: true },
   actor: { type: String, required: true },
   actorAvatar: { type: String, default: '' },
-  type: { type: String, enum: ['like', 'reply', 'follow', 'mail', 'artist_post'], required: true },
+  type: { type: String, enum: ['like', 'reply', 'follow', 'mail', 'artist_post', 'poll'], required: true },
   subject: { type: String, default: '' },
   sourceId: { type: String, default: '' },
   postId: { type: mongoose.Schema.Types.ObjectId, ref: 'Post', default: null },
@@ -1811,6 +1813,59 @@ const resolveLinkedFanbase = async (raw) => {
   return { id };
 };
 
+// tell fans when one of their favourite artists / groups (their "Your Artists" row) is in a poll.
+// A poll entry counts when it stands for a fanbase (fanbaseId) or is linked to an artist account that belongs to a fanbase.
+// One notification per fan per poll entry. Never throws: a notification problem must not make the poll edit fail.
+const notifyPollFans = async (ranking) => {
+  try {
+    if (!ranking?.category) return; // not attached to a poll yet
+    const poll = await Poll.findOne({ title: ranking.category, group: ranking.group || '' });
+    if (!poll || new Date(poll.toDate) < new Date()) return; // no such poll, or it already ended
+
+    const fanbaseIds = new Set();
+    if (ranking.fanbaseId) fanbaseIds.add(String(ranking.fanbaseId));
+    if (ranking.accountEmail) (await getArtistFanbases(ranking.accountEmail)).forEach((fb) => fanbaseIds.add(String(fb._id)));
+    if (!fanbaseIds.size) return;
+
+    const fans = await Profile.find({ fanbases: { $in: [...fanbaseIds] }, pollAlerts: { $ne: false } }).select('username');
+    if (!fans.length) return;
+
+    const pollId = String(poll._id);
+    const already = new Set((await Notification.find({ type: 'poll', sourceId: pollId, subject: ranking.name }).select('recipient')).map((n) => n.recipient));
+    const docs = fans
+      .filter((fan) => fan.username && !already.has(normalizeHandle(fan.username)))
+      .map((fan) => ({
+        recipient: normalizeHandle(fan.username),
+        actor: '@JuanCast',
+        type: 'poll',
+        subject: ranking.name,   // the artist / group that is in the poll
+        sourceId: pollId,        // the poll, so the click opens it
+        preview: poll.title
+      }));
+    if (docs.length) await Notification.insertMany(docs, { ordered: false });
+    console.log(`[notify] ${ranking.name} is in poll "${poll.title}": ${docs.length} fan(s) notified.`);
+  } catch (error) {
+    console.error('Error notifying fans about a poll:', error);
+  }
+};
+
+app.put('/api/users/poll-alerts', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email || '');
+    if (!email) return res.status(400).json({ message: 'Email is required.' });
+    const profile = await Profile.findOneAndUpdate(
+      { email: { $regex: `^${escapeRegex(email)}$`, $options: 'i' } },
+      { $set: { pollAlerts: req.body.enabled !== false } },
+      { new: true }
+    );
+    if (!profile) return res.status(404).json({ message: 'User profile not found.' });
+    res.status(200).json({ pollAlerts: profile.pollAlerts !== false });
+  } catch (error) {
+    console.error('Error saving poll alerts:', error);
+    res.status(500).json({ message: 'Failed to save your setting.' });
+  }
+});
+
 app.get('/api/rankings', async (req, res) => {
   try {
     await updateRankingPositions(); // Auto-sort by category before sending
@@ -1858,6 +1913,7 @@ app.post('/api/rankings', requireSystemAdmin, upload.single('image'), async (req
     
     await updateRankingPositions(); // Recalculate ranks
     res.status(201).json(serializeImage(ranking.toObject()));
+    notifyPollFans(ranking); // after the reply, so saving stays fast
   } catch (error) {
     console.error('Error creating ranking:', error);
     res.status(500).json({ error: 'Failed to create ranking' });
@@ -1959,6 +2015,7 @@ app.put('/api/rankings/:id', requireSystemAdmin, upload.single('image'), async (
       return res.status(404).json({ message: 'Ranking not found.' });
     }
     
+    const before = `${ranking.group}|${ranking.category}|${ranking.accountEmail}|${ranking.fanbaseId}`;
     ranking.name = req.body.name || ranking.name;
     
     // Update group and category if provided
@@ -1984,6 +2041,7 @@ app.put('/api/rankings/:id', requireSystemAdmin, upload.single('image'), async (
     await updateRankingPositions(); // Recalculate ranks
 
     res.status(200).json(serializeImage(ranking.toObject()));
+    if (before !== `${ranking.group}|${ranking.category}|${ranking.accountEmail}|${ranking.fanbaseId}`) notifyPollFans(ranking);
   } catch (error) {
     console.error('Error updating ranking:', error);
     res.status(500).json({ error: 'Failed to update ranking' });

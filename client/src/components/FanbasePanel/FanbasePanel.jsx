@@ -628,7 +628,7 @@ export default function FanbasePanel() {
   if (loading) return <div className="fb-home" />;
 
   return (
-    <div className="fb-home" data-tour="fanbase-list">
+    <div className="fb-home">
       {featured?.post && (
         <section className="fb-sec">
           <h3 className="fb-h">Featured</h3>
@@ -636,7 +636,7 @@ export default function FanbasePanel() {
         </section>
       )}
 
-      <section className="fb-sec">
+      <section className="fb-sec" data-tour="fanbase-list">
         <h3 className="fb-h">Your artists</h3>
         <div className="fb-grid">
           {mine.map((f, i) => <ArtistCard key={f._id} fanbase={f} onOpen={open} index={i} />)}

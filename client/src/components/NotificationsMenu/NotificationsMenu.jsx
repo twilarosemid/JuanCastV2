@@ -31,7 +31,8 @@ const ReplySvg = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden=
 const FollowSvg = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-3.9 0-7 2-7 4.5V20h11.1a6 6 0 0 1-.1-1c0-1.7.7-3.2 1.9-4.3A9 9 0 0 0 10 14zm9 0v2.5h-2.5V18H19v2.5h2V18h2.5v-1.5H21V14h-2z" /></svg>;
 const MailSvg = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm9 7.2L4.5 7v.1L12 12.4 19.5 7.1V7L12 12.2z" /></svg>;
 const MicSvg = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 14zm6-3.5a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V19H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2.6a6 6 0 0 0 5-5.9z" /></svg>;
-const ICONS = { like: HeartSvg, reply: ReplySvg, follow: FollowSvg, mail: MailSvg, artist_post: MicSvg };
+const PollSvg = () => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 13h4v7H4zm6-9h4v16h-4zm6 6h4v10h-4z" /></svg>;
+const ICONS = { like: HeartSvg, reply: ReplySvg, follow: FollowSvg, mail: MailSvg, artist_post: MicSvg, poll: PollSvg };
 
 // Notifications as a dropdown under the bell (same style as the account menu): likes, replies, follows
 // and report updates from the team. Tap a row to jump to it; tap a report update to read it right here.
@@ -82,6 +83,7 @@ export default function NotificationsMenu({ visible, onClose, user, onUnreadChan
     const actor = normalizeHandle(n.actor);
     onClose();
     if (n.type === 'follow') navigate(`/profile/${encodeURIComponent(actor)}`);
+    else if (n.type === 'poll') navigate(n.sourceId ? `/polls/${encodeURIComponent(n.sourceId)}` : '/polls');
     else if (n.type === 'artist_post') navigate(n.sourceId ? `/community?tab=fanbase&artist=${encodeURIComponent(n.sourceId)}${n.postId ? `&post=${encodeURIComponent(n.postId)}` : `&by=${encodeURIComponent(actor)}`}` : `/profile/${encodeURIComponent(actor)}`);
     else navigate(n.postId ? `/community?post=${encodeURIComponent(n.postId)}` : '/community');
   };
@@ -93,6 +95,7 @@ export default function NotificationsMenu({ visible, onClose, user, onUnreadChan
     if (n.type === 'like') return <>{who} {n.subject === 'comment' ? 'hearted your comment' : 'liked your post'}</>;
     if (n.type === 'reply') return <>{who} {n.subject === 'comment' ? 'replied to your comment' : 'replied to your post'}</>;
     if (n.type === 'follow') return <>{who} started following you</>;
+    if (n.type === 'poll') return <><strong>{n.subject}</strong> is in a poll: {clip(n.preview, 60)}</>;
     if (n.type === 'artist_post') return <><strong>{n.subject || n.actor}</strong> shared a new post</>;
     return <strong>{n.subject || 'Message from JuanCast'}</strong>;
   };
