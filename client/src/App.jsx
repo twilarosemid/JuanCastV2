@@ -4,6 +4,7 @@ import Navbar from './components/Navbar/Navbar';
 import Home from './pages/Home/Home.jsx';
 import AllPolls from './pages/Polls/AllPolls.jsx';
 import PollDetail from './pages/Polls/PollDetail.jsx';
+import FanProjects from './pages/FanProjects/FanProjects.jsx';
 import Community from './pages/Community/Community.jsx';
 import Market from './pages/Market/Market.jsx';
 import Rewards from './pages/Rewards/Rewards.jsx';
@@ -64,6 +65,7 @@ function Shell() {
           <Route path="/" element={<Home />} />
           <Route path="/landing" element={<Landing />} />
           <Route path="/polls" element={<AllPolls />} />
+          <Route path="/polls/fan-projects" element={<FanProjects />} />
           <Route path="/polls/:id" element={<PollDetail />} />
           <Route path="/vote" element={<Navigate to="/polls" replace />} />
           <Route path="/login" element={<Login />} />

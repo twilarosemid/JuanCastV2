@@ -288,3 +288,15 @@
 /* artist name on a poll links to their profile */
 .artist-profile-link { color: inherit; text-decoration: none; }
 .artist-profile-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* the "+" card at the end of the Fan Project row */
+.poll-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 260px;
+  border-style: dashed; border-color: rgba(255, 255, 255, .3); background: rgba(255, 255, 255, .04);
+}
+.poll-add-plus {
+  display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #fff; color: #0b1220;
+  font-size: 38px; font-weight: 300; line-height: 1; padding-bottom: 4px; transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
+}
+.poll-add:hover .poll-add-plus, .poll-add:focus-visible .poll-add-plus { transform: scale(1.12) rotate(90deg); }
+.poll-add-label { font-size: 15px; font-weight: 700; color: var(--text); }

@@ -1,0 +1,50 @@
+/* Fan projects: reuses the Community page shell (left tabs); only the form and the entry cards are new */
+.fp-back { display: inline-block; margin: 14px 0 0 16px; color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.fp-back:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+
+.fp-card {
+  max-width: 640px; padding: 24px; border-radius: 22px;
+  background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .09); backdrop-filter: blur(12px);
+}
+.fp-card h2 { margin: 0 0 18px; font-size: 22px; font-weight: 800; }
+.fp-form { display: flex; flex-direction: column; gap: 16px; }
+.fp-form h2 { text-align: center; margin-bottom: 4px; }
+.fp-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.fp-form input {
+  width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px; font: inherit; font-size: 15px; font-weight: 400;
+  background: rgba(255, 255, 255, .08); color: var(--text); border: 1px solid rgba(255, 255, 255, .14);
+  transition: border-color .25s, box-shadow .25s;
+}
+.fp-form input::placeholder { color: var(--muted); }
+.fp-form input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 123, 255, .22); }
+.fp-form input[type="date"] { color-scheme: dark; }
+.fp-submit { width: 100%; margin-top: 4px; }
+.fp-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+.fp-error { margin: 0; color: #ff8a96; font-size: 14px; font-weight: 600; }
+
+.fp-done p { margin: 0 0 18px; color: var(--muted); line-height: 1.5; }
+.fp-done-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.fp-done-actions a { text-decoration: none; }
+
+.fp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; padding-right: 5vw; }
+.fp-entry {
+  position: relative; padding: 18px; border-radius: 18px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .09);
+  animation: cardIn .6s cubic-bezier(.2, .7, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 60ms);
+}
+.fp-entry h3 { margin: 0 0 2px; padding-right: 74px; font-size: 18px; overflow-wrap: anywhere; }
+.fp-type { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+.fp-entry dl { display: flex; gap: 22px; margin: 0; }
+.fp-entry dt { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.fp-entry dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; }
+.fp-status {
+  position: absolute; top: 16px; right: 16px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 800;
+  letter-spacing: .05em; text-transform: uppercase; background: rgba(255, 255, 255, .14);
+}
+.fp-status.approved { background: rgba(80, 200, 120, .28); }
+.fp-status.rejected { background: rgba(255, 93, 115, .3); }
+.fp-status.pending { background: rgba(245, 197, 66, .3); }
+
+@media (max-width: 860px) {
+  .fp-grid { padding-right: 0; grid-template-columns: 1fr; }
+  .fp-back { display: none; }
+}

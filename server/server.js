@@ -4419,6 +4419,115 @@ app.get('/api/reports', requireSystemAdmin, async (req, res) => {
 });
 
 // ==========================================
+// FAN PROJECTS (entry form, gallery, history)
+// ==========================================
+const fanProjectSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true, maxlength: 120 },
+  email: { type: String, required: true, trim: true, lowercase: true },
+  cellphone: { type: String, required: true, trim: true, maxlength: 40 },
+  artistName: { type: String, required: true, trim: true, maxlength: 160 },
+  projectType: { type: String, required: true, trim: true, maxlength: 120 },
+  targetDate: { type: Date, required: true },
+  submittedBy: { type: String, default: '' },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' }
+}, { timestamps: true });
+const FanProject = mongoose.model('FanProject', fanProjectSchema);
+
+// never send the email or cellphone to the public gallery
+const publicFanProject = (item) => ({
+  _id: item._id,
+  artistName: item.artistName,
+  projectType: item.projectType,
+  targetDate: item.targetDate,
+  submittedBy: item.submittedBy || 'A fan',
+  createdAt: item.createdAt
+});
+
+app.post('/api/fan-projects', async (req, res) => {
+  try {
+    const clean = (v, max) => String(v || '').trim().slice(0, max);
+    const name = clean(req.body.name, 120);
+    const email = normalizeEmail(req.body.email || '');
+    const cellphone = clean(req.body.cellphone, 40);
+    const artistName = clean(req.body.artistName, 160);
+    const projectType = clean(req.body.projectType, 120);
+    const targetDate = new Date(req.body.targetDate);
+    if (!name || !email || !cellphone || !artistName || !projectType) {
+      return res.status(400).json({ message: 'Please fill in every field.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: 'Enter a valid email address.' });
+    }
+    if (!/^[0-9+()\-\s]{7,20}$/.test(cellphone)) {
+      return res.status(400).json({ message: 'Enter a valid cellphone number.' });
+    }
+    if (Number.isNaN(targetDate.getTime())) {
+      return res.status(400).json({ message: 'Pick a valid target date.' });
+    }
+    const profile = await findProfileByEmail(email);
+    const entry = await FanProject.create({
+      name, email, cellphone, artistName, projectType, targetDate,
+      submittedBy: profile?.username || name
+    });
+    res.status(201).json({ message: 'Entry submitted. Thank you!', entry: { ...publicFanProject(entry), status: entry.status } });
+  } catch (error) {
+    console.error('Error saving fan project:', error);
+    res.status(500).json({ message: 'Failed to submit your entry.' });
+  }
+});
+
+app.get('/api/fan-projects/gallery', async (req, res) => {
+  try {
+    const items = await FanProject.find({ status: 'approved' }).sort({ createdAt: -1 }).limit(200);
+    res.status(200).json(items.map(publicFanProject));
+  } catch (error) {
+    console.error('Error loading fan project gallery:', error);
+    res.status(500).json({ message: 'Failed to load the gallery.' });
+  }
+});
+
+app.get('/api/fan-projects/mine', async (req, res) => {
+  try {
+    const email = normalizeEmail(req.query.email || '');
+    if (!email) return res.status(400).json({ message: 'Log in to see your history.' });
+    const items = await FanProject.find({ email }).sort({ createdAt: -1 }).limit(200);
+    res.status(200).json(items.map((item) => ({ ...publicFanProject(item), name: item.name, status: item.status })));
+  } catch (error) {
+    console.error('Error loading fan project history:', error);
+    res.status(500).json({ message: 'Failed to load your history.' });
+  }
+});
+
+app.get('/api/admin/fan-projects', requireSystemAdmin, async (req, res) => {
+  try {
+    res.status(200).json(await FanProject.find().sort({ createdAt: -1 }).limit(500));
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to load fan projects.' });
+  }
+});
+
+app.put('/api/admin/fan-projects/:id/status', requireSystemAdmin, async (req, res) => {
+  try {
+    const status = String(req.body.status || '');
+    if (!['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ message: 'Invalid status.' });
+    const entry = await FanProject.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!entry) return res.status(404).json({ message: 'Entry not found.' });
+    res.status(200).json(entry);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to update the entry.' });
+  }
+});
+
+app.delete('/api/admin/fan-projects/:id', requireSystemAdmin, async (req, res) => {
+  try {
+    await FanProject.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: 'Deleted.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete the entry.' });
+  }
+});
+
+// ==========================================
 // SYSTEM SETTINGS (FEATURED HOMEPAGE RANKING)
 // ==========================================
 const settingsSchema = new mongoose.Schema({

@@ -7,6 +7,7 @@ import useBubble from '../../hooks/useBubble';
 import './Polls.css';
 
 const TYPES = ['All', 'Minor', 'Major'];
+const isFanProjectGroup = (name = '') => /fan\s*-?\s*project/i.test(name);
 
 const ChevronIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -131,9 +132,11 @@ export default function AllPolls() {
     ...pollGroups.map((g) => g.name),
     ...polls.map((p) => p.group || 'PPMA')
   ])];
+  // the Fan Project row always shows (even with no polls yet) because it holds the "+" entry card
+  const showFanRow = (name) => isFanProjectGroup(name) && !search.trim() && activeType === 'All' && (activeGroup === 'All' || activeGroup === name);
   const pollsByGroup = groupNames
     .map((name) => ({ name, polls: filteredPolls.filter((p) => (p.group || 'PPMA') === name) }))
-    .filter((g) => g.polls.length > 0);
+    .filter((g) => g.polls.length > 0 || showFanRow(g.name));
 
   return (
     <div className="polls-page">
@@ -261,6 +264,20 @@ export default function AllPolls() {
                       </article>
                     );
                   })}
+                  {isFanProjectGroup(group.name) && (
+                    <article
+                      className="poll-card poll-add"
+                      style={{ '--i': group.polls.length }}
+                      tabIndex={0}
+                      role="link"
+                      aria-label="Add a fan project"
+                      onClick={() => navigate('/polls/fan-projects')}
+                      onKeyDown={(e) => { if (e.key === 'Enter') navigate('/polls/fan-projects'); }}
+                    >
+                      <span className="poll-add-plus" aria-hidden="true">+</span>
+                      <span className="poll-add-label">Add fan project</span>
+                    </article>
+                  )}
                 </div>
 
               </ScrollRow>
