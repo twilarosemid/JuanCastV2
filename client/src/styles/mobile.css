@@ -317,13 +317,13 @@
 
 
 /* ================= BOARD POSTS (phones): Facebook-style ================= */
-/* Avatar + name on one line, the text and the photo use the full width, the photo runs edge to edge of the card,
-   and the cards run edge to edge of the screen (no side margin). */
+/* Avatar + name on one line, the text and the photo use the full width, the photo runs edge to edge of the card.
+   The card keeps its rounded container; only the side margin around it is slim. */
 @media (max-width: 760px) {
-  .community-page .chat-scroll { margin: 0 -5vw; gap: 10px; }
+  .community-page .chat-scroll { margin: 0 -3vw; gap: 12px; }   /* cards keep their container, just a slim side margin */
   .chat .post {
     display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 10px; row-gap: 0; align-items: center;
-    padding: 12px 0 6px; border-radius: 0; border-left: 0; border-right: 0; transform: none !important;
+    padding: 12px 0 6px; border-radius: 18px; overflow: hidden; transform: none !important;
   }
   .chat .post-body { display: contents; }
   .chat .post .who-av { grid-column: 1; grid-row: 1; margin-left: 12px; align-self: center; }
