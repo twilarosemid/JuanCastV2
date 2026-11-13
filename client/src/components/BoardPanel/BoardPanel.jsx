@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { API, adminFetch, getJSON, getUser, img, isSuperAdminUser, isSystemAdminUser, normalizeHandle } from '../../api';
 import Modal from '../Modal/Modal';
@@ -63,21 +64,61 @@ const BanIcon = () => <Icon size={15}><circle cx="12" cy="12" r="9" /><path d="m
 // small dropdown that closes when you click away ("..." button by default, or your own trigger)
 function Menu({ label = 'More', trigger, up, children }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);   // where the list sits on screen (fixed), so no post photo or scroll box can cover or cut it
   const ref = useRef(null);
+  const listRef = useRef(null);
+
+  // the list is drawn on the page itself (a portal), placed next to the button, flipped when there is no room
+  const place = useCallback(() => {
+    const btn = ref.current;
+    const list = listRef.current;
+    if (!btn || !list) return;
+    const r = btn.getBoundingClientRect();
+    const w = list.offsetWidth;
+    const h = list.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 4;
+    const roomBelow = vh - r.bottom - gap - 8;
+    const roomAbove = r.top - gap - 8;
+    const goUp = up ? (roomAbove >= h || roomAbove >= roomBelow) : (roomBelow < h && roomAbove > roomBelow);
+    const top = goUp ? Math.max(8, r.top - gap - h) : Math.min(r.bottom + gap, Math.max(8, vh - h - 8));
+    const left = up ? r.left : r.right - w;   // share menus line up with their button's left edge, the ⋯ menu with its right edge
+    setPos({ top, left: Math.min(Math.max(8, left), Math.max(8, vw - w - 8)) });
+  }, [up]);
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return undefined; }
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);   // true: also follows the scrolling of any box around the button
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+  }, [open, place]);
+
   useEffect(() => {
     if (!open) return undefined;
-    const away = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
+    const away = (e) => { if (!ref.current?.contains(e.target) && !listRef.current?.contains(e.target)) setOpen(false); };
     const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
   }, [open]);
+
   return (
     <div className={`bd-menu${trigger ? ' custom' : ''}`} ref={ref}>
       {trigger
         ? trigger({ open, toggle: () => setOpen((o) => !o) })
         : <button type="button" className="bd-icon-btn" onClick={() => setOpen((o) => !o)} aria-label={label} aria-expanded={open}><DotsIcon /></button>}
-      {open && <div className={`bd-menu-list${up ? ' up' : ''}`} role="menu" onClick={() => setOpen(false)}>{children}</div>}
+      {open && createPortal(
+        <div
+          ref={listRef}
+          className="bd-menu-list floating"
+          role="menu"
+          style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: 'hidden' }}
+          onClick={() => setOpen(false)}
+        >{children}</div>,
+        document.body
+      )}
     </div>
   );
 }
